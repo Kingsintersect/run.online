@@ -1,0 +1,10 @@
+export { default as PersonalInfoStep } from './PersonalInfoStep';
+export { default as SponsorInfoStep } from './SponsorInfoStep';
+export { default as NextOfKinStep } from './NextOfKinStep';
+export { default as DocumentsStep } from './DocumentsStep';
+export { default as QualificationFieldsStep } from './QualificationFieldsStep';
+export { default as ExamSittingStep } from './ExamSittingStep';
+export { default as QualificationDocumentsStep } from './QualificationDocumentsStep';
+export { default as ProgramSelectionStep } from './ProgramSelectionStep';
+export { default as ReviewStep } from './ReviewStep';
+export { default as AdditionalInfoStep } from './AdditionalInfoStep';

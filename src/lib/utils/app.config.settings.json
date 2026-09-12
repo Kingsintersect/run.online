@@ -1,0 +1,228 @@
+{
+  "university": [
+    {
+      "id": 1,
+      "key": "university_name",
+      "value": "ODL University",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "key": "university_logo",
+      "value": "/logo/logo.png",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 3,
+      "key": "university_motto",
+      "value": "Knowledge, Truth, Service",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 4,
+      "key": "university_email",
+      "value": "info@odl.edu.ng",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 5,
+      "key": "university_phone",
+      "value": "+234-800-000-0000",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 6,
+      "key": "university_address",
+      "value": "1 University Road, Abuja, Nigeria",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 7,
+      "key": "university_website",
+      "value": "https://odl.edu.ng",
+      "group": "university",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "academic": [
+    {
+      "id": 8,
+      "key": "academic_max_credit_units",
+      "value": "24",
+      "group": "academic",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 9,
+      "key": "academic_min_attendance_pct",
+      "value": "75",
+      "group": "academic",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 10,
+      "key": "academic_grading_system",
+      "value": "5.0",
+      "group": "academic",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 11,
+      "key": "academic_pass_mark",
+      "value": "40",
+      "group": "academic",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 12,
+      "key": "academic_probation_cgpa",
+      "value": "1.5",
+      "group": "academic",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "payment": [
+    {
+      "id": 13,
+      "key": "payment_gateway",
+      "value": "paystack",
+      "group": "payment",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 14,
+      "key": "payment_gateway_key",
+      "value": "sk_live_xxxxxxxxxxxx",
+      "group": "payment",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 15,
+      "key": "payment_application_fee",
+      "value": "10000",
+      "group": "payment",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 16,
+      "key": "payment_acceptance_fee",
+      "value": "30000",
+      "group": "payment",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 17,
+      "key": "payment_tuition_fee",
+      "value": "195000",
+      "group": "payment",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "moodle": [
+    {
+      "id": 18,
+      "key": "moodle_base_url",
+      "value": "https://lms.odl.edu.ng",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 19,
+      "key": "moodle_api_token",
+      "value": "abc123moodletoken",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 20,
+      "key": "moodle_student_role_id",
+      "value": "5",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 21,
+      "key": "moodle_teacher_role_id",
+      "value": "3",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 22,
+      "key": "moodle_auto_sync_enabled",
+      "value": "true",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 23,
+      "key": "moodle_sync_cron_interval",
+      "value": "15",
+      "group": "moodle",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "system": [
+    {
+      "id": 24,
+      "key": "system_maintenance_mode",
+      "value": "false",
+      "group": "system",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 25,
+      "key": "system_app_version",
+      "value": "1.0.0",
+      "group": "system",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 26,
+      "key": "system_max_upload_size_mb",
+      "value": "10",
+      "group": "system",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": 27,
+      "key": "system_support_email",
+      "value": "support@odl.edu.ng",
+      "group": "system",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

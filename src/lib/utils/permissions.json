@@ -1,0 +1,647 @@
+[
+  {
+    "module": "Dashboard",
+    "permissions": [
+      {
+        "resource": "dashboard",
+        "action": "view",
+        "description": "View the role-specific dashboard overview"
+      }
+    ]
+  },
+  {
+    "module": "Configurations",
+    "permissions": [
+      {
+        "resource": "app-config",
+        "action": "view",
+        "description": "View system app/setup configuration"
+      },
+      {
+        "resource": "app-config",
+        "action": "manage",
+        "description": "Edit system app/setup configuration"
+      },
+      {
+        "resource": "feature-registry",
+        "action": "view",
+        "description": "View the catalog of registered features and their metadata"
+      },
+      {
+        "resource": "feature-registry",
+        "action": "manage",
+        "description": "Add, edit, or remove features and their dependency graph in the registry"
+      },
+      {
+        "resource": "feature-flags",
+        "action": "view",
+        "description": "View which registered features are currently enabled for this instance"
+      },
+      {
+        "resource": "feature-flags",
+        "action": "manage",
+        "description": "Toggle registered features on or off for this instance"
+      }
+    ]
+  },
+  {
+    "module": "Academics",
+    "permissions": [
+      {
+        "resource": "academic-sessions",
+        "action": "view",
+        "description": "View academic sessions and semesters"
+      },
+      {
+        "resource": "academic-sessions",
+        "action": "manage",
+        "description": "Create, edit, or migrate academic sessions and semesters"
+      },
+      {
+        "resource": "admissions",
+        "action": "view",
+        "description": "View admission applications"
+      },
+      {
+        "resource": "admissions",
+        "action": "review",
+        "description": "Review and decide on submitted admission applications"
+      },
+      {
+        "resource": "admissions",
+        "action": "manage",
+        "description": "Configure admission requirements, sessions, and workflow settings"
+      },
+      {
+        "resource": "course-structure",
+        "action": "view",
+        "description": "View program/course structure"
+      },
+      {
+        "resource": "course-structure",
+        "action": "manage",
+        "description": "Edit program/course structure, prerequisites, and credit units"
+      },
+      {
+        "resource": "courses",
+        "action": "view",
+        "description": "View course catalog and offerings"
+      },
+      {
+        "resource": "courses",
+        "action": "manage",
+        "description": "Create, edit, or retire courses and course offerings"
+      },
+      {
+        "resource": "assessments",
+        "action": "view",
+        "description": "View assessments synced from Moodle"
+      },
+      {
+        "resource": "assessments",
+        "action": "manage",
+        "description": "Configure assessment visibility and settings"
+      },
+      {
+        "resource": "assessments",
+        "action": "sync",
+        "description": "Trigger or inspect Moodle assessment sync status"
+      },
+      {
+        "resource": "timetable",
+        "action": "view",
+        "description": "View class timetables"
+      },
+      {
+        "resource": "timetable",
+        "action": "manage",
+        "description": "Create or edit class schedules"
+      },
+      {
+        "resource": "venue-schedule",
+        "action": "view",
+        "description": "Check venue availability for scheduling"
+      }
+    ]
+  },
+  {
+    "module": "Enrollment",
+    "permissions": [
+      {
+        "resource": "enrollment",
+        "action": "view.own",
+        "description": "View own course enrollment records (student)"
+      },
+      {
+        "resource": "enrollment",
+        "action": "create.own",
+        "description": "Register (self-enroll) for open course offerings"
+      },
+      {
+        "resource": "enrollment",
+        "action": "drop.own",
+        "description": "Drop own course enrollment"
+      },
+      {
+        "resource": "enrollment",
+        "action": "view",
+        "description": "View enrollment roster for assigned course offerings (tutor/HOD)"
+      },
+      {
+        "resource": "enrollment",
+        "action": "view.all",
+        "description": "View all student enrollment records"
+      },
+      {
+        "resource": "enrollment",
+        "action": "manage",
+        "description": "Enroll, bulk-enroll and drop students on their behalf"
+      },
+      {
+        "resource": "attendance",
+        "action": "record",
+        "description": "Record and update attendance for assigned class schedules"
+      },
+      {
+        "resource": "attendance",
+        "action": "view.own",
+        "description": "View own attendance summary (student)"
+      }
+    ]
+  },
+  {
+    "module": "User Management",
+    "permissions": [
+      {
+        "resource": "roles",
+        "action": "view",
+        "description": "View roles and their assigned permissions"
+      },
+      {
+        "resource": "roles",
+        "action": "manage",
+        "description": "Create, edit, or delete roles"
+      },
+      {
+        "resource": "permissions",
+        "action": "view",
+        "description": "View the permission catalog"
+      },
+      {
+        "resource": "permissions",
+        "action": "manage",
+        "description": "Create, edit, or delete permissions and attach them to roles"
+      },
+      {
+        "resource": "user-roles",
+        "action": "assign",
+        "description": "Assign a role to a user"
+      },
+      {
+        "resource": "user-roles",
+        "action": "revoke",
+        "description": "Revoke a role from a user"
+      },
+      {
+        "resource": "users",
+        "action": "view",
+        "description": "View the full user directory"
+      },
+      {
+        "resource": "users",
+        "action": "manage",
+        "description": "Create, edit, deactivate, or delete user accounts"
+      },
+      {
+        "resource": "students",
+        "action": "view",
+        "description": "View student records"
+      },
+      {
+        "resource": "students",
+        "action": "manage",
+        "description": "Create or edit student records"
+      },
+      {
+        "resource": "tutors",
+        "action": "view",
+        "description": "View tutor/lecturer records"
+      },
+      {
+        "resource": "tutors",
+        "action": "manage",
+        "description": "Create or edit tutor/lecturer records"
+      },
+      {
+        "resource": "staff",
+        "action": "view",
+        "description": "View non-academic staff records"
+      },
+      {
+        "resource": "staff",
+        "action": "manage",
+        "description": "Create or edit non-academic staff records"
+      },
+      {
+        "resource": "departments",
+        "action": "view",
+        "description": "View faculties and departments"
+      },
+      {
+        "resource": "departments",
+        "action": "manage",
+        "description": "Create or edit faculties and departments"
+      }
+    ]
+  },
+  {
+    "module": "Finance",
+    "permissions": [
+      {
+        "resource": "financial-summary",
+        "action": "view",
+        "description": "View aggregate financial summary dashboards"
+      },
+      {
+        "resource": "financial-transactions",
+        "action": "view",
+        "description": "View individual payment transactions"
+      },
+      {
+        "resource": "financial-transactions",
+        "action": "manage",
+        "description": "Reconcile, refund, or annotate payment transactions"
+      },
+      {
+        "resource": "fee-management",
+        "action": "view",
+        "description": "View fee types and invoices"
+      },
+      {
+        "resource": "fee-management",
+        "action": "manage",
+        "description": "Create or edit fee types, invoices, and fee structures"
+      },
+      {
+        "resource": "fee-management",
+        "action": "waive",
+        "description": "Waive or forgive a student invoice balance (scholarship, billing correction) — BURSARY only"
+      },
+      {
+        "resource": "payments",
+        "action": "view",
+        "description": "View payment records across all students"
+      },
+      {
+        "resource": "payments",
+        "action": "make",
+        "description": "Initiate a payment (student-facing)"
+      }
+    ]
+  },
+  {
+    "module": "Grades",
+    "permissions": [
+      {
+        "resource": "grades-summary",
+        "action": "view",
+        "description": "View aggregate grade/GPA summary charts"
+      },
+      {
+        "resource": "results",
+        "action": "view",
+        "description": "View student results"
+      },
+      {
+        "resource": "results",
+        "action": "submit",
+        "description": "Submit course results for approval (tutor-facing)"
+      },
+      {
+        "resource": "results",
+        "action": "manage",
+        "description": "Edit or override submitted results"
+      },
+      {
+        "resource": "results",
+        "action": "publish",
+        "description": "Publish approved results to students"
+      },
+      {
+        "resource": "results",
+        "action": "view.all",
+        "description": "View all results"
+      },
+      {
+        "resource": "results",
+        "action": "export",
+        "description": "Export grade/result reports and tables"
+      },
+      {
+        "resource": "results",
+        "action": "approve",
+        "description": "Approve tutor-submitted results before publishing (HOD-facing)"
+      },
+      {
+        "resource": "gradebook",
+        "action": "view",
+        "description": "View the gradebook for assigned courses"
+      },
+      {
+        "resource": "gradebook",
+        "action": "manage",
+        "description": "Enter or edit CA/exam scores in the gradebook"
+      },
+      {
+        "resource": "grade-reports",
+        "action": "view",
+        "description": "View departmental/faculty grade reports"
+      }
+    ]
+  },
+  {
+    "module": "Audit",
+    "permissions": [
+      {
+        "resource": "audit-logs",
+        "action": "view",
+        "description": "View system audit logs"
+      },
+      {
+        "resource": "audit-logs",
+        "action": "export",
+        "description": "Export audit logs for external review"
+      }
+    ]
+  },
+  {
+    "module": "Communications",
+    "permissions": [
+      {
+        "resource": "notifications",
+        "action": "view",
+        "description": "View sent notifications"
+      },
+      {
+        "resource": "notifications",
+        "action": "manage",
+        "description": "Compose and send notifications/broadcasts"
+      },
+      {
+        "resource": "announcements",
+        "action": "view",
+        "description": "View published announcements"
+      },
+      {
+        "resource": "announcements",
+        "action": "manage",
+        "description": "Create, edit, or publish announcements"
+      },
+      {
+        "resource": "messages",
+        "action": "view",
+        "description": "View direct messages"
+      },
+      {
+        "resource": "messages",
+        "action": "send",
+        "description": "Send a direct message"
+      },
+      {
+        "resource": "calendar-events",
+        "action": "view",
+        "description": "View calendar events"
+      },
+      {
+        "resource": "calendar-events",
+        "action": "manage",
+        "description": "Create or edit calendar events"
+      }
+    ]
+  },
+  {
+    "module": "System",
+    "permissions": [
+      {
+        "resource": "analytics",
+        "action": "view",
+        "description": "View system-wide analytics dashboards"
+      },
+      {
+        "resource": "system-config",
+        "action": "view",
+        "description": "View system configuration values"
+      },
+      {
+        "resource": "system-config",
+        "action": "manage",
+        "description": "Edit system configuration values"
+      }
+    ]
+  },
+  {
+    "module": "Moodle Sync",
+    "permissions": [
+      {
+        "resource": "moodle-sync",
+        "action": "view",
+        "description": "View Moodle sync mappings, status, and read-only synced data (categories, users, courses, enrollments, assessments, grades, calendar)"
+      },
+      {
+        "resource": "moodle-sync",
+        "action": "push",
+        "description": "Push portal entities (categories, users, courses, enrollments) to Moodle"
+      },
+      {
+        "resource": "moodle-sync",
+        "action": "pull",
+        "description": "Pull data from Moodle into the portal"
+      },
+      {
+        "resource": "moodle-sync",
+        "action": "manage",
+        "description": "Full control over Moodle sync configuration, including deleting sync mappings"
+      }
+    ]
+  },
+  {
+    "module": "Account",
+    "permissions": [
+      {
+        "resource": "profile",
+        "action": "view",
+        "description": "View own profile"
+      },
+      {
+        "resource": "profile",
+        "action": "update",
+        "description": "Edit own profile details"
+      },
+      {
+        "resource": "account-settings",
+        "action": "view",
+        "description": "View own account settings"
+      },
+      {
+        "resource": "account-settings",
+        "action": "update",
+        "description": "Edit own account settings"
+      }
+    ]
+  },
+  {
+    "module": "Student Portal",
+    "permissions": [
+      {
+        "resource": "my-application",
+        "action": "view",
+        "description": "View own admission application status"
+      },
+      {
+        "resource": "my-application",
+        "action": "submit",
+        "description": "Submit or update own admission application"
+      },
+      {
+        "resource": "my-courses",
+        "action": "view",
+        "description": "View own enrolled courses"
+      },
+      {
+        "resource": "my-timetable",
+        "action": "view",
+        "description": "View own class timetable"
+      },
+      {
+        "resource": "my-assessments",
+        "action": "view",
+        "description": "View own pending assessments"
+      },
+      {
+        "resource": "my-assessments",
+        "action": "submit",
+        "description": "Submit own assessment/assignment work"
+      },
+      {
+        "resource": "my-results",
+        "action": "view",
+        "description": "View own results"
+      },
+      {
+        "resource": "my-grades",
+        "action": "view",
+        "description": "View own grades and CGPA history"
+      },
+      {
+        "resource": "my-payments",
+        "action": "view",
+        "description": "View own payment history"
+      },
+      {
+        "resource": "my-payments",
+        "action": "make",
+        "description": "Make a payment against own invoice"
+      },
+      {
+        "resource": "my-documents",
+        "action": "view",
+        "description": "View own uploaded documents and their verification status"
+      },
+      {
+        "resource": "my-documents",
+        "action": "upload",
+        "description": "Upload own documents (birth certificate, results, transcript, etc.) for verification"
+      },
+      {
+        "resource": "my-hostel",
+        "action": "view",
+        "description": "View own hostel room allocation and allocation history"
+      }
+    ]
+  },
+  {
+    "module": "Teaching",
+    "permissions": [
+      {
+        "resource": "course-assignments",
+        "action": "view",
+        "description": "View own assigned course offerings"
+      },
+      {
+        "resource": "teaching-resources",
+        "action": "view",
+        "description": "View own uploaded teaching resources"
+      },
+      {
+        "resource": "teaching-resources",
+        "action": "manage",
+        "description": "Upload or edit teaching resources"
+      }
+    ]
+  },
+  {
+    "module": "Documents",
+    "permissions": [
+      {
+        "resource": "documents",
+        "action": "view",
+        "description": "View student documents — list, detail, by student, and download"
+      },
+      {
+        "resource": "documents",
+        "action": "verify",
+        "description": "Verify or reject a student's uploaded document"
+      },
+      {
+        "resource": "documents",
+        "action": "manage",
+        "description": "Update document metadata, or delete any document record"
+      }
+    ]
+  },
+  {
+    "module": "Hostel",
+    "permissions": [
+      {
+        "resource": "hostels",
+        "action": "view",
+        "description": "View hostels, blocks, rooms, vacancies, and room allocations"
+      },
+      {
+        "resource": "hostels",
+        "action": "manage",
+        "description": "Create, edit, or deactivate hostels, blocks, and rooms"
+      },
+      {
+        "resource": "hostels",
+        "action": "allocate",
+        "description": "Allocate or vacate a student's room assignment"
+      }
+    ]
+  },
+  {
+    "module": "Clearance",
+    "permissions": [
+      {
+        "resource": "clearance",
+        "action": "view",
+        "description": "View clearance types and clearance requests"
+      },
+      {
+        "resource": "clearance",
+        "action": "request",
+        "description": "Request clearance for yourself"
+      },
+      {
+        "resource": "clearance",
+        "action": "approve",
+        "description": "Approve or reject clearance requests"
+      },
+      {
+        "resource": "clearance",
+        "action": "manage",
+        "description": "Create, edit, or deactivate clearance types"
+      }
+    ]
+  }
+]

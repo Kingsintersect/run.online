@@ -1,0 +1,177 @@
+"use client"
+
+import { useRef, useEffect } from "react"
+import { useSlider } from "@/hooks/animations/useSlider"
+import { useGSAPAnimations } from "@/hooks/animations/useGsapAnimation"
+import { Particles } from "./Particles"
+import { Slide } from "./Slide"
+import { SliderNavigation } from "./Navigation"
+import { SliderControls } from "./SliderControls"
+import { slidesData } from "./data/slides"
+
+export const HomepageSlider = () => {
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const lastSlideRef = useRef<number>(0)
+
+  const {
+    revealSlide,
+    animateSlideTransition,
+    animateContentIn,
+    animateContentOut,
+  } = useGSAPAnimations()
+
+  const {
+    currentSlide,
+    setIsAnimating,
+    nextSlide,
+    prevSlide,
+    goToSlide,
+    startAutoplay,
+    stopAutoplay,
+  } = useSlider({
+    totalSlides: slidesData.length,
+    autoplayDelay: 5000,
+    onSlideChange: (newSlideIndex: number) => {
+      const currentSlideEl = slideRefs.current[lastSlideRef.current]
+      const newSlideEl = slideRefs.current[newSlideIndex]
+
+      if (!currentSlideEl || !newSlideEl) return
+
+      setIsAnimating(true)
+
+      const direction = newSlideIndex > lastSlideRef.current ? "next" : "prev"
+
+      // Animate content out
+      const currentContent = currentSlideEl.querySelector(
+        ".relative.z-10"
+      ) as HTMLElement
+      if (currentContent) {
+        animateContentOut(currentContent)
+      }
+
+      // Animate slide transition
+      animateSlideTransition(currentSlideEl, newSlideEl, direction, () => {
+        setIsAnimating(false)
+      })
+
+      // Animate new content in
+      const newContent = newSlideEl.querySelector(
+        ".relative.z-10"
+      ) as HTMLElement
+      if (newContent) {
+        setTimeout(() => {
+          animateContentIn(newContent)
+        }, 400)
+      }
+
+      lastSlideRef.current = newSlideIndex
+    },
+  })
+
+  // Initialize animations on mount
+  useEffect(() => {
+    // Reveal the first slide — it renders at opacity-0 like every other one
+    const firstSlide = slideRefs.current[0]
+    if (firstSlide) {
+      revealSlide(firstSlide)
+    }
+
+    // Animate first slide content
+    const firstSlideContent = firstSlide?.querySelector(
+      ".relative.z-10"
+    ) as HTMLElement
+    if (firstSlideContent) {
+      setTimeout(() => {
+        animateContentIn(firstSlideContent)
+      }, 100)
+    }
+  }, [revealSlide, animateContentIn])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prevSlide()
+      if (e.key === "ArrowRight") nextSlide()
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [prevSlide, nextSlide])
+
+  // Touch/Swipe support
+  useEffect(() => {
+    let startX: number | null = null
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (startX === null) return
+
+      const endX = e.changedTouches[0].clientX
+      const diff = startX - endX
+
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) {
+          nextSlide()
+        } else {
+          prevSlide()
+        }
+      }
+      startX = null
+    }
+
+    const container = containerRef.current
+    if (container) {
+      container.addEventListener("touchstart", handleTouchStart)
+      container.addEventListener("touchend", handleTouchEnd)
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener("touchstart", handleTouchStart)
+        container.removeEventListener("touchend", handleTouchEnd)
+      }
+    }
+  }, [nextSlide, prevSlide])
+
+  return (
+    <section
+      id={`home`}
+      ref={containerRef}
+      className="relative h-screen w-full overflow-hidden bg-black text-white"
+      onMouseEnter={stopAutoplay}
+      onMouseLeave={startAutoplay}
+    >
+      {/* Background Particles */}
+      <Particles />
+
+      {/* Slides */}
+      {slidesData.map((slide, index) => (
+        <Slide
+          key={slide.id}
+          data={slide}
+          isActive={index === currentSlide}
+          slideRef={(el) => (slideRefs.current[index] = el)}
+        />
+      ))}
+
+      {/* Navigation Controls */}
+      <SliderNavigation
+        totalSlides={slidesData.length}
+        currentSlide={currentSlide}
+        onSlideSelect={goToSlide}
+      />
+
+      {/* Slider Controls */}
+      <SliderControls
+        onPrevious={prevSlide}
+        onNext={nextSlide}
+        currentSlide={currentSlide}
+        totalSlides={slidesData.length}
+      />
+    </section>
+  )
+}

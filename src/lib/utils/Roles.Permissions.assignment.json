@@ -1,0 +1,1274 @@
+{
+  "GUEST": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "create.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "drop.own"
+    },
+    {
+      "resource": "attendance",
+      "action": "view.own"
+    }
+  ],
+  "STUDENT": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "my-application",
+      "action": "view"
+    },
+    {
+      "resource": "my-courses",
+      "action": "view"
+    },
+    {
+      "resource": "my-timetable",
+      "action": "view"
+    },
+    {
+      "resource": "my-assessments",
+      "action": "view"
+    },
+    {
+      "resource": "my-assessments",
+      "action": "submit"
+    },
+    {
+      "resource": "my-results",
+      "action": "view"
+    },
+    {
+      "resource": "my-grades",
+      "action": "view"
+    },
+    {
+      "resource": "notifications",
+      "action": "view"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "view"
+    },
+    {
+      "resource": "my-payments",
+      "action": "view"
+    },
+    {
+      "resource": "my-payments",
+      "action": "make"
+    },
+    {
+      "resource": "my-documents",
+      "action": "view"
+    },
+    {
+      "resource": "my-documents",
+      "action": "upload"
+    },
+    {
+      "resource": "my-hostel",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "clearance",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "request"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "create.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "drop.own"
+    },
+    {
+      "resource": "attendance",
+      "action": "view.own"
+    }
+  ],
+  "TUTOR": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "course-assignments",
+      "action": "view"
+    },
+    {
+      "resource": "assessments",
+      "action": "view"
+    },
+    {
+      "resource": "assessments",
+      "action": "manage"
+    },
+    {
+      "resource": "timetable",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "gradebook",
+      "action": "manage"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "view"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "manage"
+    },
+    {
+      "resource": "notifications",
+      "action": "view"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view"
+    },
+    {
+      "resource": "attendance",
+      "action": "record"
+    }
+  ],
+  "HOD": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "course-assignments",
+      "action": "view"
+    },
+    {
+      "resource": "assessments",
+      "action": "view"
+    },
+    {
+      "resource": "assessments",
+      "action": "manage"
+    },
+    {
+      "resource": "timetable",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "approve"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "gradebook",
+      "action": "manage"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "view"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "manage"
+    },
+    {
+      "resource": "notifications",
+      "action": "view"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view"
+    },
+    {
+      "resource": "attendance",
+      "action": "record"
+    }
+  ],
+  "DEAN": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "admissions",
+      "action": "view"
+    },
+    {
+      "resource": "admissions",
+      "action": "review"
+    },
+    {
+      "resource": "admissions",
+      "action": "manage"
+    },
+    {
+      "resource": "academic-sessions",
+      "action": "view"
+    },
+    {
+      "resource": "academic-sessions",
+      "action": "manage"
+    },
+    {
+      "resource": "course-structure",
+      "action": "view"
+    },
+    {
+      "resource": "course-structure",
+      "action": "manage"
+    },
+    {
+      "resource": "courses",
+      "action": "view"
+    },
+    {
+      "resource": "courses",
+      "action": "manage"
+    },
+    {
+      "resource": "users",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "manage"
+    },
+    {
+      "resource": "tutors",
+      "action": "view"
+    },
+    {
+      "resource": "tutors",
+      "action": "manage"
+    },
+    {
+      "resource": "staff",
+      "action": "view"
+    },
+    {
+      "resource": "staff",
+      "action": "manage"
+    },
+    {
+      "resource": "financial-summary",
+      "action": "view"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "view"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "manage"
+    },
+    {
+      "resource": "fee-management",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "manage"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "publish"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "analytics",
+      "action": "view"
+    },
+    {
+      "resource": "documents",
+      "action": "view"
+    },
+    {
+      "resource": "hostels",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "manage"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    }
+  ],
+  "BURSARY": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "manage"
+    },
+    {
+      "resource": "fee-management",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "manage"
+    },
+    {
+      "resource": "fee-management",
+      "action": "waive"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    }
+  ],
+  "DIRECTOR": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "view"
+    },
+    {
+      "resource": "tutors",
+      "action": "view"
+    },
+    {
+      "resource": "grade-reports",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
+    },
+    {
+      "resource": "financial-summary",
+      "action": "view"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "manage"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    }
+  ],
+  "STAFF": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "view"
+    },
+    {
+      "resource": "departments",
+      "action": "view"
+    },
+    {
+      "resource": "documents",
+      "action": "view"
+    },
+    {
+      "resource": "documents",
+      "action": "verify"
+    },
+    {
+      "resource": "hostels",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "manage"
+    },
+    {
+      "resource": "messages",
+      "action": "view"
+    },
+    {
+      "resource": "messages",
+      "action": "send"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "clearance",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "approve"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view"
+    },
+    {
+      "resource": "enrollment",
+      "action": "manage"
+    }
+  ],
+  "SUPER_ADMIN": [
+    {
+      "resource": "academic-sessions",
+      "action": "manage"
+    },
+    {
+      "resource": "academic-sessions",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "admissions",
+      "action": "manage"
+    },
+    {
+      "resource": "admissions",
+      "action": "review"
+    },
+    {
+      "resource": "admissions",
+      "action": "view"
+    },
+    {
+      "resource": "analytics",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "manage"
+    },
+    {
+      "resource": "announcements",
+      "action": "view"
+    },
+    {
+      "resource": "assessments",
+      "action": "manage"
+    },
+    {
+      "resource": "assessments",
+      "action": "sync"
+    },
+    {
+      "resource": "assessments",
+      "action": "view"
+    },
+    {
+      "resource": "attendance",
+      "action": "record"
+    },
+    {
+      "resource": "attendance",
+      "action": "view.own"
+    },
+    {
+      "resource": "audit-logs",
+      "action": "export"
+    },
+    {
+      "resource": "audit-logs",
+      "action": "view"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "manage"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "view"
+    },
+    {
+      "resource": "course-assignments",
+      "action": "view"
+    },
+    {
+      "resource": "course-structure",
+      "action": "manage"
+    },
+    {
+      "resource": "course-structure",
+      "action": "view"
+    },
+    {
+      "resource": "courses",
+      "action": "manage"
+    },
+    {
+      "resource": "courses",
+      "action": "view"
+    },
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "departments",
+      "action": "manage"
+    },
+    {
+      "resource": "departments",
+      "action": "view"
+    },
+    {
+      "resource": "documents",
+      "action": "manage"
+    },
+    {
+      "resource": "documents",
+      "action": "verify"
+    },
+    {
+      "resource": "documents",
+      "action": "view"
+    },
+    {
+      "resource": "enrollment",
+      "action": "create.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "drop.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "manage"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.all"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.own"
+    },
+    {
+      "resource": "feature-flags",
+      "action": "manage"
+    },
+    {
+      "resource": "feature-flags",
+      "action": "view"
+    },
+    {
+      "resource": "feature-registry",
+      "action": "manage"
+    },
+    {
+      "resource": "feature-registry",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "manage"
+    },
+    {
+      "resource": "fee-management",
+      "action": "view"
+    },
+    {
+      "resource": "financial-summary",
+      "action": "view"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "manage"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "view"
+    },
+    {
+      "resource": "grade-reports",
+      "action": "view"
+    },
+    {
+      "resource": "gradebook",
+      "action": "manage"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "app-config",
+      "action": "manage"
+    },
+    {
+      "resource": "app-config",
+      "action": "view"
+    },
+    {
+      "resource": "hostels",
+      "action": "allocate"
+    },
+    {
+      "resource": "hostels",
+      "action": "manage"
+    },
+    {
+      "resource": "hostels",
+      "action": "view"
+    },
+    {
+      "resource": "messages",
+      "action": "send"
+    },
+    {
+      "resource": "messages",
+      "action": "view"
+    },
+    {
+      "resource": "moodle-sync",
+      "action": "manage"
+    },
+    {
+      "resource": "moodle-sync",
+      "action": "pull"
+    },
+    {
+      "resource": "moodle-sync",
+      "action": "push"
+    },
+    {
+      "resource": "moodle-sync",
+      "action": "view"
+    },
+    {
+      "resource": "my-application",
+      "action": "view"
+    },
+    {
+      "resource": "my-assessments",
+      "action": "submit"
+    },
+    {
+      "resource": "my-assessments",
+      "action": "view"
+    },
+    {
+      "resource": "my-courses",
+      "action": "view"
+    },
+    {
+      "resource": "my-documents",
+      "action": "upload"
+    },
+    {
+      "resource": "my-documents",
+      "action": "view"
+    },
+    {
+      "resource": "my-grades",
+      "action": "view"
+    },
+    {
+      "resource": "my-hostel",
+      "action": "view"
+    },
+    {
+      "resource": "my-payments",
+      "action": "make"
+    },
+    {
+      "resource": "my-payments",
+      "action": "view"
+    },
+    {
+      "resource": "my-results",
+      "action": "view"
+    },
+    {
+      "resource": "my-timetable",
+      "action": "view"
+    },
+    {
+      "resource": "notifications",
+      "action": "manage"
+    },
+    {
+      "resource": "notifications",
+      "action": "view"
+    },
+    {
+      "resource": "payments",
+      "action": "make"
+    },
+    {
+      "resource": "payments",
+      "action": "view"
+    },
+    {
+      "resource": "permissions",
+      "action": "manage"
+    },
+    {
+      "resource": "permissions",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "publish"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "roles",
+      "action": "manage"
+    },
+    {
+      "resource": "roles",
+      "action": "view"
+    },
+    {
+      "resource": "staff",
+      "action": "manage"
+    },
+    {
+      "resource": "staff",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "manage"
+    },
+    {
+      "resource": "students",
+      "action": "view"
+    },
+    {
+      "resource": "system-config",
+      "action": "manage"
+    },
+    {
+      "resource": "system-config",
+      "action": "view"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "manage"
+    },
+    {
+      "resource": "teaching-resources",
+      "action": "view"
+    },
+    {
+      "resource": "timetable",
+      "action": "manage"
+    },
+    {
+      "resource": "timetable",
+      "action": "view"
+    },
+    {
+      "resource": "tutors",
+      "action": "manage"
+    },
+    {
+      "resource": "tutors",
+      "action": "view"
+    },
+    {
+      "resource": "user-roles",
+      "action": "assign"
+    },
+    {
+      "resource": "user-roles",
+      "action": "revoke"
+    },
+    {
+      "resource": "users",
+      "action": "manage"
+    },
+    {
+      "resource": "users",
+      "action": "view"
+    },
+    {
+      "resource": "venue-schedule",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "manage"
+    },
+    {
+      "resource": "clearance",
+      "action": "approve"
+    }
+  ],
+  "ADMIN": [
+    {
+      "resource": "dashboard",
+      "action": "view"
+    },
+    {
+      "resource": "admissions",
+      "action": "view"
+    },
+    {
+      "resource": "admissions",
+      "action": "review"
+    },
+    {
+      "resource": "admissions",
+      "action": "manage"
+    },
+    {
+      "resource": "academic-sessions",
+      "action": "view"
+    },
+    {
+      "resource": "academic-sessions",
+      "action": "manage"
+    },
+    {
+      "resource": "course-structure",
+      "action": "view"
+    },
+    {
+      "resource": "course-structure",
+      "action": "manage"
+    },
+    {
+      "resource": "courses",
+      "action": "view"
+    },
+    {
+      "resource": "courses",
+      "action": "manage"
+    },
+    {
+      "resource": "users",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "manage"
+    },
+    {
+      "resource": "tutors",
+      "action": "view"
+    },
+    {
+      "resource": "tutors",
+      "action": "manage"
+    },
+    {
+      "resource": "staff",
+      "action": "view"
+    },
+    {
+      "resource": "staff",
+      "action": "manage"
+    },
+    {
+      "resource": "documents",
+      "action": "view"
+    },
+    {
+      "resource": "documents",
+      "action": "verify"
+    },
+    {
+      "resource": "documents",
+      "action": "manage"
+    },
+    {
+      "resource": "hostels",
+      "action": "view"
+    },
+    {
+      "resource": "hostels",
+      "action": "manage"
+    },
+    {
+      "resource": "hostels",
+      "action": "allocate"
+    },
+    {
+      "resource": "financial-transactions",
+      "action": "view"
+    },
+    {
+      "resource": "fee-management",
+      "action": "manage"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "publish"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "timetable",
+      "action": "view"
+    },
+    {
+      "resource": "timetable",
+      "action": "manage"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "view"
+    },
+    {
+      "resource": "calendar-events",
+      "action": "manage"
+    },
+    {
+      "resource": "analytics",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "view"
+    },
+    {
+      "resource": "announcements",
+      "action": "manage"
+    },
+    {
+      "resource": "notifications",
+      "action": "view"
+    },
+    {
+      "resource": "notifications",
+      "action": "manage"
+    },
+    {
+      "resource": "profile",
+      "action": "view"
+    },
+    {
+      "resource": "profile",
+      "action": "update"
+    },
+    {
+      "resource": "account-settings",
+      "action": "view"
+    },
+    {
+      "resource": "account-settings",
+      "action": "update"
+    },
+    {
+      "resource": "clearance",
+      "action": "view"
+    },
+    {
+      "resource": "clearance",
+      "action": "manage"
+    },
+    {
+      "resource": "clearance",
+      "action": "approve"
+    },
+    {
+      "resource": "fee-management",
+      "action": "view"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "create.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "drop.own"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view"
+    },
+    {
+      "resource": "enrollment",
+      "action": "view.all"
+    },
+    {
+      "resource": "enrollment",
+      "action": "manage"
+    },
+    {
+      "resource": "attendance",
+      "action": "record"
+    },
+    {
+      "resource": "attendance",
+      "action": "view.own"
+    }
+  ]
+}

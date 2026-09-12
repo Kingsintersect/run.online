@@ -1,0 +1,3 @@
+email,role,firstName,middleName,lastName,phoneNumber,staffNumber,departmentId,designation
+grace.hopper@qhub.local,tutor,Grace,,Hopper,08067890123,LEC-0042,1,Senior Lecturer
+ada.lovelace@qhub.local,tutor,Ada,,Lovelace,08023456780,LEC-0043,1,Lecturer I

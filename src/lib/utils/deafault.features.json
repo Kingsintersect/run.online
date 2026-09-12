@@ -1,0 +1,257 @@
+{
+  "registry": [
+    {
+      "key": "landing_page",
+      "label": "Landing Page",
+      "category": "Public",
+      "dependencies": [],
+      "defaultEnabled": true
+    },
+    {
+      "key": "password_authentication",
+      "label": "Password Authentication",
+      "category": "Core",
+      "dependencies": [],
+      "defaultEnabled": true
+    },
+    {
+      "key": "system_configuration",
+      "label": "System Configuration",
+      "category": "Core",
+      "dependencies": [],
+      "defaultEnabled": true
+    },
+    {
+      "key": "user_registration",
+      "label": "User Registration",
+      "category": "Auth",
+      "dependencies": ["password_authentication"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "otp_authentication",
+      "label": "OTP Authentication",
+      "category": "Auth",
+      "dependencies": ["password_authentication"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "user_management",
+      "label": "User Management",
+      "category": "Core",
+      "dependencies": ["password_authentication"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "role_permissions",
+      "label": "Roles & Permissions",
+      "category": "Core",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "portal_settings",
+      "label": "Portal Settings",
+      "category": "Core",
+      "dependencies": ["role_permissions", "system_configuration"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "audit",
+      "label": "Audit Log",
+      "category": "Core",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "profile_settings",
+      "label": "Profile Settings",
+      "category": "Core",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "academic_structure",
+      "label": "Academic Structure (Faculties & Departments)",
+      "category": "Academic",
+      "dependencies": ["system_configuration"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "program_management",
+      "label": "University Programs Management",
+      "category": "Academic",
+      "dependencies": ["academic_structure"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "academic_session_management",
+      "label": "Academic Session & Semester Management",
+      "category": "Academic",
+      "dependencies": ["academic_structure"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "course_management",
+      "label": "Course Management",
+      "category": "Academic",
+      "dependencies": ["program_management", "academic_session_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "enrollment",
+      "label": "Student Enrollment",
+      "category": "Academic",
+      "dependencies": ["course_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "admissions",
+      "label": "Admission System",
+      "category": "Admissions",
+      "dependencies": [
+        "user_registration",
+        "program_management",
+        "academic_session_management"
+      ],
+      "defaultEnabled": true
+    },
+    {
+      "key": "application_documents",
+      "label": "Admission Document Uploads",
+      "category": "Admissions",
+      "dependencies": ["admissions"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "payments",
+      "label": "Payment System",
+      "category": "Financial",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "fee_management",
+      "label": "Fee Management",
+      "category": "Financial",
+      "dependencies": ["payments"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "hostel_management",
+      "label": "Hostel Management",
+      "category": "Hostel",
+      "dependencies": ["fee_management"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "clearance",
+      "label": "Clearance System",
+      "category": "Academic",
+      "dependencies": ["user_management"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "grading",
+      "label": "Grading & GPA Calculation",
+      "category": "Assessment",
+      "dependencies": ["enrollment"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "moodle_lms_integration",
+      "label": "Moodle LMS Integration",
+      "category": "LMS Integration",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "moodle_sso",
+      "label": "Moodle Single Sign-On",
+      "category": "LMS Integration",
+      "dependencies": ["password_authentication", "moodle_lms_integration"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "course_sync",
+      "label": "Course & Enrollment Sync with Moodle",
+      "category": "LMS Integration",
+      "dependencies": [
+        "moodle_lms_integration",
+        "course_management",
+        "enrollment"
+      ],
+      "defaultEnabled": true
+    },
+    {
+      "key": "moodle_assessment_sync",
+      "label": "Moodle Assessment Sync",
+      "category": "LMS Integration",
+      "dependencies": ["course_sync"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "moodle_grade_sync",
+      "label": "Moodle Grade Sync",
+      "category": "LMS Integration",
+      "dependencies": ["course_sync", "grading"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "calendar_sync",
+      "label": "Calendar & Timetable Sync",
+      "category": "LMS Integration",
+      "dependencies": ["course_sync"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "notifications",
+      "label": "Notification System",
+      "category": "Communication",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "email_notifications",
+      "label": "Email Notifications",
+      "category": "Communication",
+      "dependencies": ["notifications"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "sms_notifications",
+      "label": "SMS Notifications",
+      "category": "Communication",
+      "dependencies": ["notifications"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "in_app_notifications",
+      "label": "In-App Notifications",
+      "category": "Communication",
+      "dependencies": ["notifications"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "content_announcements",
+      "label": "Announcements",
+      "category": "Communication",
+      "dependencies": ["user_management"],
+      "defaultEnabled": true
+    },
+    {
+      "key": "gamification",
+      "label": "Gamification & Leaderboard",
+      "category": "Engagement",
+      "dependencies": ["user_management"],
+      "defaultEnabled": false
+    },
+    {
+      "key": "analytics",
+      "label": "Analytics",
+      "category": "Reporting",
+      "dependencies": [],
+      "defaultEnabled": true
+    }
+  ]
+}

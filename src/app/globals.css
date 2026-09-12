@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 262);
+
+  /* Primary Theme: Redeemer's University seal navy — #1B3A73 */
+  --primary: oklch(0.359 0.105 261.3);
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.967 0.006 262);
+  --secondary-foreground: oklch(0.295 0.087 262.1);
+  --muted: oklch(0.96 0.006 262);
+  --muted-foreground: oklch(0.5 0.02 262);
+  /* Accent: seal gold — #D4A72C, used for highlights on a navy-tinted surface */
+  --accent: oklch(0.95 0.05 87);
+  --accent-foreground: oklch(0.295 0.087 262.1);
+  --destructive: oklch(0.577 0.245 25);
+  --border: oklch(0.9 0.008 262);
+  --input: oklch(0.9 0.008 262);
+  --ring: oklch(0.359 0.105 261.3 / 40%);
+  --chart-1: oklch(0.359 0.105 261.3);
+  --chart-2: oklch(0.75 0.141 87.1);
+  --chart-3: oklch(0.368 0.111 24.4);
+  --chart-4: oklch(0.439 0.121 262.3);
+  --chart-5: oklch(0.673 0.129 87.2);
+  --radius: 0.875rem;
+  --sidebar: oklch(0.986 0.004 262);
+  --sidebar-foreground: oklch(0.295 0.087 262.1);
+  --sidebar-primary: oklch(0.359 0.105 261.3);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0.05 87);
+  --sidebar-accent-foreground: oklch(0.295 0.087 262.1);
+  --sidebar-border: oklch(0.922 0.008 262);
+  --sidebar-ring: oklch(0.359 0.105 261.3 / 40%);
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.2 0.02 262);
+
+  /* Success stays semantic green (not from the seal) so status colors read consistently app-wide */
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(1 0 0);
+}
+
+.dark {
+  --background: oklch(0.16 0.02 262);
+  --foreground: oklch(0.96 0.005 262);
+  --card: oklch(0.22 0.028 262);
+  --card-foreground: oklch(0.96 0.005 262);
+  --popover: oklch(0.22 0.028 262);
+  --popover-foreground: oklch(0.96 0.005 262);
+
+  /* Primary Theme (Dark): brightened seal navy for contrast on a dark ground */
+  --primary: oklch(0.55 0.13 262);
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.28 0.02 262);
+  --secondary-foreground: oklch(0.96 0.005 262);
+  --muted: oklch(0.26 0.02 262);
+  --muted-foreground: oklch(0.68 0.02 262);
+  --accent: oklch(0.32 0.05 87);
+  --accent-foreground: oklch(0.85 0.1 87);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.55 0.13 262 / 50%);
+  --chart-1: oklch(0.55 0.13 262);
+  --chart-2: oklch(0.75 0.141 87.1);
+  --chart-3: oklch(0.55 0.13 24.4);
+  --chart-4: oklch(0.65 0.11 262.3);
+  --chart-5: oklch(0.673 0.129 87.2);
+  --sidebar: oklch(0.2 0.026 262);
+  --sidebar-foreground: oklch(0.96 0.005 262);
+  --sidebar-primary: oklch(0.55 0.13 262);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.3 0.05 87);
+  --sidebar-accent-foreground: oklch(0.85 0.1 87);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.55 0.13 262 / 50%);
+
+  /* Success stays semantic green (dark mode) */
+  --success: oklch(0.696 0.17 162.48);
+  --success-foreground: oklch(0.147 0.004 49.3);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  /* GLOWING BUTTON EFFECT */
+  .btn-glow::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+
+    background: radial-gradient(
+      circle at 50% 50%,
+      color-mix(in oklab, var(--primary) 55%, transparent) 0%,
+      transparent 70%
+    );
+
+    filter: blur(14px);
+    opacity: 0.35;
+    transform: scale(0.98);
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+  }
+
+  .btn-glow:hover::before,
+  .btn-glow:focus-visible::before {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+
+  .btn-glow {
+    animation: btn-glow-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes btn-glow-pulse {
+    0%,
+    100% {
+      filter: drop-shadow(0 0 0 transparent);
+    }
+
+    50% {
+      filter: drop-shadow(
+        0 0 18px color-mix(in oklab, var(--primary) 55%, transparent)
+      );
+    }
+  }
+
+  /* Indeterminate sweep for <Progress value={null} /> — used while an upload
+     has finished transferring but the server is still processing it. */
+  @keyframes progress-sweep {
+    0% {
+      transform: translateX(-100%);
+    }
+
+    100% {
+      transform: translateX(400%);
+    }
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Selection */
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Swiper Pagination — driven by the theme primary, not a hardcoded hex */
+.why-choose-swiper,
+.alumni-swiper {
+  --swiper-theme-color: var(--primary);
+  --swiper-pagination-color: var(--primary);
+  --swiper-pagination-bullet-inactive-color: var(--primary);
+  --swiper-pagination-bullet-inactive-opacity: 0.4;
+}
+
+.why-choose-swiper .swiper-pagination-bullet,
+.alumni-swiper .swiper-pagination-bullet {
+  width: 10px;
+  height: 10px;
+  background: var(--primary) !important;
+  opacity: 0.4;
+  transition: all 240ms ease;
+}
+
+.why-choose-swiper .swiper-pagination-bullet-active,
+.alumni-swiper .swiper-pagination-bullet-active {
+  width: 28px;
+  border-radius: 999px;
+  opacity: 1;
+}
+
+/* Why-choose dots sit over the slide imagery */
+.why-choose-swiper .swiper-pagination {
+  bottom: 18px !important;
+}
+
+/* Alumni dots sit below the cards, clear of the quotes */
+.alumni-swiper {
+  padding-bottom: 3.25rem;
+}
+
+.alumni-swiper .swiper-pagination {
+  bottom: 0 !important;
+}
