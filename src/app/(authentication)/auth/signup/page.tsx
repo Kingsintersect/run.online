@@ -136,7 +136,7 @@ export default function SignUpPage() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/30">
                 <Image
                   src="/logo/logo.png"
-                  alt="QHUB"
+                  alt="RUN"
                   width={30}
                   height={30}
                   className="rounded-md"
@@ -144,7 +144,7 @@ export default function SignUpPage() {
               </div>
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
-                  QHUB Portal
+                  Redeemer's University of Nigeria Portal
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Knowledge • Innovation • Service

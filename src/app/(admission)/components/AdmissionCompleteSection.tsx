@@ -83,7 +83,7 @@ export function AdmissionCompleteSection({ student }: StepSectionProps) {
         >
             <Card className="relative overflow-hidden border-emerald-500/30 shadow-xl">
                 {/* Gradient top bar */}
-                <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-400 via-primary to-emerald-400" />
+                <div className="absolute inset-x-0 top-0 h-1.5 bg-linear-to-r from-emerald-400 via-primary to-emerald-400" />
 
                 <CardHeader className="relative text-center">
                     {/* Confetti container */}
@@ -104,7 +104,7 @@ export function AdmissionCompleteSection({ student }: StepSectionProps) {
                         🎉 Admission Process Complete!
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
-                        Welcome to QHUB University, {student.name.split(" ")[0]}!
+                        Welcome to Redeemer's University of Nigeria, {student.name.split(" ")[0]}!
                     </p>
                 </CardHeader>
 

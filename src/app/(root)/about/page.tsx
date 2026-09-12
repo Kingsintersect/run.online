@@ -84,7 +84,7 @@ const milestones = [
   { year: "2007", event: "Centre for Advanced Research (CAR) inaugurated" },
   { year: "2015", event: "Ranked among top 10 African universities" },
   { year: "2021", event: "Launch of fully online degree programme platform" },
-  { year: "2024", event: "Qhub digital student portal goes live" },
+  { year: "2024", event: "RUN Online (Redeemer's University of Nigeria) digital student portal goes live" },
 ]
 
 const fadeUp = (delay = 0) => ({

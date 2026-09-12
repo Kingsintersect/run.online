@@ -143,7 +143,7 @@ function exportPdf(logs: AuditLog[], filename: string): void {
   </style>
 </head>
 <body>
-  <h1>QHUB University — Audit Logs</h1>
+  <h1>Redeemer's University of Nigeria — Audit Logs</h1>
   <p class="meta">Generated: ${new Date().toLocaleString("en-NG")} · Total records: ${logs.length}</p>
   <button class="print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
   <table>

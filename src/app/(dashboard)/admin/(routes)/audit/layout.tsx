@@ -5,7 +5,7 @@ export const metadata: Metadata = {
         template: "%s | Audit Centre",
         default: "Audit Centre",
     },
-    description: "System audit logs, activity trails and analytics for QHUB University Portal.",
+    description: "System audit logs, activity trails and analytics for Redeemer's University of Nigeria Portal.",
 };
 
 export default function AuditLayout({ children }: { children: React.ReactNode }) {

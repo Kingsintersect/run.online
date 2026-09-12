@@ -211,7 +211,7 @@ await apiClient.get<LargeExportResponse>("/api/v1/reports/export", {
 await apiClient.get<ProfileResponse>("/api/v1/profile", {
   access_token: true,
   headers: {
-    "X-Tenant-ID": "qhub-main",
+    "X-Tenant-ID": "run-main",
   },
 })
 ```
@@ -270,7 +270,7 @@ apiClient.setBaseURL("https://api.example.com")
 ### Set Default Header
 
 ```ts
-apiClient.setDefaultHeader("X-Tenant-ID", "qhub-main")
+apiClient.setDefaultHeader("X-Tenant-ID", "run-main")
 apiClient.setDefaultHeader("X-Tenant-ID", null)
 ```
 

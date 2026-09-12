@@ -144,7 +144,7 @@ export function FacultyFormDialog({
             <Input
               id="faculty-email"
               type="email"
-              placeholder="science@qhub.edu"
+              placeholder="science@run.edu"
               aria-invalid={!!errors.email}
               {...register("email")}
             />

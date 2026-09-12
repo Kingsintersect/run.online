@@ -168,7 +168,7 @@ export function DepartmentFormDialog({
             <Input
               id="dept-email"
               type="email"
-              placeholder="csc@qhub.edu"
+              placeholder="csc@run.edu"
               aria-invalid={!!errors.email}
               {...register("email")}
             />

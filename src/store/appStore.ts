@@ -233,7 +233,7 @@ export const useAppStore = create<AppState>()(
       reset: () => set(initialState),
     }),
     {
-      name: "qhub-portal-app-store",
+      name: "run-portal-app-store",
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,

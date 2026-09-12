@@ -30,7 +30,7 @@ export const useThemeStore = create<ThemeState>()(
             },
         }),
         {
-            name: "qhub-portal-theme",
+            name: "run-portal-theme",
             onRehydrateStorage: () => (state) => {
                 if (state) applyTheme(state.theme);
             },

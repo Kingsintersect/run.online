@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/25">
           <Image
             src="/logo/logo.png"
-            alt="QHUB"
+            alt="RUN"
             width={28}
             height={28}
             className="rounded-md"
@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
         </div>
         <div className="hidden sm:block">
           <p className="text-xs font-semibold tracking-[0.18em] text-primary uppercase">
-            QHUB Portal
+            Redeemer's University of Nigeria Portal
           </p>
           <p className="text-[11px] text-muted-foreground">
             Knowledge • Innovation • Service

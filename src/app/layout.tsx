@@ -12,8 +12,8 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata = {
-  title: "QHUB University Portal",
-  description: "QHUB Nigerian university portal website Homepage",
+  title: "RUN Online Interface",
+  description: "RUN Online (Redeemer's University of Nigeria) Portal Homepage",
 }
 export default function RootLayout({
   children,

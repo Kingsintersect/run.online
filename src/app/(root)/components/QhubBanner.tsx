@@ -53,11 +53,11 @@ export default function QhubBanner() {
           "bg-primary text-primary-foreground hover:bg-primary/90",
           "group shrink-0 transition-colors duration-200"
         )}
-        aria-label="Discover Qhub"
+        aria-label="Discover RUN"
       >
         <div className="text-left">
           <p className="text-base leading-tight font-bold tracking-wide sm:text-lg">
-            DISCOVER Qhub
+            DISCOVER RUN
           </p>
           <p className="mt-0.5 text-xs text-primary-foreground/80 sm:text-sm">
             {"Don't Hesitate to Ask"}

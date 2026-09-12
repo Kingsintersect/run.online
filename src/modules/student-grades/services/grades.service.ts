@@ -880,7 +880,7 @@ class GradesService {
       )
       .join("")
     win.document.write(
-      `<!DOCTYPE html><html><head><title>Grades Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px;text-align:left}th{background:#f0f0f0}h1{margin-bottom:16px}</style></head><body><h1>Grades Report — QHub Portal</h1><p>Generated: ${new Date().toLocaleString()}</p><table><thead><tr><th>Student</th><th>Matric</th><th>Course</th><th>Total</th><th>Grade</th><th>Points</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
+      `<!DOCTYPE html><html><head><title>Grades Report</title><style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px;text-align:left}th{background:#f0f0f0}h1{margin-bottom:16px}</style></head><body><h1>Grades Report — RUN Online Portal</h1><p>Generated: ${new Date().toLocaleString()}</p><table><thead><tr><th>Student</th><th>Matric</th><th>Course</th><th>Total</th><th>Grade</th><th>Points</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
     )
     win.document.close()
     win.print()

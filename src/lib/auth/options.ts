@@ -124,5 +124,5 @@ export const authOptions: NextAuthOptions = {
       return session
     },
   },
-  secret: process.env.NEXTAUTH_SECRET ?? "qhub-portal-dev-secret-change-me",
+  secret: process.env.NEXTAUTH_SECRET ?? "run-portal-dev-secret-change-me",
 }

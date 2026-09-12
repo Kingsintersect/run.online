@@ -5,7 +5,7 @@ import { UserRole } from "@/config/nav.config"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "Admission Process | QHUB University Portal",
+  title: "Admission Process | Redeemer's University of Nigeria Portal",
   description:
     "Complete your admission process — pay fees, submit forms, and get enrolled.",
 }

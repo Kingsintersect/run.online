@@ -235,7 +235,7 @@ export function BulkImportTutorsModal({
               <div className="space-y-1.5">
                 <Label className="text-xs">Login URL override (optional)</Label>
                 <Input
-                  placeholder="https://portal.qhub.example/login"
+                  placeholder="https://run.online.qverselearning.org/auth/signin"
                   onChange={(e) => setValue("login_url", e.target.value)}
                 />
                 {errors.login_url && (

@@ -21,7 +21,7 @@ export const useSidebarStore = create<SidebarState>()(
             setMobileOpen: (v) => set({ mobileOpen: v }),
         }),
         {
-            name: "qhub-portal-sidebar",
+            name: "run-portal-sidebar",
             partialize: (s) => ({ collapsed: s.collapsed }),
         }
     )
