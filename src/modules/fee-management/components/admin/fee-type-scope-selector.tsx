@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useMemo } from "react"
 import { useFormContext, useWatch, Controller } from "react-hook-form"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, Users } from "lucide-react"
@@ -18,10 +18,14 @@ import { courseStructureQueryOptions } from "@/services/courseStructureApi"
 import { useEligibleCount } from "../../hooks/use-fee-types"
 import type { CreateFeeTypeInputValues, FeeCategory } from "../../types"
 
-// Categories that require a session and support cohort scoping
+// Categories `CreateFeeTypeDtoSchema` actually requires a session for
+// (the only category-dependent rule the real schema enforces). Every other
+// category — Application, Acceptance, and Other included — can still take a
+// session, major program, program, or level; it's just optional for them,
+// not forced. A different fee amount per major program (e.g. a Certificate
+// application fee vs. an Undergraduate one) is a completely normal case, so
+// Eligibility Scope applies to every category, not a subset of them.
 const COHORT_CATEGORIES: FeeCategory[] = ["TUITION", "HOSTEL", "CLEARANCE"]
-// Categories billed per-applicant on an event — scope fields hidden entirely
-const APPLICANT_CATEGORIES: FeeCategory[] = ["APPLICATION", "ACCEPTANCE"]
 
 // Sentinel value for "no selection" in optional selects
 const NONE = "_NONE_" as const
@@ -43,20 +47,8 @@ export function FeeTypeScopeSelector() {
   const studentType = useWatch({ control, name: "studentType" })
 
   const isCohortCategory = !!category && COHORT_CATEGORIES.includes(category)
-  const isApplicantCategory =
-    !!category && APPLICANT_CATEGORIES.includes(category)
-  const showScopeFields = !!category && !isApplicantCategory
+  const showScopeFields = !!category
   const sessionRequired = isCohortCategory
-
-  // Clear scope fields when switching to an applicant-only category
-  useEffect(() => {
-    if (isApplicantCategory) {
-      setValue("sessionId", undefined)
-      setValue("majorProgramId", undefined)
-      setValue("programId", undefined)
-      setValue("levelId", undefined)
-    }
-  }, [isApplicantCategory, setValue])
 
   const { data: sessions, isLoading: loadingSessions } = useAcademicSessions()
   const { data: programsData, isLoading: loadingPrograms } = useQuery(
@@ -162,19 +154,12 @@ export function FeeTypeScopeSelector() {
             </Select>
           )}
         />
-        {isApplicantCategory && (
-          <p className="text-xs text-muted-foreground">
-            {category === "APPLICATION" ? "Application" : "Acceptance"} fees are
-            billed per-applicant on an event — no session or cohort scope
-            applies.
-          </p>
-        )}
         {errors.category && (
           <p className="text-xs text-destructive">{errors.category.message}</p>
         )}
       </div>
 
-      {/* ── Scope fields — hidden entirely for APPLICATION / ACCEPTANCE ── */}
+      {/* ── Scope fields — apply to every category ──────────────────── */}
       {showScopeFields && (
         <div className="space-y-5 rounded-xl border border-dashed border-border bg-muted/30 p-4">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
