@@ -19,6 +19,8 @@ import {
   CardContent,
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import {
   useCurriculumPrograms,
   useCurriculumProgramCourses,
@@ -43,8 +45,26 @@ export function CurriculumPlanner({
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(
     null
   )
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
 
-  const { data: programs, isLoading: programsLoading } = useCurriculumPrograms()
+  const { data: allPrograms, isLoading: programsLoading } =
+    useCurriculumPrograms()
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  const programs = useMemo(
+    () =>
+      majorProgramFilter
+        ? (allPrograms ?? []).filter(
+            (p) => p.majorProgramId === majorProgramFilter
+          )
+        : allPrograms,
+    [allPrograms, majorProgramFilter]
+  )
   const { data: courses, isLoading: coursesLoading } =
     useCurriculumProgramCourses(selectedProgramId)
   const updateSemester = useUpdateCourseCurriculumSemester(selectedProgramId)
@@ -85,6 +105,15 @@ export function CurriculumPlanner({
 
   return (
     <div className="space-y-6">
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={majorProgramFilter}
+        onChange={(id) => {
+          setMajorProgramFilter(id)
+          setSelectedProgramId(null)
+        }}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Program Curriculum</CardTitle>

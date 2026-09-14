@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import {
@@ -21,12 +21,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import StatusBadge from "@/components/custom/StatusBadge"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import { cn } from "@/lib/utils"
 import {
   useFaculties,
   useFaculty,
   useDepartment,
+  useAllDepartments,
   useAllPrograms,
+  useMajorPrograms,
   useUpdateFaculty,
   useUpdateDepartment,
   useUpdateProgram,
@@ -95,7 +98,44 @@ function FacultiesList({
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [editing, setEditing] = useState<Faculty | null | undefined>(undefined)
 
-  const faculties = data?.data ?? []
+  const allFaculties = data?.data ?? []
+
+  // Major-Program Scoping — a Faculty has no majorProgramId of its own; it
+  // "belongs" to a major program only through the programs its departments
+  // contain (Faculty -> Department -> Program.majorProgramId). Resolve that
+  // bottom-up from the already-fetched flat lists rather than adding a new
+  // column — same derived-scope pattern as Fee Types and Admission Cycles.
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const { data: departmentsRes } = useAllDepartments()
+  const { data: programsRes } = useAllPrograms()
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
+  const facultyIdsByMajorProgram = useMemo(() => {
+    const facultyIdByDeptId = new Map(
+      (departmentsRes?.data ?? []).map((d) => [d.id, d.facultyId])
+    )
+    const map = new Map<number, Set<number>>()
+    for (const program of programsRes?.data ?? []) {
+      if (program.majorProgramId == null || !program.departmentId) continue
+      const facultyId = facultyIdByDeptId.get(program.departmentId)
+      if (!facultyId) continue
+      if (!map.has(program.majorProgramId)) {
+        map.set(program.majorProgramId, new Set())
+      }
+      map.get(program.majorProgramId)!.add(facultyId)
+    }
+    return map
+  }, [departmentsRes, programsRes])
+  const faculties = majorProgramFilter
+    ? allFaculties.filter((f) =>
+        facultyIdsByMajorProgram.get(majorProgramFilter)?.has(f.id)
+      )
+    : allFaculties
 
   // PATCH `{isActive}` — a reversible on/off toggle. DELETE only ever
   // deactivates, so it can't back this button.
@@ -146,7 +186,21 @@ function FacultiesList({
         )}
       </div>
 
-      {faculties.length === 0 ? (
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
+
+      {faculties.length === 0 &&
+      majorProgramFilter &&
+      allFaculties.length > 0 ? (
+        <EmptyState
+          icon={Building2}
+          title="No faculties under this major program"
+          description="No program here has been assigned to this major program yet, so no faculty qualifies. Switch tabs, or assign a program to it under Programs."
+        />
+      ) : faculties.length === 0 ? (
         <EmptyState
           icon={Building2}
           title="No faculties yet"

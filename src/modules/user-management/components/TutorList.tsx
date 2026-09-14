@@ -25,6 +25,8 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { BulkImportTutorsModal } from "./BulkImportTutorsModal"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import {
   formatOfferingCategory,
   formatOfferingMeta,
@@ -117,7 +119,16 @@ export default function TutorsPage({
   const canEdit = can(PERM.maanageTutors)
   const canManageCourses = can(PERM.manageDepts) // SUPER_ADMIN only
 
-  const { data, isLoading } = useTutors()
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
+    (mp) => mp.isActive
+  )
+  const { data, isLoading } = useTutors({
+    major_program_id: majorProgramFilter ?? undefined,
+  })
   const createTutor = useCreateTutor()
   const updateTutor = useUpdateTutor()
   const setActive = useSetUserActive()
@@ -259,6 +270,12 @@ export default function TutorsPage({
           </PermissionGate>
         </div>
       </motion.div>
+
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
 
       <motion.div
         initial={{ opacity: 0 }}

@@ -14,11 +14,12 @@ import {
   useAssignCourseToProgram,
   useRemoveProgramCourse,
 } from "@/hooks/useCourseManagement"
-import { useAllPrograms } from "@/hooks/useCourseStructure"
+import { useAllPrograms, useMajorPrograms } from "@/hooks/useCourseStructure"
 import type { ProgramCourse } from "@/types/school"
 import Combobox from "@/components/custom/Combobox"
 import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import { EmptyState } from "./EmptyState"
 
 import {
@@ -55,11 +56,26 @@ export function ProgramCourseManager({
   canManage = false,
 }: ProgramCourseManagerProps) {
   const { data: programsData, isLoading: programsLoading } = useAllPrograms()
+  const { data: majorProgramsRes } = useMajorPrograms()
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(
     null
   )
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
 
-  const programs = useMemo(() => programsData?.data ?? [], [programsData])
+  const allPrograms = useMemo(() => programsData?.data ?? [], [programsData])
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  const programs = useMemo(
+    () =>
+      majorProgramFilter
+        ? allPrograms.filter((p) => p.majorProgramId === majorProgramFilter)
+        : allPrograms,
+    [allPrograms, majorProgramFilter]
+  )
   const programOptions = useMemo(
     () =>
       [...programs]
@@ -92,6 +108,15 @@ export function ProgramCourseManager({
           Select a program to view and manage its assigned courses.
         </p>
       </div>
+
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={majorProgramFilter}
+        onChange={(id) => {
+          setMajorProgramFilter(id)
+          setSelectedProgramId(null)
+        }}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}

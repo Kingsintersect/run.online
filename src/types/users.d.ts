@@ -350,6 +350,12 @@ export interface UserQueryFilters {
   // the existing programId/departmentId FKs.
   faculty_name?: string
   department_name?: string
+  // Major-Program Scoping — not confirmed live on this endpoint (unlike
+  // programId, which is). Sent speculatively per CLAUDE.md §14; if the
+  // backend ignores it, the list is simply unfiltered by major program
+  // rather than silently wrong, since nothing here re-filters client-side
+  // against a possibly-incomplete page of results.
+  major_program_id?: number
 }
 
 export interface StudentQueryFilters extends UserQueryFilters {

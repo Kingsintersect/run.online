@@ -15,6 +15,11 @@ export interface CurriculumProgram {
   name: string
   code: string
   departmentId: number
+  // Major-Program Scoping — sandbox/major-program-scoping/. Same field the
+  // full Program type already carries (src/types/school.d.ts); GET
+  // /academic/programs already returns it, just not previously mapped onto
+  // this narrower curriculum-planner shape.
+  majorProgramId?: number | null
 }
 
 export interface CurriculumCourse {

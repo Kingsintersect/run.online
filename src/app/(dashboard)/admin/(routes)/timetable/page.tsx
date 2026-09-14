@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import {
@@ -17,6 +17,7 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import { TimetableGrid } from "@/modules/timetable/components/TimetableGrid"
 import { TimetableList } from "@/modules/timetable/components/TimetableList"
 import { ScheduleFormDialog } from "@/modules/timetable/components/ScheduleFormDialog"
@@ -30,7 +31,10 @@ import {
   useDeleteSchedule,
 } from "@/modules/timetable/hooks/useTimetable"
 import { useExamSchedules } from "@/modules/timetable/hooks/useExamTimetable"
-import { academicCalendarQueryOptions } from "@/modules/timetable/services/timetable.service"
+import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSemesters } from "@/hooks/useSemesters"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
 import { usersQueryOptions } from "@/services/usersApi"
 import { useTimetableUIStore } from "@/modules/timetable/store/useTimetableUIStore"
 import type { TimetableSlot } from "@/modules/timetable/types/timetable.types"
@@ -50,12 +54,31 @@ export default function AdminTimetablePage() {
   const { can } = usePermissions()
   const canManageTimetable = can({ resource: "timetable", action: "manage" })
 
+  // Major-Program Scoping — sessions (and therefore semesters) can now run
+  // independent calendars per major program (sandbox/major-program-scoping/
+  // README.md §4.B), so "the current semester" is meaningless without
+  // knowing which major program's calendar is meant. Resolve it the same
+  // way ChoiceProgramSection does for the applicant side, instead of the
+  // single institution-wide `/academic-calendar` "current" endpoint this
+  // page used before — that endpoint has no concept of "current for major
+  // program X" at all.
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+
   const [lecturerId, setLecturerId] = useState<number | null>(null)
   const [semesterId, setSemesterId] = useState<number | null>(null)
 
-  const { data: calendar } = useQuery(academicCalendarQueryOptions.current())
+  const { data: sessions } = useAcademicSessions()
+  const activeSession = resolveActiveSession(sessions, majorProgramFilter)
+  const { data: semestersRes } = useSemesters(activeSession?.id ?? null)
   const { data: tutorsRes } = useQuery(usersQueryOptions.tutors.list())
-  const semesters = calendar?.semesters ?? []
+  const semesters = semestersRes ?? []
   const tutors = tutorsRes?.data ?? []
   const invigilatorOptions = tutors.map((t) => ({
     id: t.id,
@@ -182,6 +205,20 @@ export default function AdminTimetablePage() {
             </PermissionGate>
           </div>
         </motion.div>
+
+        {/* Major-program filter — resolves which major program's active
+            session (and therefore which semesters) the Class Schedules
+            filters below offer, since each major program can now run its
+            own independent calendar. */}
+        <MajorProgramTabs
+          programs={majorPrograms}
+          value={majorProgramFilter}
+          onChange={(id) => {
+            setMajorProgramFilter(id)
+            setLecturerId(null)
+            setSemesterId(null)
+          }}
+        />
 
         <Tabs defaultValue="classes" className="space-y-6">
           <TabsList>
