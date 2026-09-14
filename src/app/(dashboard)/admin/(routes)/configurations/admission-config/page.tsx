@@ -472,9 +472,19 @@ export default function AdmissionConfigPage() {
                 groupItems.map((s) => s.key)
               )
             : stepType
-        const order =
-          groupItems.reduce((max, s) => Math.max(max, s.order), 0) + 1
-        await createMutation.mutateAsync({
+        // A COMPLETE stage must stay last (the backend rejects
+        // INVALID_STAGE_SEQUENCE: COMPLETE_NOT_LAST otherwise) — appending
+        // every new step at the very end, unconditionally, broke that as
+        // soon as a scope already had one. Slot the new step into COMPLETE's
+        // old position and bump COMPLETE past it instead; scopes without a
+        // COMPLETE stage yet keep the plain append-at-end behavior.
+        const completeRow = rowsFor(formModal.group).find(
+          (row) => resolveStageType(row.step) === "COMPLETE"
+        )
+        const order = completeRow
+          ? completeRow.step.order
+          : groupItems.reduce((max, s) => Math.max(max, s.order), 0) + 1
+        const created = await createMutation.mutateAsync({
           ...stepValues,
           description: stepValues.description ?? "",
           group: formModal.group,
@@ -483,6 +493,25 @@ export default function AdmissionConfigPage() {
           ...scopePayload(scope),
           ...(stage ? { type: stage.type, config: stage.config } : {}),
         })
+        if (completeRow && created.id !== completeRow.step.id) {
+          const nextOrder = completeRow.step.order + 1
+          // COMPLETE might still be inherited from a broader scope in this
+          // tab — pushing it past the new step then means customising it
+          // into this scope (at the new position), not editing the shared
+          // default row every other scope also inherits.
+          if (completeRow.own) {
+            await updateMutation.mutateAsync({
+              id: completeRow.step.id,
+              payload: { order: nextOrder },
+            })
+          } else {
+            await customiseMutation.mutateAsync({
+              step: completeRow.step,
+              target: scope,
+              order: nextOrder,
+            })
+          }
+        }
         toast.success("Step created")
       }
       invalidateAll()
