@@ -303,9 +303,17 @@ export default function StepFormModal({
                       const taken =
                         !def.multiple && stageTypesInUse.includes(type)
                       return (
-                        <SelectItem key={type} value={type} disabled={taken}>
+                        <SelectItem
+                          key={type}
+                          value={type}
+                          disabled={taken || def.pendingBackend}
+                        >
                           {def.label}
-                          {taken ? " (already in use)" : ""}
+                          {taken
+                            ? " (already in use)"
+                            : def.pendingBackend
+                              ? " (pending backend support)"
+                              : ""}
                         </SelectItem>
                       )
                     })}

@@ -29,6 +29,15 @@ export interface StageTypeDefinition<T extends StageType = StageType> {
   /** Whether a resolved process may contain more than one stage of this type. */
   multiple: boolean
   defaultConfig: StageConfigByType[T]
+  /**
+   * The backend's own `type` enum doesn't recognize this value yet (unlike a
+   * config-only addition like FeeType.majorProgramId, an unrecognized stage
+   * type is rejected outright — POST /admissions/config/steps 422s with
+   * "The selected type is invalid.") — see BACKEND_DEVIATIONS_2026-09-14.md
+   * A16. Disabled in the type picker until the backend ships it, rather than
+   * letting an admin hit that error.
+   */
+  pendingBackend?: boolean
 }
 
 export const STAGE_TYPE_CATALOG: { [K in StageType]: StageTypeDefinition<K> } =
@@ -41,6 +50,7 @@ export const STAGE_TYPE_CATALOG: { [K in StageType]: StageTypeDefinition<K> } =
       icon: "Building2",
       multiple: false,
       defaultConfig: {},
+      pendingBackend: true,
     },
     PROGRAM_CHOICE: {
       type: "PROGRAM_CHOICE",
