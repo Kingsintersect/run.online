@@ -49,8 +49,14 @@ export interface Student {
   program_name: string
   department_name: string
   faculty_name: string
-  current_level: number
-  current_level_id: number
+  // Nullable — sandbox/program-structure-depth/SCHEMA_CHANGES.md
+  // §2: null for a FOUNDATIONAL or CERTIFICATE student, neither of which
+  // has a Level concept. A CERTIFICATE student has `current_cohort_id`
+  // instead.
+  current_level: number | null
+  current_level_id: number | null
+  // Populated only for a CERTIFICATE-category student.
+  current_cohort_id?: number | null
   entry_mode: EntryMode
   mode_of_study: ModeOfStudy
   admission_date: string
@@ -201,7 +207,8 @@ export interface CreateStaffPayload {
 }
 
 export interface UpdateStudentPayload {
-  current_level_id?: number
+  // Nullable — see Student.current_level_id's note above.
+  current_level_id?: number | null
   mode_of_study?: ModeOfStudy
   status?: StudentStatus
   contact_address?: string
@@ -254,7 +261,7 @@ export type {
 // enrichment block (credit units, term names, level, department/faculty,
 // programmes, category path). See
 // sandbox/course/missing_course_offering_enrichment.readme.md for the backend
-// contract; everything in the enrichment block is `null` / `[]` until it ships.
+// contract; enrichment fields may be `null` / `[]` when the backend omits them.
 export interface CourseOffering extends CourseOfferingEnrichment {
   id: number
   course_id: number

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import {
+  CalendarClock,
   CalendarDays,
   LayoutGrid,
   List,
@@ -13,20 +14,27 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { usePermissions } from "@/lib/permissions/usePermissions"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TimetableGrid } from "@/modules/timetable/components/TimetableGrid"
 import { TimetableList } from "@/modules/timetable/components/TimetableList"
 import { ScheduleFormDialog } from "@/modules/timetable/components/ScheduleFormDialog"
+import { VenueManager } from "@/modules/timetable/components/VenueManager"
+import { ExamScheduleList } from "@/modules/timetable/components/ExamScheduleList"
+import { ExamScheduleFormDialog } from "@/modules/timetable/components/ExamScheduleFormDialog"
 import {
   useAllSchedules,
   useSchedulesByLecturer,
   useSchedulesBySemester,
   useDeleteSchedule,
 } from "@/modules/timetable/hooks/useTimetable"
+import { useExamSchedules } from "@/modules/timetable/hooks/useExamTimetable"
 import { academicCalendarQueryOptions } from "@/modules/timetable/services/timetable.service"
 import { usersQueryOptions } from "@/services/usersApi"
 import { useTimetableUIStore } from "@/modules/timetable/store/useTimetableUIStore"
 import type { TimetableSlot } from "@/modules/timetable/types/timetable.types"
+import type { ExamSchedule } from "@/modules/timetable/types/exam-timetable.types"
 
 export default function AdminTimetablePage() {
   const {
@@ -39,6 +47,9 @@ export default function AdminTimetablePage() {
     closeDialog,
   } = useTimetableUIStore()
 
+  const { can } = usePermissions()
+  const canManageTimetable = can({ resource: "timetable", action: "manage" })
+
   const [lecturerId, setLecturerId] = useState<number | null>(null)
   const [semesterId, setSemesterId] = useState<number | null>(null)
 
@@ -46,6 +57,18 @@ export default function AdminTimetablePage() {
   const { data: tutorsRes } = useQuery(usersQueryOptions.tutors.list())
   const semesters = calendar?.semesters ?? []
   const tutors = tutorsRes?.data ?? []
+  const invigilatorOptions = tutors.map((t) => ({
+    id: t.id,
+    name:
+      [t.user.first_name, t.user.last_name].filter(Boolean).join(" ") ||
+      t.staff_number,
+  }))
+
+  // Exam Timetable — sandbox/exam-timetable/.
+  const [examDialogOpen, setExamDialogOpen] = useState(false)
+  const [editingExam, setEditingExam] = useState<ExamSchedule | null>(null)
+  const { data: examsData, isLoading: examsLoading } = useExamSchedules()
+  const exams = examsData?.data ?? []
 
   // One filter at a time drives the data source: a dedicated lecturer/semester
   // endpoint when scoped, the full paginated list otherwise.
@@ -160,74 +183,133 @@ export default function AdminTimetablePage() {
           </div>
         </motion.div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={lecturerId ?? ""}
-            onChange={(e) => {
-              setLecturerId(e.target.value ? Number(e.target.value) : null)
-              setSemesterId(null)
-            }}
-            className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs outline-none focus-visible:border-ring"
-          >
-            <option value="">All lecturers</option>
-            {tutors.map((t) => (
-              <option key={t.id} value={t.id}>
-                {[t.user.first_name, t.user.last_name]
-                  .filter(Boolean)
-                  .join(" ") || t.staff_number}
-              </option>
-            ))}
-          </select>
-          <select
-            value={semesterId ?? ""}
-            disabled={!!lecturerId}
-            onChange={(e) =>
-              setSemesterId(e.target.value ? Number(e.target.value) : null)
-            }
-            className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs outline-none focus-visible:border-ring disabled:opacity-50"
-          >
-            <option value="">All semesters</option>
-            {semesters.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.isActive ? " (active)" : ""}
-              </option>
-            ))}
-          </select>
-          {(lecturerId || semesterId) && (
-            <button
-              type="button"
-              onClick={() => {
-                setLecturerId(null)
-                setSemesterId(null)
-              }}
-              className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        <Tabs defaultValue="classes" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="classes" className="gap-1.5">
+              <CalendarDays className="size-4" />
+              Class Schedules
+            </TabsTrigger>
+            <TabsTrigger value="exams" className="gap-1.5">
+              <CalendarClock className="size-4" />
+              Exams
+            </TabsTrigger>
+          </TabsList>
 
-        {viewMode === "grid" ? (
-          <TimetableGrid
-            slots={slots}
-            isLoading={isLoading}
-            slotActions={slotActions}
-          />
-        ) : (
-          <TimetableList
-            slots={slots}
-            isLoading={isLoading}
-            slotActions={slotActions}
-          />
-        )}
+          <TabsContent value="classes" className="space-y-6">
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={lecturerId ?? ""}
+                onChange={(e) => {
+                  setLecturerId(e.target.value ? Number(e.target.value) : null)
+                  setSemesterId(null)
+                }}
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs outline-none focus-visible:border-ring"
+              >
+                <option value="">All lecturers</option>
+                {tutors.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {[t.user.first_name, t.user.last_name]
+                      .filter(Boolean)
+                      .join(" ") || t.staff_number}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={semesterId ?? ""}
+                disabled={!!lecturerId}
+                onChange={(e) =>
+                  setSemesterId(e.target.value ? Number(e.target.value) : null)
+                }
+                className="h-8 rounded-lg border border-border bg-background px-2.5 text-xs outline-none focus-visible:border-ring disabled:opacity-50"
+              >
+                <option value="">All semesters</option>
+                {semesters.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                    {s.isActive ? " (active)" : ""}
+                  </option>
+                ))}
+              </select>
+              {(lecturerId || semesterId) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLecturerId(null)
+                    setSemesterId(null)
+                  }}
+                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {viewMode === "grid" ? (
+              <TimetableGrid
+                slots={slots}
+                isLoading={isLoading}
+                slotActions={slotActions}
+              />
+            ) : (
+              <TimetableList
+                slots={slots}
+                isLoading={isLoading}
+                slotActions={slotActions}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="exams" className="space-y-6">
+            <VenueManager canManage={canManageTimetable} />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Exam Schedules
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Exam dates, venues and invigilators for the semester.
+                </p>
+              </div>
+              {canManageTimetable && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingExam(null)
+                    setExamDialogOpen(true)
+                  }}
+                >
+                  <Plus className="size-3.5" data-icon="inline-start" />
+                  Schedule Exam
+                </Button>
+              )}
+            </div>
+
+            <ExamScheduleList
+              exams={exams}
+              isLoading={examsLoading}
+              canManage={canManageTimetable}
+              onEdit={(exam) => {
+                setEditingExam(exam)
+                setExamDialogOpen(true)
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <ScheduleFormDialog
         open={scheduleDialogOpen}
         onOpenChange={closeDialog}
         editingScheduleId={editingScheduleId}
+      />
+
+      <ExamScheduleFormDialog
+        open={examDialogOpen}
+        onClose={() => setExamDialogOpen(false)}
+        examSchedule={editingExam}
+        tutors={invigilatorOptions}
       />
     </PermissionGate>
   )

@@ -13,8 +13,7 @@ import type {
 
 // Confirmed live — contract per sandbox/schema-moodel-sync-refactor/api-v2.md
 // §"Academic Structure — /academic-structure"; tracked as MISSING_BACKEND_APIS.md
-// §2.16, now shipped by the backend team. Not yet in bruno, but every method
-// here calls the real endpoint. Response envelopes follow the same
+// §2.16. Response envelopes follow the same
 // `{data: ...}` convention as every other endpoint in this codebase
 // (courseStructureApi.ts).
 const BASE = "/academic-structure"
@@ -108,6 +107,46 @@ export async function resolveFacultyAcademicUnit(
     parentId: null,
     name: facultyName,
     linkedEntity: { type: "faculty", id: facultyId },
+  })
+  return created
+}
+
+/**
+ * Finds the AcademicUnit mirror root node for a MajorProgram, creating one
+ * (and the "MAJOR_PROGRAM" unit type, if it doesn't exist yet) otherwise.
+ * sandbox/major-program-scoping/README.md §4.E: gives each major
+ * program a real root category in the Moodle-sync tree, matching the
+ * "CERTIFICATE PROGRAMS" / "FOUNDATIONAL/JUPEB PROGRAMS" /
+ * "PART-TIME PROGRAMS" top-level Moodle categories the university already
+ * organizes courses under. Same lazy-creation pattern as
+ * `resolveFacultyAcademicUnit` above.
+ */
+export async function resolveMajorProgramAcademicUnit(
+  majorProgramId: number,
+  majorProgramName: string
+): Promise<AcademicUnit> {
+  const { data: roots } = await academicUnitsApi.list({ rootsOnly: true })
+  const existing = roots.find(
+    (u) =>
+      u.linkedEntity?.type === "major_program" &&
+      u.linkedEntity.id === majorProgramId
+  )
+  if (existing) return existing
+
+  const { data: unitTypes } = await unitTypesApi.list()
+  const hasMajorProgramType = unitTypes.some((t) => t.code === "MAJOR_PROGRAM")
+  if (!hasMajorProgramType) {
+    await unitTypesApi.create({
+      code: "MAJOR_PROGRAM",
+      label: "Major Program",
+    })
+  }
+
+  const { data: created } = await academicUnitsApi.create({
+    typeCode: "MAJOR_PROGRAM",
+    parentId: null,
+    name: majorProgramName,
+    linkedEntity: { type: "major_program", id: majorProgramId },
   })
   return created
 }

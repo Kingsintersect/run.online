@@ -1,9 +1,8 @@
 /* ------------------------------------------------------------------ */
 /*  Demographics Module — API Service                                  */
 /*                                                                     */
-/*  Country / State / Local Government CRUD. Backend contract proposed */
-/*  in sandbox/demographics/demographics_workflow.md — not built yet,  */
-/*  every call here 404s until it ships.                               */
+/*  Country / State / Local Government CRUD. Contract in               */
+/*  sandbox/demographics/demographics_workflow.md.                     */
 /* ------------------------------------------------------------------ */
 
 import apiClient, {

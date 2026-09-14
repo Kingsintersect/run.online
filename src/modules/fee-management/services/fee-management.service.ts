@@ -113,6 +113,12 @@ export const feeManagementService = {
     feeTypeId?: number
     sessionId?: number
     studentId?: number
+    // Major-Program Scoping — see fee-management-ui.store.ts's note.
+    majorProgramId?: number
+    // sandbox/MISSING_BACKEND_APIS.md §2.8.
+    facultyName?: string
+    departmentName?: string
+    level?: number
   }) =>
     apiClient.get<{ data: InvoiceResponse[] }>(`${BASE}/invoices`, {
       ...AUTH,

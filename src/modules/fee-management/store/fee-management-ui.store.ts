@@ -8,6 +8,13 @@ interface InvoiceTableFilters {
   feeTypeId?: number
   sessionId?: number
   studentId?: number
+  // Major-Program Scoping — sandbox/major-program-scoping/. A convenience
+  // narrower for a multi-scoped admin, wired from <MajorProgramFilterTabs>.
+  majorProgramId?: number
+  // sandbox/MISSING_BACKEND_APIS.md §2.8.
+  facultyName?: string
+  departmentName?: string
+  level?: number
 }
 
 interface FeeTypeTableFilters {

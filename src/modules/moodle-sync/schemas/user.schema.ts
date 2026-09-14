@@ -47,8 +47,8 @@ export const UnmatchedMoodleUserSchema = z.object({
 })
 
 // A Moodle user found during `POST /users/pull` that was intentionally not
-// synced (e.g. already matched, disallowed role, duplicate email). Requested
-// but not yet shipped — see moodle_sync_BACKEND_GAPS.md §5.
+// synced (e.g. already matched, disallowed role, duplicate email) — see
+// moodle_sync_BACKEND_GAPS.md §5.
 export const SkippedMoodleUserSchema = z.object({
   moodleUserId: z.number(),
   username: z.string(),

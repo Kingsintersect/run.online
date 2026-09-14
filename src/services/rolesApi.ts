@@ -10,6 +10,7 @@ import type {
   CreatePermissionPayload,
   UpdatePermissionPayload,
   AssignRolesPayload,
+  AssignRolesResponse,
   RevokeRolePayload,
   UserWithRoles,
   UserRoleSummary,
@@ -29,48 +30,62 @@ export const rolesApi = {
     return apiClient.get<ApiSingleResponse<Role>>(`/auth/roles/${id}`, AUTH)
   },
 
+  // CreateRoleRequest accepts only `name` + optional `description` (bruno/auth/
+  // Roles - Create.bru), so the selected permissions are attached with a
+  // second call — a fresh role has nothing to detach, so `sync` is enough.
   create: async (
     payload: CreateRolePayload
   ): Promise<ApiSingleResponse<Role>> => {
-    return apiClient.post<ApiSingleResponse<Role>>("/auth/roles", payload, AUTH)
+    const created = await apiClient.post<ApiSingleResponse<Role>>(
+      "/auth/roles",
+      {
+        name: payload.name,
+        ...(payload.description ? { description: payload.description } : {}),
+      },
+      AUTH
+    )
+    if (!payload.permission_ids?.length) return created
+    await rolePermissionsApi.sync(created.data.id, payload.permission_ids)
+    return rolesApi.getById(created.data.id)
   },
 
+  // The role PATCH doesn't take permissions, so a provided `permission_ids`
+  // is applied with a full reconcile (adds + detaches) after the update.
   update: async (
     id: number,
     payload: UpdateRolePayload
   ): Promise<ApiSingleResponse<Role>> => {
-    const { permission_ids: _permission_ids, ...rolePayload } = payload
-    return apiClient.patch<ApiSingleResponse<Role>>(
+    const { permission_ids, ...rolePayload } = payload
+    const updated = await apiClient.patch<ApiSingleResponse<Role>>(
       `/auth/roles/${id}`,
       rolePayload,
       AUTH
     )
+    if (permission_ids === undefined) return updated
+    return rolePermissionsApi.reconcile(id, permission_ids)
   },
 
   delete: async (id: number): Promise<{ message: string }> => {
     return apiClient.delete<{ message: string }>(`/auth/roles/${id}`, AUTH)
   },
 
-  // No `POST /auth/roles/:id/duplicate` endpoint exists (verified 404,
-  // 2026-09-10 — the earlier "now shipped" note was wrong). Composed from the
-  // real Create + permission-sync endpoints: read the source role with its
-  // permissions, create a new one, copy the permission set across.
+  // Real endpoint per bruno/auth/Roles - Duplicate.bru (added 2026-09,
+  // closing the gap flagged in STILL_MISSING_AFTER_HANDOFF_2026-09.md §2) —
+  // clones the source role's entire permission set server-side in one call.
+  // `name` is required by the backend; the UI doesn't currently prompt for
+  // one (see RolesPanel.tsx's duplicateRole(role.id)), so this preserves the
+  // same auto-generated `${name}_copy` convention the old client-side
+  // composition used, keeping today's UX unchanged.
   duplicate: async (id: number): Promise<ApiSingleResponse<Role>> => {
     const source = (await rolesApi.getById(id)).data
-    const created = await apiClient.post<ApiSingleResponse<Role>>(
-      "/auth/roles",
+    return apiClient.post<ApiSingleResponse<Role>>(
+      `/auth/roles/${id}/duplicate`,
       {
         name: `${source.name}_copy`,
         description: source.description ?? undefined,
       },
       AUTH
     )
-    const permissionIds = (source.permissions ?? []).map((p) => p.id)
-    if (permissionIds.length && created.data?.id) {
-      await rolePermissionsApi.sync(created.data.id, permissionIds)
-      return rolesApi.getById(created.data.id)
-    }
-    return created
   },
 }
 
@@ -206,11 +221,9 @@ export const rolePermissionsApi = {
 // listForUser/assign/revoke are real, bruno-documented endpoints
 // (Users - {List Roles, Assign Roles, Remove Role}.bru) with no prior
 // frontend caller. getUsersWithRole is the reverse lookup ("which users
-// hold this role") needed by RoleDetailView's Users tab — `GET
-// /auth/roles/:roleId/users` does NOT exist (verified 404, 2026-09-10) and
-// `/users` carries no role data to filter on. Kept wired against the
-// designed contract (sandbox/API_GAPS_2026-09.md §9); returns [] on 404 so
-// the Users tab renders an empty state instead of an error screen.
+// hold this role") needed by RoleDetailView's Users tab, per
+// sandbox/API_GAPS_2026-09.md §9. Returns [] on error so the Users tab
+// renders an empty state instead of an error screen.
 
 export const userRolesApi = {
   listForUser: async (
@@ -222,10 +235,18 @@ export const userRolesApi = {
     )
   },
 
-  assign: async (payload: AssignRolesPayload): Promise<{ message: string }> => {
-    return apiClient.post<{ message: string }>(
+  assign: async (payload: AssignRolesPayload): Promise<AssignRolesResponse> => {
+    return apiClient.post<AssignRolesResponse>(
       `/auth/users/${payload.user_id}/roles`,
-      { roleIds: payload.role_ids },
+      {
+        roleIds: payload.role_ids,
+        // Major-Program Scoping — see AssignRolesPayload's note.
+        // Omitted (not sent) rather than `undefined` when absent, matching
+        // how every other optional field on this call already behaves.
+        ...(payload.major_program_ids?.length
+          ? { majorProgramIds: payload.major_program_ids }
+          : {}),
+      },
       AUTH
     )
   },
@@ -412,7 +433,7 @@ export const permissionsMutationOptions = {
 
 export const userRolesMutationOptions = {
   assign: () =>
-    createApiMutationOptions<{ message: string }, AssignRolesPayload>({
+    createApiMutationOptions<AssignRolesResponse, AssignRolesPayload>({
       mutationKey: [...userRolesKeys.all, "assign"],
       mutationFn: userRolesApi.assign,
     }),

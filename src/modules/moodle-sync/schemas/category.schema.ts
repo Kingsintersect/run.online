@@ -43,7 +43,17 @@ export const CategorySyncResponseSchema = z.object({
 export const ResolveCategoryMappingSchema = z.union([
   z.object({
     linkedEntity: z.object({
-      type: z.enum(["faculty", "department", "program", "level", "semester"]),
+      // "major_program" — sandbox/major-program-scoping/: lets an admin
+      // manually resolve a category to a MajorProgram root node the same
+      // way as any other entity kind.
+      type: z.enum([
+        "faculty",
+        "department",
+        "program",
+        "level",
+        "semester",
+        "major_program",
+      ]),
       id: z.number().int().positive(),
     }),
   }),

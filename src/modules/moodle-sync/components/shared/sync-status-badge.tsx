@@ -5,12 +5,13 @@ import type { SyncStatus } from "../../types"
 
 const STATUS_VARIANT: Record<
   SyncStatus,
-  "success" | "default" | "destructive" | "warning"
+  "success" | "default" | "destructive" | "warning" | "orange"
 > = {
   SYNCED: "success",
   PENDING: "default",
   FAILED: "destructive",
   STALE: "warning",
+  REMOVED_IN_MOODLE: "orange",
 }
 
 const STATUS_LABEL: Record<SyncStatus, string> = {
@@ -18,6 +19,7 @@ const STATUS_LABEL: Record<SyncStatus, string> = {
   PENDING: "Pending",
   FAILED: "Failed",
   STALE: "Stale",
+  REMOVED_IN_MOODLE: "Removed in Moodle",
 }
 
 interface SyncStatusBadgeProps {

@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { ArrowLeft, Link2, AlertTriangle } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { EnrollmentSyncTable } from "@/modules/moodle-sync/components/enrollments/enrollment-sync-table"
+import { EnrollmentDriftPanel } from "@/modules/moodle-sync/components/enrollments/enrollment-drift-panel"
 
 export default function MoodleSyncEnrollmentsPage() {
   return (
@@ -48,6 +49,7 @@ export default function MoodleSyncEnrollmentsPage() {
           </div>
         </motion.div>
 
+        <EnrollmentDriftPanel />
         <EnrollmentSyncTable />
       </div>
     </PermissionGate>

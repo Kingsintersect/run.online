@@ -38,9 +38,9 @@ export function useEnrollmentsByOffering(offeringId: number | null) {
 }
 
 // Self-scoped course list with the per-course `moodleSynced` flag. Optional
-// enrichment layer over useEnrollmentsByStudent — 404s until the backend
-// ships `GET /students/me/courses`, so consumers must treat an error/empty
-// result as "flag unknown", not "no courses".
+// enrichment layer over useEnrollmentsByStudent (`GET /students/me/courses`)
+// — consumers must treat an error/empty result as "flag unknown", not "no
+// courses".
 export function useMyCourses(enabled = true) {
   return useQuery({
     ...enrollmentQueryOptions.myCourses(),

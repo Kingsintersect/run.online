@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { useLevels } from "@/hooks/useCourseStructure"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
@@ -51,12 +53,18 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("dueDate")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
+  const { data: levelsData } = useLevels()
+  const levels = levelsData?.data ?? []
 
   const { data, isLoading, refetch } = useInvoices({
     status: invoiceTableFilters.status,
     feeTypeId: invoiceTableFilters.feeTypeId,
     sessionId: invoiceTableFilters.sessionId,
     studentId: invoiceTableFilters.studentId,
+    majorProgramId: invoiceTableFilters.majorProgramId,
+    facultyName: invoiceTableFilters.facultyName,
+    departmentName: invoiceTableFilters.departmentName,
+    level: invoiceTableFilters.level,
   })
 
   const invoices = data?.data ?? []
@@ -108,6 +116,9 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
     invoiceTableFilters.status ||
     invoiceTableFilters.feeTypeId ||
     invoiceTableFilters.sessionId ||
+    invoiceTableFilters.facultyName ||
+    invoiceTableFilters.departmentName ||
+    invoiceTableFilters.level ||
     search
 
   if (isLoading) {
@@ -122,6 +133,16 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
 
   return (
     <div className="space-y-4">
+      <MajorProgramFilterTabs
+        value={invoiceTableFilters.majorProgramId ?? null}
+        onChange={(id) =>
+          setInvoiceTableFilters({
+            ...invoiceTableFilters,
+            majorProgramId: id ?? undefined,
+          })
+        }
+      />
+
       {/* ── Filter bar ─────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-48 flex-1">
@@ -158,6 +179,55 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
             {STATUS_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* sandbox/MISSING_BACKEND_APIS.md §2.8. */}
+        <Input
+          placeholder="Faculty…"
+          value={invoiceTableFilters.facultyName ?? ""}
+          onChange={(e) =>
+            setInvoiceTableFilters({
+              ...invoiceTableFilters,
+              facultyName: e.target.value || undefined,
+            })
+          }
+          className="h-9 w-36 rounded-xl border-transparent bg-muted text-sm"
+        />
+        <Input
+          placeholder="Department…"
+          value={invoiceTableFilters.departmentName ?? ""}
+          onChange={(e) =>
+            setInvoiceTableFilters({
+              ...invoiceTableFilters,
+              departmentName: e.target.value || undefined,
+            })
+          }
+          className="h-9 w-36 rounded-xl border-transparent bg-muted text-sm"
+        />
+        <Select
+          value={
+            invoiceTableFilters.level
+              ? String(invoiceTableFilters.level)
+              : "ALL"
+          }
+          onValueChange={(v) =>
+            setInvoiceTableFilters({
+              ...invoiceTableFilters,
+              level: v === "ALL" ? undefined : Number(v),
+            })
+          }
+        >
+          <SelectTrigger className="h-9 w-32 rounded-xl border-transparent bg-muted text-sm">
+            <SelectValue placeholder="All levels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All levels</SelectItem>
+            {levels.map((l) => (
+              <SelectItem key={l.id} value={String(l.numericValue)}>
+                {l.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -290,6 +360,22 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
                           <p className="font-mono text-xs text-muted-foreground">
                             {inv.student.matricNumber}
                           </p>
+                          {/* sandbox/MISSING_BACKEND_APIS.md §2.8. */}
+                          {(inv.student.facultyName ||
+                            inv.student.departmentName ||
+                            inv.student.level) && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {[
+                                inv.student.facultyName,
+                                inv.student.departmentName,
+                                inv.student.level
+                                  ? `${inv.student.level}L`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-muted-foreground italic">

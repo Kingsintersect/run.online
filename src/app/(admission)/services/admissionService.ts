@@ -174,11 +174,8 @@ export const admissionService = {
     studyMode: StudyMode
     startTerm: string
   }): Promise<AdmissionStudent> {
-    // Proposed API: POST /admission/program-choice — not built on the backend yet, see
-    // sandbox/REFACTOR_BACKEND_APIS.md for the full designed contract (tracked as
-    // MISSING_BACKEND_APIS.md §2.17, a pointer to that doc — unlike the rest of
-    // that file, this specific item has NOT been confirmed shipped). 404s until
-    // the backend ships it; the frontend is wired against the designed shape already.
+    // POST /admission/program-choice — bruno/admission/Admission - Submit Program Choice.bru;
+    // contract in sandbox/REFACTOR_BACKEND_APIS.md (MISSING_BACKEND_APIS.md §2.17).
     const { data } = await apiClient.post<{ data: AdmissionStudent }>(
       "/admission/program-choice",
       payload,

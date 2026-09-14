@@ -68,21 +68,23 @@ export function useOperationsDashboardData() {
   const activeUsers = stats.data?.data?.active_users ?? null
   const departmentCount = departments.data?.data?.length ?? null
   const pendingApplicationCount = pendingApplications.data?.meta?.total ?? null
-  const totalOutstanding =
-    collections.data?.totals?.totalOutstanding != null
-      ? Number(collections.data.totals.totalOutstanding)
-      : null
+  // Real response per bruno/fee/Reports - Summary.bru is a flat aggregate,
+  // not a `.totals` wrapper — see sandbox/TRIPLE_AUDIT_2026-09-13.md §1b.
   const totalInvoiced =
-    collections.data?.totals?.totalInvoiced != null
-      ? Number(collections.data.totals.totalInvoiced)
+    collections.data?.data?.totalInvoiced != null
+      ? Number(collections.data.data.totalInvoiced)
       : null
-  const totalPaid =
-    collections.data?.totals?.totalPaid != null
-      ? Number(collections.data.totals.totalPaid)
+  const totalCollected =
+    collections.data?.data?.totalCollected != null
+      ? Number(collections.data.data.totalCollected)
+      : null
+  const totalOutstanding =
+    totalInvoiced != null && totalCollected != null
+      ? Math.max(totalInvoiced - totalCollected, 0)
       : null
   const collectionRate =
-    totalInvoiced && totalInvoiced > 0 && totalPaid != null
-      ? Math.round((totalPaid / totalInvoiced) * 100)
+    totalInvoiced && totalInvoiced > 0 && totalCollected != null
+      ? Math.round((totalCollected / totalInvoiced) * 100)
       : null
   const unsyncedAssessments =
     assessmentSync.data?.summary?.byStatus?.PENDING != null &&

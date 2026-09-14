@@ -5,7 +5,7 @@ import { SyncStatusSchema } from "./common.schema"
 // concept: it's Program + AcademicSession (+ Level), pushed to Moodle as a
 // real cohort so shared courses can use Moodle's own "Cohort sync"
 // enrolment method for auto-enrol/auto-unenrol. Same idnumber-keyed mapping
-// pattern as CategorySyncResponse. Backend not yet shipped — see
+// pattern as CategorySyncResponse. See bruno/moodle-sync/Cohort Sync - *.bru and
 // sandbox/multi-program-platform/{SCHEMA_CHANGES,API_CONTRACTS,
 // MOODLE_COHORT_SYNC}.md.
 export const CohortSyncResponseSchema = z.object({

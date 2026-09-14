@@ -1,49 +1,68 @@
 "use client"
 
-import React, { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   AlertTriangle,
   RefreshCw,
-  ChevronDown,
+  ChevronLeft,
   ChevronRight,
 } from "lucide-react"
 import {
   useDirectorGrades,
-  StatusBadge,
-  CourseGrade,
-  DirectorFilterBar,
-  GradeRadarChart,
   GpaLineChart,
+  GradeRadarChart,
+  StatusBadge,
 } from "@/modules/director"
+import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSemesters } from "@/hooks/useSemesters"
+import {
+  useGrades,
+  useGradeDistributionData,
+} from "@/modules/student-grades/hooks/use-grades-data"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 
-// ─── Grade colours ────────────────────────────────────────────────────────────
-const GRADE_COLORS: Record<string, string> = {
-  A: "oklch(0.45 0.18 145)",
-  B: "oklch(0.35 0.12 250)",
-  C: "oklch(0.55 0.18 70)",
-  D: "oklch(0.55 0.18 50)",
-  E: "oklch(0.50 0.22 28)",
-  F: "var(--destructive)",
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
+// Real endpoint per bruno/director/Grade Reports - Summary.bru accepts only
+// an optional `semesterId` filter and returns `{overall, byFaculty,
+// byProgram}` — no per-student records and no grade-distribution breakdown,
+// unlike the earlier proposed contract this page was built against (see
+// sandbox/TRIPLE_AUDIT_2026-09-13.md §1a). Both features are restored below,
+// sourced from the real, already-live `/results/grades` (per-course grade
+// records, filterable by semester) and `/results/grades/distribution`
+// (institution-wide, not semester-filterable — noted in the UI) endpoints
+// instead of the director-summary endpoint, which never provided them.
 
 export default function GradeReportsPage() {
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-
   const {
     gradeReport: report,
-    filter,
+    semesterId,
+    setSemesterId,
     isLoading,
     error,
-    setFilter,
-    resetFilter,
     refetch,
   } = useDirectorGrades()
 
-  const toggleExpand = (id: number) =>
-    setExpandedId((cur) => (cur === id ? null : id))
+  const [sessionId, setSessionId] = useState<number | null>(null)
+  const { data: sessions } = useAcademicSessions()
+  const { data: semesters = [] } = useSemesters(sessionId)
+
+  const {
+    grades: records,
+    loading: recordsLoading,
+    pagination: recordsPagination,
+    updateFilters: updateRecordsFilters,
+    goToPage: goToRecordsPage,
+  } = useGrades(10)
+
+  useEffect(() => {
+    updateRecordsFilters({
+      semesterId: semesterId ? String(semesterId) : "all",
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semesterId])
+
+  const { data: distribution = [], isLoading: distributionLoading } =
+    useGradeDistributionData()
 
   return (
     <PermissionGate
@@ -55,10 +74,7 @@ export default function GradeReportsPage() {
         <div className="page-header">
           <div className="page-header-text">
             <h2>Grade Reports</h2>
-            <p>
-              Academic performance analytics by semester, faculty, department,
-              and level
-            </p>
+            <p>School-wide academic performance, by faculty and by program</p>
           </div>
           <button
             className="btn-refresh"
@@ -77,30 +93,71 @@ export default function GradeReportsPage() {
           </div>
         )}
 
+        {/* Semester filter — the only filter the real endpoint accepts */}
+        <div className="semester-filter-row">
+          <div className="semester-filter-field">
+            <label>Session</label>
+            <select
+              value={sessionId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value ? Number(e.target.value) : null
+                setSessionId(v)
+                setSemesterId(null)
+              }}
+            >
+              <option value="">All sessions</option>
+              {(sessions ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="semester-filter-field">
+            <label>Semester</label>
+            <select
+              value={semesterId ?? ""}
+              onChange={(e) =>
+                setSemesterId(e.target.value ? Number(e.target.value) : null)
+              }
+              disabled={!sessionId}
+            >
+              <option value="">All semesters</option>
+              {semesters.map((sem) => (
+                <option key={sem.id} value={sem.id}>
+                  {sem.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* KPI */}
         <div className="grade-kpi-row">
           {[
             {
               label: "Average GPA",
-              value: report ? report.averageGPA.toFixed(2) : "—",
+              value: report ? report.overall.averageGPA.toFixed(2) : "—",
               sub: "out of 5.0",
               color: "primary",
             },
             {
               label: "Pass Rate",
-              value: report ? `${report.passRate}%` : "—",
+              value: report ? `${report.overall.passRate}%` : "—",
               sub: "passed semester",
               color: "success",
             },
             {
               label: "Distinction Rate",
-              value: report ? `${report.distinctionRate}%` : "—",
+              value: report ? `${report.overall.distinctionRate}%` : "—",
               sub: "GPA ≥ 4.5",
               color: "accent",
             },
             {
               label: "Assessed Records",
-              value: report ? report.pagination.total.toLocaleString() : "—",
+              value: report
+                ? report.overall.totalRecords.toLocaleString()
+                : "—",
               sub: "student records",
               color: "warning",
             },
@@ -122,15 +179,14 @@ export default function GradeReportsPage() {
           ))}
         </div>
 
-        {/* Grade Distribution — colour pills */}
-        {!isLoading && report && (
+        {/* Grade Distribution — institution-wide, not scoped to the session/
+            semester picker above (the real /results/grades/distribution
+            endpoint takes no filters) */}
+        {!distributionLoading && distribution.length > 0 && (
           <div className="grade-dist-row">
-            {report.gradeDistribution.map((gd) => (
+            {distribution.map((gd) => (
               <div key={gd.grade} className="grade-dist-pill">
-                <span
-                  className="grade-letter"
-                  style={{ color: GRADE_COLORS[gd.grade] }}
-                >
+                <span className="grade-letter" style={{ color: gd.color }}>
                   {gd.grade}
                 </span>
                 <span className="grade-count">{gd.count.toLocaleString()}</span>
@@ -146,8 +202,8 @@ export default function GradeReportsPage() {
         </div>
         <div className="charts-grid-2">
           <GradeRadarChart
-            data={report?.gradeDistribution ?? []}
-            isLoading={isLoading}
+            data={distribution}
+            isLoading={distributionLoading}
           />
           <GpaLineChart data={report?.byFaculty ?? []} isLoading={isLoading} />
         </div>
@@ -187,9 +243,9 @@ export default function GradeReportsPage() {
                             fontWeight: 700,
                             color:
                               f.averageGPA >= 3.5
-                                ? GRADE_COLORS.A
+                                ? "oklch(0.45 0.18 145)"
                                 : f.averageGPA < 2
-                                  ? GRADE_COLORS.F
+                                  ? "var(--destructive)"
                                   : "var(--foreground)",
                           }}
                         >
@@ -213,179 +269,173 @@ export default function GradeReportsPage() {
           </table>
         </div>
 
-        {/* Filters + Expandable Table */}
+        {/* Program GPA table */}
+        <div className="section-divider">
+          <h2>GPA by Program</h2>
+        </div>
+        <div className="faculty-gpa-wrap">
+          <table className="faculty-gpa-table">
+            <thead>
+              <tr>
+                <th>Program</th>
+                <th>Students</th>
+                <th>Avg GPA</th>
+                <th>Performance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 5 }, (_, i) => (
+                  <tr key={i}>
+                    {[1, 2, 3, 4].map((j) => (
+                      <td key={j}>
+                        <div className="kpi-sk" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (report?.byProgram ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="et-empty">
+                    No program-level data for the selected filter.
+                  </td>
+                </tr>
+              ) : (
+                (report?.byProgram ?? []).map((p) => (
+                  <tr key={p.program}>
+                    <td className="fac-name">{p.program}</td>
+                    <td>{p.studentCount.toLocaleString()}</td>
+                    <td>
+                      <span
+                        style={{
+                          fontWeight: 700,
+                          color:
+                            p.averageGPA >= 3.5
+                              ? "oklch(0.45 0.18 145)"
+                              : p.averageGPA < 2
+                                ? "var(--destructive)"
+                                : "var(--foreground)",
+                        }}
+                      >
+                        {p.averageGPA.toFixed(2)}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="gpa-bar-wrap">
+                        <div
+                          className="gpa-bar"
+                          style={{ width: `${(p.averageGPA / 5) * 100}%` }}
+                        />
+                        <span className="gpa-bar-label">
+                          {((p.averageGPA / 5) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Student Grade Records — real, paginated per-course grade rows
+            from /results/grades, filtered by the session/semester picker
+            above. Flatter than the earlier proposed shape (one row per
+            student per course, not a per-semester summary with an
+            expandable course breakdown) since that aggregate isn't
+            something the real API computes for us. */}
         <div className="section-divider">
           <h2>Student Grade Records</h2>
         </div>
-        <DirectorFilterBar
-          filter={filter}
-          onFilter={(f) => {
-            setFilter(f)
-            refetch({ ...filter, ...f })
-          }}
-          onReset={() => {
-            resetFilter()
-            refetch()
-          }}
-          onExport={() => alert("Export coming soon!")}
-          showSemester
-          showLevel
-          showStatus
-          statusOptions={[
-            { label: "Distinction", value: "distinction" },
-            { label: "Pass", value: "pass" },
-            { label: "Probation", value: "probation" },
-            { label: "Fail", value: "fail" },
-          ]}
-          isLoading={isLoading}
-          title="Filter Grade Records"
-        />
-
-        {/* Custom expandable table */}
         <div className="expandable-table-wrap">
           <div className="et-scroll">
             <table className="et-table">
               <thead>
                 <tr>
-                  <th style={{ width: 36 }} />
                   <th>Matric No.</th>
-                  <th>Name</th>
-                  <th>Faculty</th>
-                  <th>Dept.</th>
-                  <th style={{ textAlign: "center" }}>Level</th>
-                  <th>Semester</th>
-                  <th>Session</th>
+                  <th>Student</th>
+                  <th>Course</th>
                   <th style={{ textAlign: "center" }}>Units</th>
-                  <th style={{ textAlign: "center" }}>GPA</th>
-                  <th style={{ textAlign: "center" }}>CGPA</th>
+                  <th style={{ textAlign: "center" }}>Score</th>
+                  <th style={{ textAlign: "center" }}>Grade</th>
                   <th style={{ textAlign: "center" }}>Status</th>
+                  <th style={{ textAlign: "center" }}>Fees</th>
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {recordsLoading ? (
                   Array.from({ length: 8 }, (_, i) => (
                     <tr key={i} className="sk-row">
-                      {Array.from({ length: 12 }, (__, j) => (
+                      {Array.from({ length: 8 }, (__, j) => (
                         <td key={j}>
                           <div className="sk-cell" />
                         </td>
                       ))}
                     </tr>
                   ))
-                ) : (report?.records ?? []).length === 0 ? (
+                ) : records.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="et-empty">
-                      No records match the selected filters.
+                    <td colSpan={8} className="et-empty">
+                      No grade records match the selected filters.
                     </td>
                   </tr>
                 ) : (
-                  (report?.records ?? []).map((r) => {
-                    const isOpen = expandedId === r.studentId
-                    return (
-                      <React.Fragment key={r.studentId}>
-                        <tr
-                          className={`et-row${isOpen ? "expanded" : ""}`}
-                          onClick={() => toggleExpand(r.studentId)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <td style={{ textAlign: "center" }}>
-                            {isOpen ? (
-                              <ChevronDown size={14} />
-                            ) : (
-                              <ChevronRight size={14} />
-                            )}
-                          </td>
-                          <td className="mono">{r.matricNumber}</td>
-                          <td>{r.studentName}</td>
-                          <td>{r.faculty}</td>
-                          <td>{r.department}</td>
-                          <td style={{ textAlign: "center" }}>{r.level}L</td>
-                          <td>{r.semester}</td>
-                          <td>{r.academicYear}</td>
-                          <td style={{ textAlign: "center" }}>
-                            {r.totalUnits}
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                color:
-                                  r.semesterGPA >= 4.5
-                                    ? GRADE_COLORS.A
-                                    : r.semesterGPA < 1.5
-                                      ? GRADE_COLORS.F
-                                      : "var(--foreground)",
-                              }}
-                            >
-                              {r.semesterGPA.toFixed(2)}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            {r.cgpa.toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <StatusBadge status={r.status} />
-                          </td>
-                        </tr>
-                        {isOpen && (
-                          <tr className="course-detail-row">
-                            <td colSpan={12}>
-                              <div className="course-detail">
-                                <p className="course-detail-title">
-                                  Course Breakdown — {r.studentName}
-                                </p>
-                                <table className="course-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Code</th>
-                                      <th>Title</th>
-                                      <th>Units</th>
-                                      <th>Score</th>
-                                      <th>Grade</th>
-                                      <th>Points</th>
-                                      <th>Tutor</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {r.courses.map(
-                                      (c: CourseGrade, ci: number) => (
-                                        <tr key={ci}>
-                                          <td className="mono">
-                                            {c.courseCode}
-                                          </td>
-                                          <td>{c.courseTitle}</td>
-                                          <td>{c.creditUnits}</td>
-                                          <td>{c.score ?? "—"}</td>
-                                          <td>
-                                            <span
-                                              style={{
-                                                fontWeight: 700,
-                                                color: c.grade
-                                                  ? GRADE_COLORS[c.grade]
-                                                  : undefined,
-                                              }}
-                                            >
-                                              {c.grade ?? "—"}
-                                            </span>
-                                          </td>
-                                          <td>{c.gradePoints ?? "—"}</td>
-                                          <td>{c.tutorName ?? "—"}</td>
-                                        </tr>
-                                      )
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </td>
-                          </tr>
+                  records.map((g) => (
+                    <tr key={g.id} className="et-row">
+                      <td className="mono">{g.studentMatric}</td>
+                      <td>{g.studentName}</td>
+                      <td>
+                        {g.courseCode} — {g.courseName}
+                      </td>
+                      <td style={{ textAlign: "center" }}>{g.creditUnits}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {g.totalScore ?? "—"}
+                      </td>
+                      <td style={{ textAlign: "center", fontWeight: 700 }}>
+                        {g.gradeLetter ?? "—"}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <StatusBadge status={g.status} />
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        {g.hasOutstandingFees ? (
+                          <span className="fee-flag">Outstanding</span>
+                        ) : (
+                          <span className="fee-ok">Cleared</span>
                         )}
-                      </React.Fragment>
-                    )
-                  })
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
+          {recordsPagination.totalPages > 1 && (
+            <div className="et-pagination">
+              <span>
+                Page {recordsPagination.page} of {recordsPagination.totalPages}{" "}
+                · {recordsPagination.total.toLocaleString()} records
+              </span>
+              <div className="et-pagination-buttons">
+                <button
+                  onClick={() => goToRecordsPage(recordsPagination.page - 1)}
+                  disabled={recordsPagination.page <= 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={() => goToRecordsPage(recordsPagination.page + 1)}
+                  disabled={
+                    recordsPagination.page >= recordsPagination.totalPages
+                  }
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <style jsx>{`
@@ -417,6 +467,38 @@ export default function GradeReportsPage() {
             to {
               transform: rotate(360deg);
             }
+          }
+
+          .semester-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+          }
+          .semester-filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .semester-filter-field label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--muted-foreground);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+          .semester-filter-field select {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--foreground);
+            font-size: 0.8125rem;
+            min-width: 180px;
+          }
+          .semester-filter-field select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
           }
 
           /* KPI */
@@ -507,7 +589,7 @@ export default function GradeReportsPage() {
             color: var(--muted-foreground);
           }
 
-          /* Faculty GPA table */
+          /* Faculty/Program GPA table */
           .faculty-gpa-wrap {
             background: var(--card);
             border: 1px solid var(--border);
@@ -560,8 +642,14 @@ export default function GradeReportsPage() {
             font-size: 0.72rem;
             color: var(--muted-foreground);
           }
+          .et-empty {
+            text-align: center;
+            padding: 2rem 1rem !important;
+            color: var(--muted-foreground);
+            font-style: italic;
+          }
 
-          /* Expandable table */
+          /* Student Grade Records table */
           .expandable-table-wrap {
             background: var(--card);
             border: 1px solid var(--border);
@@ -599,58 +687,31 @@ export default function GradeReportsPage() {
           .et-row:hover td {
             background: color-mix(in oklch, var(--primary) 4%, transparent);
           }
-          .et-row.expanded td {
-            background: color-mix(in oklch, var(--primary) 6%, transparent);
-          }
-
-          .course-detail-row td {
-            padding: 0 !important;
-            border-bottom: 1px solid var(--border);
-          }
-          .course-detail {
-            background: color-mix(in oklch, var(--muted) 60%, transparent);
-            padding: 1rem 1.25rem;
-          }
-          .course-detail-title {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--primary);
-            margin-bottom: 0.75rem;
-          }
-          .course-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.78rem;
-          }
-          .course-table th {
-            padding: 0.45rem 0.75rem;
-            font-size: 0.68rem;
-            font-weight: 600;
-            color: var(--muted-foreground);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-          }
-          .course-table td {
-            padding: 0.45rem 0.75rem;
-            color: var(--foreground);
-            border-bottom: 1px solid
-              color-mix(in oklch, var(--border) 50%, transparent);
-          }
-          .course-table tr:last-child td {
-            border-bottom: none;
-          }
           .mono {
             font-family: "IBM Plex Mono", monospace;
             font-size: 0.78rem;
           }
-
-          .et-empty {
-            text-align: center;
-            padding: 3rem 1rem !important;
-            color: var(--muted-foreground);
-            font-style: italic;
+          .fee-flag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            background: color-mix(
+              in oklch,
+              var(--destructive) 12%,
+              transparent
+            );
+            color: var(--destructive);
+          }
+          .fee-ok {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            background: oklch(0.55 0.18 145 / 12%);
+            color: oklch(0.45 0.18 145);
           }
           .sk-row td {
             padding: 0.9rem 0.875rem;
@@ -665,6 +726,35 @@ export default function GradeReportsPage() {
             );
             animation: pulse 1.4s ease-in-out infinite;
             width: 80%;
+          }
+          .et-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--muted-foreground);
+          }
+          .et-pagination-buttons {
+            display: flex;
+            gap: 0.5rem;
+          }
+          .et-pagination-buttons button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            color: var(--foreground);
+            cursor: pointer;
+          }
+          .et-pagination-buttons button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
           }
           .kpi-sk {
             height: 14px;

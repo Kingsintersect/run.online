@@ -252,8 +252,12 @@ const mapStudent = (s: WireStudent): Student => ({
   program_name: s.program?.name ?? "—",
   department_name: s.program?.department?.name ?? "—",
   faculty_name: s.program?.department?.faculty?.name ?? "—",
-  current_level: s.currentLevel?.numericValue ?? 0,
-  current_level_id: s.currentLevelId ?? s.currentLevel?.id ?? 0,
+  // Nullable — sandbox/program-structure-depth/. `0` was
+  // previously used as a "no level" sentinel; `null` is the correct
+  // representation now that FOUNDATIONAL/CERTIFICATE students genuinely
+  // have no Level at all (see Student.current_level_id's note).
+  current_level: s.currentLevel?.numericValue ?? null,
+  current_level_id: s.currentLevelId ?? s.currentLevel?.id ?? null,
   entry_mode: s.entryMode,
   mode_of_study: s.modeOfStudy,
   admission_date: s.admissionDate,

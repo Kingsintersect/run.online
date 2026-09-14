@@ -35,9 +35,8 @@ import type { ProgramCategory } from "@/types/school"
 const AUTH = { access_token: true } as const
 
 /** Actual live shape of one row from GET/POST/PATCH /admissions/config/steps — see the module docblock above.
- *  programCategory/programId/fields: Multi-Program Platform additions, not yet shipped — see
- *  sandbox/multi-program-platform/API_CONTRACTS.md §A. All optional/nullable so this parses fine
- *  against today's backend, which simply never sends them. */
+ *  programCategory/programId/fields: Multi-Program Platform additions — see
+ *  sandbox/multi-program-platform/API_CONTRACTS.md §A. Optional/nullable; null = institution-wide. */
 interface RawAdmissionStep {
   id: number
   group: AdmissionStepGroup
@@ -148,12 +147,12 @@ export const admissionStepsApi = {
     return { processSteps, formSteps }
   },
 
-  // GET /admissions/config/steps/effective — Multi-Program Platform, not yet
-  // shipped (sandbox/multi-program-platform/API_CONTRACTS.md §A). Server-side
-  // resolution: programId match > programCategory match > institution
-  // default. Omit programId before the applicant has chosen a program —
-  // resolves to the institution-wide default set. 404s until the backend
-  // ships it; callers fall back to the raw config() (see useAdmissionForm.ts).
+  // GET /admissions/config/steps/effective — Multi-Program Platform
+  // (bruno/admission/Steps - Effective.bru). Server-side resolution:
+  // programId match > programCategory match > institution default. Omit
+  // programId before the applicant has chosen a program — resolves to the
+  // institution-wide default set. On error, callers fall back to the raw
+  // config() (see useAdmissionForm.ts).
   async getEffective(
     group: AdmissionStepGroup,
     programId?: number | null
@@ -221,7 +220,8 @@ export const admissionStepsKeys = {
   list: (
     group?: AdmissionStepGroup,
     filters?: { programId?: number; programCategory?: ProgramCategory }
-  ) => [...admissionStepsKeys.all, "list", group ?? "all", filters ?? {}] as const,
+  ) =>
+    [...admissionStepsKeys.all, "list", group ?? "all", filters ?? {}] as const,
   config: () => [...admissionStepsKeys.all, "config"] as const,
   effective: (group: AdmissionStepGroup, programId?: number | null) =>
     [...admissionStepsKeys.all, "effective", group, programId ?? null] as const,

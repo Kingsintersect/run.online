@@ -4,12 +4,9 @@
 /*  Multi-Program Platform — sandbox/multi-program-platform/. Full CRUD */
 /*  on the AdmissionFormField rows a FORM-group admission step owns —   */
 /*  the pieces that replace the old fixed 9-step wizard with an admin-  */
-/*  composable form. Not yet shipped by the backend, see               */
-/*  BACKEND_REQUIRED_ENDPOINTS.md §2 / API_CONTRACTS.md §B — every call */
-/*  here 404s until it ships and degrades to an empty field list        */
-/*  (DynamicFormField.tsx renders nothing for a step with no fields,    */
-/*  which is indistinguishable from "this step has no dynamic fields    */
-/*  yet" — the correct behavior either way).                            */
+/*  composable form. See API_CONTRACTS.md §B. A failed call degrades to */
+/*  an empty field list (DynamicFormField.tsx renders nothing for a     */
+/*  step with no fields).                                               */
 /* ------------------------------------------------------------------ */
 
 import apiClient, {

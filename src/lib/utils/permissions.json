@@ -461,6 +461,11 @@
         "resource": "moodle-sync",
         "action": "manage",
         "description": "Full control over Moodle sync configuration, including deleting sync mappings"
+      },
+      {
+        "resource": "moodle-sync",
+        "action": "drift.resolve",
+        "description": "Resolve Moodle enrollment drift: dismiss or reopen drift items, and remove Moodle-only enrollments from a Moodle course"
       }
     ]
   },

@@ -20,6 +20,12 @@ export const InvoiceResponseSchema = z.object({
       id: z.number(),
       matricNumber: z.string(),
       fullName: z.string(),
+      // sandbox/MISSING_BACKEND_APIS.md §2.8. Optional so a response
+      // without them still parses.
+      facultyName: z.string().optional(),
+      departmentName: z.string().optional(),
+      programName: z.string().optional(),
+      level: z.number().optional(),
     })
     .optional(),
 })

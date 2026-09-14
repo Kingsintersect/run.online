@@ -88,14 +88,29 @@ export function CourseList({ canManage = false }: CourseListProps) {
         .map((l) => ({ value: l.id, label: l.name })),
     [levels]
   )
+  // Program Structure Depth — sandbox/program-structure-depth/. A course that
+  // will only ever attach to a FOUNDATIONAL/CERTIFICATE program has no Level.
+  const NO_LEVEL_OPTION_VALUE = "none"
+  const levelOptionsWithNone = useMemo(
+    () => [
+      {
+        value: NO_LEVEL_OPTION_VALUE,
+        label: "— No level (Foundational/Certificate) —",
+      },
+      ...levelOptions,
+    ],
+    [levelOptions]
+  )
 
   const departmentOptions = useMemo(
     () => departments.map((d) => ({ value: d.id, label: d.name })),
     [departments]
   )
 
-  const levelName = (levelId: number) =>
-    levels.find((l) => l.id === levelId)?.name ?? `Level #${levelId}`
+  const levelName = (levelId: number | null) =>
+    levelId === null
+      ? "No level"
+      : (levels.find((l) => l.id === levelId)?.name ?? `Level #${levelId}`)
   const departmentName = (departmentId: number | null) =>
     departmentId
       ? (departments.find((d) => d.id === departmentId)?.name ??
@@ -135,7 +150,7 @@ export function CourseList({ canManage = false }: CourseListProps) {
       description: "",
       credit_units: 3,
       course_type: "DEPARTMENTAL",
-      level_id: 0,
+      level_id: null,
       owning_department_id: null,
       syllabus: "",
     },
@@ -183,7 +198,7 @@ export function CourseList({ canManage = false }: CourseListProps) {
       description: "",
       credit_units: 3,
       course_type: "DEPARTMENTAL",
-      level_id: 0,
+      level_id: null,
       owning_department_id: null,
       syllabus: "",
     })
@@ -428,9 +443,17 @@ export function CourseList({ canManage = false }: CourseListProps) {
                       name="level_id"
                       render={({ field }) => (
                         <Combobox
-                          options={levelOptions}
-                          value={field.value || null}
-                          onChange={(v) => field.onChange(Number(v))}
+                          options={levelOptionsWithNone}
+                          value={
+                            field.value === null
+                              ? NO_LEVEL_OPTION_VALUE
+                              : field.value
+                          }
+                          onChange={(v) =>
+                            field.onChange(
+                              v === NO_LEVEL_OPTION_VALUE ? null : Number(v)
+                            )
+                          }
                           placeholder="Select level"
                           searchPlaceholder="Search levels…"
                         />

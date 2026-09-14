@@ -8,6 +8,9 @@ import type {
   UpdateFacultyPayload,
   UpdateDepartmentPayload,
   UpdateProgramPayload,
+  UpdateMajorProgramPayload,
+  UpdateCohortPayload,
+  TransitionCohortPayload,
 } from "@/types/school"
 
 // ── Faculties ───────────────────────────────
@@ -255,6 +258,124 @@ export function useCreateLevel() {
     ...courseStructureMutationOptions.createLevel(),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: courseStructureKeys.levels.all })
+    },
+  })
+}
+
+// ── Major Programs (sandbox/major-program-scoping/) ────────────────────────
+
+export function useMajorPrograms() {
+  return useQuery({
+    ...courseStructureQueryOptions.majorPrograms.list(),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+export function useCreateMajorProgram() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.createMajorProgram(),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.majorPrograms.all,
+      })
+    },
+  })
+}
+
+export function useUpdateMajorProgram() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.updateMajorProgram(),
+    onSuccess: async (
+      _,
+      variables: { id: number; payload: UpdateMajorProgramPayload }
+    ) => {
+      void variables
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.majorPrograms.all,
+      })
+    },
+  })
+}
+
+export function useRemoveMajorProgram() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.removeMajorProgram(),
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.majorPrograms.all,
+      })
+    },
+  })
+}
+
+// ── Cohorts (sandbox/program-structure-depth/) ─────────────────────────────
+
+export function useCohorts(programId: number | null) {
+  return useQuery({
+    ...courseStructureQueryOptions.cohorts.byProgram(programId ?? 0),
+    enabled: !!programId,
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function useCreateCohort() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.createCohort(),
+    onSuccess: async (_, variables) => {
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.cohorts.byProgram(variables.programId),
+      })
+    },
+  })
+}
+
+export function useUpdateCohort(programId: number | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.updateCohort(),
+    onSuccess: async (
+      _,
+      variables: { id: number; payload: UpdateCohortPayload }
+    ) => {
+      void variables
+      if (!programId) return
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.cohorts.byProgram(programId),
+      })
+    },
+  })
+}
+
+export function useTransitionCohort(programId: number | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.transitionCohort(),
+    onSuccess: async (
+      _,
+      variables: { id: number; payload: TransitionCohortPayload }
+    ) => {
+      void variables
+      if (!programId) return
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.cohorts.byProgram(programId),
+      })
+    },
+  })
+}
+
+export function useRemoveCohort(programId: number | null) {
+  const qc = useQueryClient()
+  return useMutation({
+    ...courseStructureMutationOptions.removeCohort(),
+    onSuccess: async () => {
+      if (!programId) return
+      await qc.invalidateQueries({
+        queryKey: courseStructureKeys.cohorts.byProgram(programId),
+      })
     },
   })
 }

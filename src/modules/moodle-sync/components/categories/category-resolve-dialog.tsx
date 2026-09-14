@@ -20,6 +20,7 @@ import {
   useAllPrograms,
   useFaculties,
   useLevels,
+  useMajorPrograms,
 } from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import { useSemesters } from "@/hooks/useSemesters"
@@ -36,13 +37,25 @@ interface CategoryResolveDialogProps {
 // a pulled Semester category (e.g. "First Semester") permanently
 // unresolvable: there was no way to even select the right kind of entity to
 // link it to.
+// "major_program" — sandbox/major-program-scoping/: lets an admin manually
+// resolve a category to a MajorProgram root node.
 const ENTITY_KINDS: AcademicUnitLinkKind[] = [
   "faculty",
   "department",
   "program",
   "level",
   "semester",
+  "major_program",
 ]
+
+const ENTITY_KIND_LABELS: Record<AcademicUnitLinkKind, string> = {
+  faculty: "Faculty",
+  department: "Department",
+  program: "Program",
+  level: "Level",
+  semester: "Semester",
+  major_program: "Major Program",
+}
 
 // Resolves one flagged (needsMapping: true) row pulled from Moodle with no
 // recognizable idnumber — either link it to a real entity, or fix it up as
@@ -71,6 +84,7 @@ export function CategoryResolveDialog({
   const { data: departmentsData } = useAllDepartments()
   const { data: programsData } = useAllPrograms()
   const { data: levelsData } = useLevels()
+  const { data: majorProgramsData } = useMajorPrograms()
   const { data: sessions } = useAcademicSessions()
   const activeSessionId = useMemo(
     () => sessions?.find((s) => s.isActive)?.id ?? sessions?.[0]?.id ?? null,
@@ -110,6 +124,12 @@ export function CategoryResolveDialog({
           value: s.id,
           label: s.name,
         }))
+      case "major_program":
+        return (majorProgramsData?.data ?? []).map((mp) => ({
+          value: mp.id,
+          label: mp.name,
+          description: mp.code,
+        }))
       default:
         return []
     }
@@ -119,6 +139,7 @@ export function CategoryResolveDialog({
     departmentsData,
     programsData,
     levelsData,
+    majorProgramsData,
     semestersData,
   ])
 
@@ -239,8 +260,8 @@ export function CategoryResolveDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {ENTITY_KINDS.map((k) => (
-                    <SelectItem key={k} value={k} className="capitalize">
-                      {k}
+                    <SelectItem key={k} value={k}>
+                      {ENTITY_KIND_LABELS[k]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -275,7 +296,7 @@ export function CategoryResolveDialog({
                 options={entityOptions}
                 value={entityId}
                 onChange={(v) => setEntityId(Number(v))}
-                placeholder={`Select a ${entityKind}…`}
+                placeholder={`Select a ${ENTITY_KIND_LABELS[entityKind]}…`}
               />
             </div>
           </div>

@@ -105,16 +105,63 @@ export type AdmissionRequirementFormValues = z.infer<
 >
 
 // ── Admission Offer ──────────────────────────
+// Program Structure Depth — sandbox/program-structure-depth/API_CONTRACTS.md
+// §1 category-conditional validation table: DEGREE/PART_TIME/POSTGRADUATE/DIPLOMA/SECONDARY_SCHOOL require
+// sessionId+levelId; FOUNDATIONAL requires sessionId only; CERTIFICATE
+// requires cohortId only. `programCategory` here is a form-local carrier
+// field (resolved from the selected program, set by the component) driving
+// this refine — it is never sent to the backend; the submit handler builds
+// its own payload object rather than spreading these values.
 
-export const createAdmissionOfferSchema = z.object({
-  admissionNumber: z.string().min(1, "Admission number is required").max(30),
-  programId: z.number().int().positive("Select a program"),
-  levelId: z.number().int().positive("Select a level"),
-  sessionId: z.number().int().positive("Select a session"),
-  admissionDate: z.string().min(1, "Admission date is required"),
-  admissionType: z.string().min(1, "Admission type is required").max(20),
-  expiryDate: z.string().optional(),
-})
+export const createAdmissionOfferSchema = z
+  .object({
+    admissionNumber: z.string().min(1, "Admission number is required").max(30),
+    programId: z.number().int().positive("Select a program"),
+    programCategory: z
+      .enum([
+        "DEGREE",
+        "POSTGRADUATE",
+        "CERTIFICATE",
+        "DIPLOMA",
+        "SECONDARY_SCHOOL",
+        "FOUNDATIONAL",
+        "PART_TIME",
+      ])
+      .optional(),
+    levelId: z.number().int().positive().nullable().optional(),
+    sessionId: z.number().int().positive().nullable().optional(),
+    cohortId: z.number().int().positive().nullable().optional(),
+    admissionDate: z.string().min(1, "Admission date is required"),
+    admissionType: z.string().min(1, "Admission type is required").max(20),
+    expiryDate: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const category = data.programCategory ?? "DEGREE"
+    if (category === "CERTIFICATE") {
+      if (!data.cohortId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["cohortId"],
+          message: "Select a cohort",
+        })
+      }
+      return
+    }
+    if (!data.sessionId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["sessionId"],
+        message: "Select a session",
+      })
+    }
+    if (category !== "FOUNDATIONAL" && !data.levelId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["levelId"],
+        message: "Select a level",
+      })
+    }
+  })
 
 export type CreateAdmissionOfferFormValues = z.infer<
   typeof createAdmissionOfferSchema
@@ -190,6 +237,14 @@ export const programSchema = z.object({
       "PART_TIME",
     ])
     .optional(),
+  // Major-Program Scoping — sandbox/major-program-scoping/. Optional so a
+  // program with no major program assigned still saves.
+  majorProgramId: z.number().int().positive().nullable().optional(),
+  // Program Structure Depth — sandbox/program-structure-depth/README.md
+  // §4.D. Lowest Level a fresh admission offer into this program
+  // can target (e.g. 200 for Part-Time direct entry). Null/omitted = no
+  // restriction, today's exact behavior.
+  entryLevelId: z.number().int().positive().nullable().optional(),
 })
 
 export type ProgramFormValues = z.infer<typeof programSchema>
@@ -200,6 +255,61 @@ export const curriculumLevelSchema = z.object({
 })
 
 export type CurriculumLevelFormValues = z.infer<typeof curriculumLevelSchema>
+
+// ── Major Programs — sandbox/major-program-scoping/ ─────────────────────────
+// See school.d.ts's MajorProgram note.
+
+export const majorProgramSchema = z.object({
+  code: z
+    .string()
+    .min(1, "Code is required")
+    .max(40, "Code must be 40 characters or less")
+    .regex(
+      /^[A-Z0-9_]+$/,
+      "Use uppercase letters, numbers, and underscores only"
+    ),
+  name: z.string().min(1, "Name is required").max(120),
+  description: z.string().optional(),
+})
+
+export type MajorProgramFormValues = z.infer<typeof majorProgramSchema>
+
+// ── Cohorts — sandbox/program-structure-depth/ ──────────────────────────────
+// See school.d.ts's Cohort note.
+
+export const cohortSchema = z
+  .object({
+    code: z
+      .string()
+      .min(1, "Code is required")
+      .max(40, "Code must be 40 characters or less"),
+    name: z.string().min(1, "Name is required").max(150),
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().min(1, "End date is required"),
+    examWindowStart: z.string().optional(),
+    examWindowEnd: z.string().optional(),
+    capacity: z.number().int().positive().optional(),
+  })
+  .refine((data) => data.endDate > data.startDate, {
+    message: "End date must be after start date",
+    path: ["endDate"],
+  })
+
+export type CohortFormValues = z.infer<typeof cohortSchema>
+
+export const cohortTransitionSchema = z.object({
+  status: z.enum([
+    "OPEN",
+    "IN_PROGRESS",
+    "EXAM_WINDOW",
+    "CLOSED",
+    "CERTIFIED",
+    "CANCELLED",
+  ]),
+  reason: z.string().optional(),
+})
+
+export type CohortTransitionFormValues = z.infer<typeof cohortTransitionSchema>
 
 // ── Course Management ───────────────────────
 
@@ -226,7 +336,12 @@ export const courseSchema = z.object({
     ],
     { message: "Course type is required" }
   ),
-  level_id: z.number().int().positive("Level is required"),
+  // Nullable — sandbox/program-structure-depth/. Leave unset for a
+  // course that will only ever attach to a FOUNDATIONAL/CERTIFICATE program
+  // (neither uses the Level layer); the Program↔Course assignment screen is
+  // where a level mismatch actually gets caught, not here, since a single
+  // Course row doesn't know in advance which program(s) it'll be attached to.
+  level_id: z.number().int().positive().nullable(),
   owning_department_id: z.number().int().positive().nullable().optional(),
   syllabus: z.string().optional(),
 })

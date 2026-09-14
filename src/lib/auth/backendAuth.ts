@@ -401,6 +401,10 @@ export type AdminCreateUserPayload = {
   lastName?: string
   phoneNumber?: string
   roleIds: number[]
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // §5 / bruno/auth/Users - Create (Admin).bru: each role is granted scoped
+  // to each listed major program. Omit for an unscoped grant.
+  majorProgramIds?: number[]
 }
 
 // Real API: POST /auth/users — Bruno: auth/Users - Create (Admin).bru.

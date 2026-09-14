@@ -14,6 +14,13 @@ import type {
   CreateProgramPayload,
   UpdateProgramPayload,
   CreateCurriculumLevelPayload,
+  MajorProgram,
+  CreateMajorProgramPayload,
+  UpdateMajorProgramPayload,
+  Cohort,
+  CreateCohortPayload,
+  UpdateCohortPayload,
+  TransitionCohortPayload,
 } from "@/types/school"
 
 // Real backend contract per bruno/academic (the sole source of truth for
@@ -174,6 +181,85 @@ export const levelsApi = {
   },
 }
 
+// Major Programs — bruno/academic/Major Programs - *.bru, contract per
+// sandbox/major-program-scoping/API_CONTRACTS.md §6.
+export const majorProgramsApi = {
+  async list(): Promise<{ data: MajorProgram[] }> {
+    return apiClient.get<{ data: MajorProgram[] }>(
+      `${BASE}/major-programs`,
+      AUTH
+    )
+  },
+
+  async create(
+    payload: CreateMajorProgramPayload
+  ): Promise<{ data: MajorProgram }> {
+    return apiClient.post<{ data: MajorProgram }>(
+      `${BASE}/major-programs`,
+      payload,
+      AUTH
+    )
+  },
+
+  async update(
+    id: number,
+    payload: UpdateMajorProgramPayload
+  ): Promise<{ data: MajorProgram }> {
+    return apiClient.patch<{ data: MajorProgram }>(
+      `${BASE}/major-programs/${id}`,
+      payload,
+      AUTH
+    )
+  },
+
+  // Hard delete (409 while any Program still references it) — per
+  // bruno/academic/Major Programs - Delete.bru. To deactivate without
+  // deleting, PATCH `{isActive: false}` via update() instead.
+  async remove(id: number): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/major-programs/${id}`, AUTH)
+  },
+}
+
+// Cohorts — contract per sandbox/program-structure-depth/API_CONTRACTS.md §2.
+export const cohortsApi = {
+  async listByProgram(programId: number): Promise<{ data: Cohort[] }> {
+    return apiClient.get<{ data: Cohort[] }>(`${BASE}/cohorts`, {
+      ...AUTH,
+      params: { programId },
+    })
+  },
+
+  async create(payload: CreateCohortPayload): Promise<{ data: Cohort }> {
+    return apiClient.post<{ data: Cohort }>(`${BASE}/cohorts`, payload, AUTH)
+  },
+
+  async update(
+    id: number,
+    payload: UpdateCohortPayload
+  ): Promise<{ data: Cohort }> {
+    return apiClient.patch<{ data: Cohort }>(
+      `${BASE}/cohorts/${id}`,
+      payload,
+      AUTH
+    )
+  },
+
+  async transition(
+    id: number,
+    payload: TransitionCohortPayload
+  ): Promise<{ data: Cohort }> {
+    return apiClient.post<{ data: Cohort }>(
+      `${BASE}/cohorts/${id}/transition`,
+      payload,
+      AUTH
+    )
+  },
+
+  async remove(id: number): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/cohorts/${id}`, AUTH)
+  },
+}
+
 // ── Query keys ──────────────────────────────
 
 export const courseStructureKeys = {
@@ -208,6 +294,15 @@ export const courseStructureKeys = {
   levels: {
     all: ["course-structure", "levels"] as const,
     list: () => [...courseStructureKeys.levels.all, "list"] as const,
+  },
+  majorPrograms: {
+    all: ["course-structure", "major-programs"] as const,
+    list: () => [...courseStructureKeys.majorPrograms.all, "list"] as const,
+  },
+  cohorts: {
+    all: ["course-structure", "cohorts"] as const,
+    byProgram: (programId: number) =>
+      [...courseStructureKeys.cohorts.all, "by-program", programId] as const,
   },
 }
 
@@ -270,6 +365,20 @@ export const courseStructureQueryOptions = {
       createApiQueryOptions({
         queryKey: courseStructureKeys.levels.list(),
         queryFn: () => levelsApi.list(),
+      }),
+  },
+  majorPrograms: {
+    list: () =>
+      createApiQueryOptions({
+        queryKey: courseStructureKeys.majorPrograms.list(),
+        queryFn: () => majorProgramsApi.list(),
+      }),
+  },
+  cohorts: {
+    byProgram: (programId: number) =>
+      createApiQueryOptions({
+        queryKey: courseStructureKeys.cohorts.byProgram(programId),
+        queryFn: () => cohortsApi.listByProgram(programId),
       }),
   },
 }
@@ -338,5 +447,51 @@ export const courseStructureMutationOptions = {
     >({
       mutationKey: [...courseStructureKeys.levels.all, "create"],
       mutationFn: (payload) => levelsApi.create(payload),
+    }),
+  createMajorProgram: () =>
+    createApiMutationOptions<{ data: MajorProgram }, CreateMajorProgramPayload>(
+      {
+        mutationKey: [...courseStructureKeys.majorPrograms.all, "create"],
+        mutationFn: (payload) => majorProgramsApi.create(payload),
+      }
+    ),
+  updateMajorProgram: () =>
+    createApiMutationOptions<
+      { data: MajorProgram },
+      { id: number; payload: UpdateMajorProgramPayload }
+    >({
+      mutationKey: [...courseStructureKeys.majorPrograms.all, "update"],
+      mutationFn: ({ id, payload }) => majorProgramsApi.update(id, payload),
+    }),
+  removeMajorProgram: () =>
+    createApiMutationOptions<void, number>({
+      mutationKey: [...courseStructureKeys.majorPrograms.all, "remove"],
+      mutationFn: (id) => majorProgramsApi.remove(id),
+    }),
+  createCohort: () =>
+    createApiMutationOptions<{ data: Cohort }, CreateCohortPayload>({
+      mutationKey: [...courseStructureKeys.cohorts.all, "create"],
+      mutationFn: (payload) => cohortsApi.create(payload),
+    }),
+  updateCohort: () =>
+    createApiMutationOptions<
+      { data: Cohort },
+      { id: number; payload: UpdateCohortPayload }
+    >({
+      mutationKey: [...courseStructureKeys.cohorts.all, "update"],
+      mutationFn: ({ id, payload }) => cohortsApi.update(id, payload),
+    }),
+  transitionCohort: () =>
+    createApiMutationOptions<
+      { data: Cohort },
+      { id: number; payload: TransitionCohortPayload }
+    >({
+      mutationKey: [...courseStructureKeys.cohorts.all, "transition"],
+      mutationFn: ({ id, payload }) => cohortsApi.transition(id, payload),
+    }),
+  removeCohort: () =>
+    createApiMutationOptions<void, number>({
+      mutationKey: [...courseStructureKeys.cohorts.all, "remove"],
+      mutationFn: (id) => cohortsApi.remove(id),
     }),
 }

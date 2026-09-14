@@ -18,7 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useCreateProgram, useUpdateProgram } from "@/hooks/useCourseStructure"
+import {
+  useCreateProgram,
+  useUpdateProgram,
+  useMajorPrograms,
+  useLevels,
+} from "@/hooks/useCourseStructure"
 import {
   resolveFacultyAcademicUnit,
   academicStructureKeys,
@@ -46,6 +51,14 @@ export function ProgramFormDialog({
   const isEditing = !!program
   const createProgram = useCreateProgram()
   const updateProgram = useUpdateProgram()
+  const { data: majorProgramsData } = useMajorPrograms()
+  const majorPrograms = (majorProgramsData?.data ?? []).filter(
+    (mp) => mp.isActive
+  )
+  const { data: levelsData } = useLevels()
+  const levels = [...(levelsData?.data ?? [])].sort(
+    (a, b) => a.numericValue - b.numericValue
+  )
   const queryClient = useQueryClient()
   const [isResolving, setIsResolving] = useState(false)
   const isPending =
@@ -66,6 +79,8 @@ export function ProgramFormDialog({
       durationYears: 4,
       minCreditUnits: 120,
       programCategory: "DEGREE",
+      majorProgramId: null,
+      entryLevelId: null,
     },
   })
 
@@ -80,6 +95,8 @@ export function ProgramFormDialog({
       admissionRequirements: program?.admissionRequirements ?? "",
       minCreditUnits: program?.minCreditUnits ?? 120,
       programCategory: program?.programCategory ?? "DEGREE",
+      majorProgramId: program?.majorProgramId ?? null,
+      entryLevelId: program?.entryLevelId ?? null,
     })
   }, [open, program, reset])
 
@@ -182,8 +199,82 @@ export function ProgramFormDialog({
             )}
           />
           <p className="text-xs text-muted-foreground">
-            Drives which grading scheme and admission workflow this program
-            gets — see sandbox/multi-program-platform/.
+            Drives which grading scheme and admission workflow this program gets
+            — see sandbox/multi-program-platform/.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>
+            Major Program
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </Label>
+          <Controller
+            control={control}
+            name="majorProgramId"
+            render={({ field }) => (
+              <Select
+                value={field.value ? String(field.value) : "none"}
+                onValueChange={(v) =>
+                  field.onChange(v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Not assigned —</SelectItem>
+                  {majorPrograms.map((mp) => (
+                    <SelectItem key={mp.id} value={String(mp.id)}>
+                      {mp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-xs text-muted-foreground">
+            Which administrative grouping (Degree, Part-Time, Business School,
+            …) this program is scoped under — see
+            sandbox/major-program-scoping/. Independent of Program Category
+            above.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>
+            Entry Level
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              (optional)
+            </span>
+          </Label>
+          <Controller
+            control={control}
+            name="entryLevelId"
+            render={({ field }) => (
+              <Select
+                value={field.value ? String(field.value) : "none"}
+                onValueChange={(v) =>
+                  field.onChange(v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— No restriction —</SelectItem>
+                  {levels.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p className="text-xs text-muted-foreground">
+            Lowest Level a fresh admission offer into this program can target —
+            e.g. 200 Level for a Part-Time direct-entry program.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">

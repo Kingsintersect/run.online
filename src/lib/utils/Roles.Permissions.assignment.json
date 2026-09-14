@@ -846,6 +846,10 @@
     },
     {
       "resource": "moodle-sync",
+      "action": "drift.resolve"
+    },
+    {
+      "resource": "moodle-sync",
       "action": "manage"
     },
     {

@@ -13,14 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
-import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useCollectionsSummary } from "../../hooks/use-fee-reports"
-import type { FeeCategory } from "../../types"
 
 // Sentinel for "all sessions" in the select
 const ALL = "_ALL_" as const
 
+// Real response per bruno/fee/Reports - Summary.bru is a flat aggregate —
+// {invoiceCount, totalInvoiced, totalCollected} — no per-fee-type breakdown
+// row, so this renders three summary cards instead of a table. For a
+// per-fee-type breakdown, see the Outstanding report (a different,
+// already-correct endpoint) elsewhere in this module. See
+// sandbox/TRIPLE_AUDIT_2026-09-13.md §1b.
 export function CollectionsReport() {
   const [sessionId, setSessionId] = useState<number | undefined>(undefined)
 
@@ -29,15 +33,12 @@ export function CollectionsReport() {
     sessionId ? { sessionId } : undefined
   )
 
-  const rows = data?.data ?? []
-  const totals = data?.totals
-
-  // Compute collection rate for each row
-  function collectionRate(paid: string, invoiced: string) {
-    const p = Number(paid)
-    const i = Number(invoiced)
-    return i > 0 ? Math.round((p / i) * 100) : 0
-  }
+  const summary = data?.data
+  const totalInvoiced = summary ? Number(summary.totalInvoiced) : 0
+  const totalCollected = summary ? Number(summary.totalCollected) : 0
+  const totalOutstanding = Math.max(totalInvoiced - totalCollected, 0)
+  const collectionRate =
+    totalInvoiced > 0 ? Math.round((totalCollected / totalInvoiced) * 100) : 0
 
   if (isLoading) {
     return (
@@ -46,9 +47,11 @@ export function CollectionsReport() {
           <Skeleton className="h-9 w-44" />
           <Skeleton className="h-9 w-24" />
         </div>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-lg" />
-        ))}
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
       </div>
     )
   }
@@ -90,44 +93,7 @@ export function CollectionsReport() {
         </Button>
       </div>
 
-      {/* ── Totals summary cards ────────────────────────────────────── */}
-      {totals && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            {
-              label: "Total Invoiced",
-              value: totals.totalInvoiced,
-              cls: "text-foreground",
-            },
-            {
-              label: "Total Collected",
-              value: totals.totalPaid,
-              cls: "text-green-600 dark:text-green-400",
-            },
-            {
-              label: "Outstanding",
-              value: totals.totalOutstanding,
-              cls: "text-destructive",
-            },
-          ].map(({ label, value, cls }) => (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-border bg-card p-4"
-            >
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <CurrencyDisplay
-                amount={value}
-                className={`mt-1 block text-lg font-semibold ${cls}`}
-              />
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Collections table ───────────────────────────────────────── */}
-      {rows.length === 0 ? (
+      {!summary ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <TrendingUp size={36} className="mb-2 opacity-30" />
           <p className="text-sm">
@@ -135,123 +101,68 @@ export function CollectionsReport() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                  Fee Type
-                </th>
-                <th className="hidden px-4 py-3 text-left font-medium text-muted-foreground sm:table-cell">
-                  Session
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Invoiced
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Collected
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
-                  Outstanding
-                </th>
-                <th className="hidden px-4 py-3 text-right font-medium text-muted-foreground md:table-cell">
-                  Count
-                </th>
-                <th className="w-36 px-4 py-3 text-center font-medium text-muted-foreground">
-                  Collection Rate
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, idx) => {
-                const rate = collectionRate(row.totalPaid, row.totalInvoiced)
-                return (
-                  <motion.tr
-                    key={row.feeTypeId}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.15, delay: idx * 0.025 }}
-                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{row.feeTypeName}</p>
-                      <FeeCategoryBadge
-                        category={row.category as FeeCategory}
-                        className="mt-1"
-                      />
-                    </td>
+        <>
+          {/* ── Summary cards ──────────────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              {
+                label: "Total Invoiced",
+                value: summary.totalInvoiced,
+                cls: "text-foreground",
+              },
+              {
+                label: "Total Collected",
+                value: summary.totalCollected,
+                cls: "text-green-600 dark:text-green-400",
+              },
+              {
+                label: "Outstanding",
+                value: totalOutstanding,
+                cls: "text-destructive",
+              },
+            ].map(({ label, value, cls }) => (
+              <motion.div
+                key={label}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-border bg-card p-4"
+              >
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <CurrencyDisplay
+                  amount={value}
+                  className={`mt-1 block text-lg font-semibold ${cls}`}
+                />
+              </motion.div>
+            ))}
+          </div>
 
-                    <td className="hidden px-4 py-3 text-xs text-muted-foreground sm:table-cell">
-                      {row.session?.name ?? "—"}
-                    </td>
-
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      <CurrencyDisplay amount={row.totalInvoiced} />
-                    </td>
-
-                    <td className="px-4 py-3 text-right font-medium text-green-600 tabular-nums dark:text-green-400">
-                      <CurrencyDisplay amount={row.totalPaid} />
-                    </td>
-
-                    <td className="px-4 py-3 text-right font-medium text-destructive tabular-nums">
-                      <CurrencyDisplay amount={row.totalOutstanding} />
-                    </td>
-
-                    <td className="hidden px-4 py-3 text-right text-xs text-muted-foreground md:table-cell">
-                      {row.paidCount.toLocaleString("en-NG")}&nbsp;/&nbsp;
-                      {row.invoiceCount.toLocaleString("en-NG")}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs font-medium tabular-nums">
-                          {rate}%
-                        </span>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className={
-                              "h-full rounded-full transition-all duration-500 " +
-                              (rate >= 80
-                                ? "bg-green-500"
-                                : rate >= 50
-                                  ? "bg-yellow-500"
-                                  : "bg-destructive")
-                            }
-                            style={{ width: `${rate}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                  </motion.tr>
-                )
-              })}
-            </tbody>
-
-            {/* Totals footer */}
-            {totals && (
-              <tfoot>
-                <tr className="border-t-2 border-border bg-muted/30">
-                  <td
-                    className="px-4 py-3 text-sm font-semibold text-foreground"
-                    colSpan={2}
-                  >
-                    Total
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                    <CurrencyDisplay amount={totals.totalInvoiced} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-green-600 tabular-nums dark:text-green-400">
-                    <CurrencyDisplay amount={totals.totalPaid} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold text-destructive tabular-nums">
-                    <CurrencyDisplay amount={totals.totalOutstanding} />
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell" colSpan={2} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+          {/* ── Collection rate + invoice count ────────────────────── */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Collection Rate</span>
+              <span className="font-semibold tabular-nums">
+                {collectionRate}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={
+                  "h-full rounded-full transition-all duration-500 " +
+                  (collectionRate >= 80
+                    ? "bg-green-500"
+                    : collectionRate >= 50
+                      ? "bg-yellow-500"
+                      : "bg-destructive")
+                }
+                style={{ width: `${collectionRate}%` }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {summary.invoiceCount.toLocaleString("en-NG")} invoice
+              {summary.invoiceCount === 1 ? "" : "s"} in this selection
+            </p>
+          </div>
+        </>
       )}
     </div>
   )

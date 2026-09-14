@@ -34,6 +34,9 @@ export interface UserRole {
   assigned_by: number | null
   assigned_at: string
   expires_at: string | null
+  // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md
+  // §3: null = unscoped.
+  major_program_id?: number | null
 }
 
 // Real shape per bruno/auth's `Users - List.bru` pattern (matches
@@ -85,6 +88,23 @@ export type UpdatePermissionPayload = Partial<CreatePermissionPayload>
 export type AssignRolesPayload = {
   user_id: number
   role_ids: number[]
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // §4: when provided, each role_id is granted scoped to each
+  // major_program_id (cross-product). Omitted = unscoped grant.
+  major_program_ids?: number[]
+}
+
+// POST /auth/users/:userId/roles response (bruno/auth/Users - Assign Roles.bru).
+// One grant per role × major program; majorProgramId is null for an unscoped grant.
+export type AssignRolesResponse = {
+  message: string
+  userId: number
+  grants: {
+    roleId: number
+    roleName: string
+    majorProgramId: number | null
+    majorProgramName: string | null
+  }[]
 }
 
 export type RevokeRolePayload = {

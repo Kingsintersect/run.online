@@ -25,7 +25,26 @@ import type {
   CaPreviewResponse,
   GradeResponse,
   CalendarEventResponse,
+  ReconcileModule,
+  ResetModule,
+  ReconcilePreview,
+  ReconcileApplyResult,
+  ResetResult,
+  CourseDriftCheck,
+  DriftScanStatus,
+  EnrollmentDriftFilters,
+  EnrollmentDriftItem,
+  EnrollmentDriftList,
+  EnrollmentDriftSummary,
 } from "../types"
+import {
+  ApplyReconcileRequestSchema,
+  ResetRequestSchema,
+} from "../schemas/reconcile.schema"
+import {
+  EnrollmentDriftFiltersSchema,
+  ResolveDriftReasonSchema,
+} from "../schemas/enrollment-drift.schema"
 
 // Real backend contract per bruno/moodle-sync/*.bru (the sole source of truth
 // for this module — see CLAUDE.md §13). List/detail GETs are wrapped in a
@@ -318,7 +337,7 @@ export const moodleSyncService = {
   deleteCategoryMapping: (id: number) =>
     apiClient.delete<{ message: string }>(`${BASE}/categories/${id}`, AUTH),
 
-  // ---------- Cohorts (Multi-Program Platform, not yet shipped) ----------
+  // ---------- Cohorts (Multi-Program Platform) ----------
   // A cohort is Program + AcademicSession (+ Level) — not a new concept,
   // pushed to Moodle as a real cohort so shared courses can use Moodle's
   // own "Cohort sync" enrolment method for auto-enrol/auto-unenrol.
@@ -523,6 +542,99 @@ export const moodleSyncService = {
       undefined,
       AUTH
     ),
+
+  // ── Enrollment drift ──────────────────────────────────────────────────────
+  // sandbox/moodle-sync-reconciliation/ENROLLMENT_DRIFT.md §5. The portal is
+  // the authority: nothing here ever creates a portal enrollment.
+
+  // One course, synchronous. Updates only the drift report, never enrollments.
+  async checkCourseEnrollments(
+    moodleCourseId: number
+  ): Promise<CourseDriftCheck> {
+    const res = await apiClient.post<{ data: CourseDriftCheck }>(
+      `${BASE}/enrollments/drift/check/${moodleCourseId}`,
+      undefined,
+      AUTH
+    )
+    return res.data
+  },
+
+  // Every synced course, queued. Poll getDriftScanStatus while RUNNING.
+  async startDriftScan(): Promise<DriftScanStatus> {
+    const res = await apiClient.post<{ data: DriftScanStatus }>(
+      `${BASE}/enrollments/drift/scan`,
+      undefined,
+      AUTH
+    )
+    return res.data
+  },
+
+  async getDriftScanStatus(): Promise<DriftScanStatus> {
+    const res = await apiClient.get<{ data: DriftScanStatus }>(
+      `${BASE}/enrollments/drift/scan`,
+      AUTH
+    )
+    return res.data
+  },
+
+  async listEnrollmentDrift(
+    filters: EnrollmentDriftFilters = {}
+  ): Promise<EnrollmentDriftList> {
+    const params = EnrollmentDriftFiltersSchema.parse(filters)
+    return apiClient.get<EnrollmentDriftList>(`${BASE}/enrollments/drift`, {
+      ...AUTH,
+      params: params as Record<string, unknown>,
+    })
+  },
+
+  async getEnrollmentDriftSummary(): Promise<EnrollmentDriftSummary> {
+    const res = await apiClient.get<{ data: EnrollmentDriftSummary }>(
+      `${BASE}/enrollments/drift/summary`,
+      AUTH
+    )
+    return res.data
+  },
+
+  // MISSING_IN_MOODLE only — re-pushes the portal enrollment.
+  async reEnrollDrift(id: number): Promise<EnrollmentDriftItem> {
+    const res = await apiClient.post<{ data: EnrollmentDriftItem }>(
+      `${BASE}/enrollments/drift/${id}/re-enroll`,
+      undefined,
+      AUTH
+    )
+    return res.data
+  },
+
+  // ONLY_IN_MOODLE only — removes the student from the Moodle course. The
+  // portal is not changed.
+  async unenrolDrift(id: number, reason: string): Promise<EnrollmentDriftItem> {
+    const body = ResolveDriftReasonSchema.parse({ reason })
+    const res = await apiClient.post<{ data: EnrollmentDriftItem }>(
+      `${BASE}/enrollments/drift/${id}/unenrol`,
+      body,
+      AUTH
+    )
+    return res.data
+  },
+
+  async dismissDrift(id: number, reason: string): Promise<EnrollmentDriftItem> {
+    const body = ResolveDriftReasonSchema.parse({ reason })
+    const res = await apiClient.post<{ data: EnrollmentDriftItem }>(
+      `${BASE}/enrollments/drift/${id}/dismiss`,
+      body,
+      AUTH
+    )
+    return res.data
+  },
+
+  async reopenDrift(id: number): Promise<EnrollmentDriftItem> {
+    const res = await apiClient.post<{ data: EnrollmentDriftItem }>(
+      `${BASE}/enrollments/drift/${id}/reopen`,
+      undefined,
+      AUTH
+    )
+    return res.data
+  },
 
   // ---------- Assessments ----------
   // Verified live 2026-09-10 against the running backend: the COMPLETE contract
@@ -765,6 +877,49 @@ export const moodleSyncService = {
   async getCalendarEvent(id: number): Promise<CalendarEventResponse> {
     const res = await apiClient.get<{ data: CalendarEventResponse }>(
       `${BASE}/calendar/${id}`,
+      AUTH
+    )
+    return res.data
+  },
+
+  // ── Reconcile & Reset ────────────────────────────────────────────────────
+  // sandbox/moodle-sync-reconciliation/API_CONTRACTS.md.
+
+  // Dry run against live Moodle — writes nothing.
+  async previewReconcile(module: ReconcileModule): Promise<ReconcilePreview> {
+    const res = await apiClient.post<{ data: ReconcilePreview }>(
+      `${BASE}/${module}/reconcile/preview`,
+      undefined,
+      AUTH
+    )
+    return res.data
+  },
+
+  // Applies exactly the previewed diff. Removed-in-Moodle rows are flagged,
+  // never deleted.
+  async applyReconcile(
+    module: ReconcileModule,
+    previewId: string
+  ): Promise<ReconcileApplyResult> {
+    const body = ApplyReconcileRequestSchema.parse({ previewId })
+    const res = await apiClient.post<{ data: ReconcileApplyResult }>(
+      `${BASE}/${module}/reconcile/apply`,
+      body,
+      AUTH
+    )
+    return res.data
+  },
+
+  // Cache-only modules. `repull: true` deletes and re-pulls in one queued job
+  // so the portal is never left empty in between.
+  async resetModule(
+    module: ResetModule,
+    repull: boolean
+  ): Promise<ResetResult> {
+    const body = ResetRequestSchema.parse({ repull })
+    const res = await apiClient.post<{ data: ResetResult }>(
+      `${BASE}/${module}/reset`,
+      body,
       AUTH
     )
     return res.data

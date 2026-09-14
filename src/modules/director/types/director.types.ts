@@ -133,7 +133,9 @@ export interface StudentRecord {
   faculty: string
   department: string
   program: string
-  level: number
+  // Nullable — sandbox/program-structure-depth/. Null for a
+  // FOUNDATIONAL/CERTIFICATE student, neither of which has a Level.
+  level: number | null
   academicYear: string
   cgpa: number
   status: "active" | "deferred" | "graduated" | "withdrawn"
@@ -213,18 +215,34 @@ export interface GradeDistribution {
   percentage: number
 }
 
-export interface GradeReport {
-  records: StudentGradeRecord[]
-  gradeDistribution: GradeDistribution[]
+// Real contract per bruno/director/Grade Reports - Summary.bru — a single
+// `semesterId` filter, response `{data: {overall, byFaculty, byProgram}}`.
+// Replaces the earlier proposed `{summary, gradeDistribution, records, meta}`
+// shape (no per-student records or grade-distribution breakdown in the real
+// endpoint — see sandbox/TRIPLE_AUDIT_2026-09-13.md §1a).
+export interface GradeReportOverall {
   averageGPA: number
   passRate: number
   distinctionRate: number
-  byFaculty: {
-    faculty: string
-    averageGPA: number
-    studentCount: number
-  }[]
-  pagination: { total: number; page: number; limit: number }
+  totalRecords: number
+}
+
+export interface GradeReportByFaculty {
+  faculty: string
+  averageGPA: number
+  studentCount: number
+}
+
+export interface GradeReportByProgram {
+  program: string
+  averageGPA: number
+  studentCount: number
+}
+
+export interface GradeReport {
+  overall: GradeReportOverall
+  byFaculty: GradeReportByFaculty[]
+  byProgram: GradeReportByProgram[]
 }
 
 // ─── Filter Types ────────────────────────────────────────────────────────────

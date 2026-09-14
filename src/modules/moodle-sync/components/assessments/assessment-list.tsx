@@ -8,6 +8,7 @@ import EmptyState from "@/components/custom/EmptyState"
 import { useSyncAssessments } from "../../hooks/use-sync-assessments"
 import { usePullAllAssessments } from "../../hooks/use-sync-mutations"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
+import { ResetSyncButton } from "../shared/reset-sync-dialog"
 import type { AssessmentType } from "../../types"
 
 const TYPES: { value: AssessmentType | "all"; label: string }[] = [
@@ -57,6 +58,9 @@ export function AssessmentList() {
         onPull={handlePullAll}
         pullLabel="Pull All"
         pullPending={pullAll.isPending}
+        extraActions={
+          <ResetSyncButton module="assessments" moduleLabel="assessments" />
+        }
       />
 
       <div className="flex gap-1.5">

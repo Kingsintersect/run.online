@@ -7,6 +7,7 @@ import EmptyState from "@/components/custom/EmptyState"
 import { useSyncCalendarEvents } from "../../hooks/use-sync-calendar"
 import { usePullCalendar } from "../../hooks/use-sync-mutations"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
+import { ResetSyncButton } from "../shared/reset-sync-dialog"
 import { CalendarEventDetail } from "./calendar-event-detail"
 import { getEventTypeMeta } from "../../lib/event-type-meta"
 import type { CalendarEventResponse } from "../../types"
@@ -35,6 +36,12 @@ export function CalendarEventList() {
         onPull={handlePullAll}
         pullLabel="Pull All"
         pullPending={pullAll.isPending}
+        extraActions={
+          <ResetSyncButton
+            module="calendar"
+            moduleLabel="calendar & Zoom events"
+          />
+        }
       />
 
       {isLoading ? (

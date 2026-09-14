@@ -16,6 +16,12 @@ export function useInvoices(filters?: {
   feeTypeId?: number
   sessionId?: number
   studentId?: number
+  // Major-Program Scoping — see fee-management-ui.store.ts's note.
+  majorProgramId?: number
+  // See fee-management.service.ts's note.
+  facultyName?: string
+  departmentName?: string
+  level?: number
 }) {
   return useQuery({
     queryKey: feeKeys.invoices(filters as Record<string, unknown>),

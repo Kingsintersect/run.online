@@ -13,12 +13,20 @@ import type {
 
 const AUTH = { access_token: true }
 
+export interface ApplicationListFilters {
+  status?: string
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // §3: a convenience narrower for a multi-scoped caller. Omitting it
+  // returns every record across the caller's full scope, not an error.
+  majorProgramId?: number
+}
+
 export const applicationReviewApi = {
-  list: async (filters?: { status?: string }) => {
+  list: async (filters?: ApplicationListFilters) => {
     // Real API: GET /admissions/applications — Bruno: admission/Applications - List.bru
     return apiClient.get<ApiPaginatedResponse<AdmissionApplication>>(
       `/admissions/applications`,
-      { ...AUTH, params: filters }
+      { ...AUTH, params: filters as Record<string, unknown> | undefined }
     )
   },
 
@@ -140,14 +148,14 @@ export const applicationReviewApi = {
 
 export const applicationReviewKeys = {
   all: ["admission-applications"] as const,
-  list: (filters?: { status?: string }) =>
+  list: (filters?: ApplicationListFilters) =>
     [...applicationReviewKeys.all, "list", filters ?? {}] as const,
   detail: (id: string) => [...applicationReviewKeys.all, "detail", id] as const,
   mine: () => [...applicationReviewKeys.all, "mine"] as const,
 }
 
 export const applicationReviewQueryOptions = {
-  list: (filters?: { status?: string }) =>
+  list: (filters?: ApplicationListFilters) =>
     createApiQueryOptions({
       queryKey: applicationReviewKeys.list(filters),
       queryFn: async () => (await applicationReviewApi.list(filters)).data,

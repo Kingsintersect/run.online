@@ -10,6 +10,11 @@ export interface AcademicSession {
   startDate: string
   endDate: string
   isActive: boolean
+  // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md
+  // §2: null = institution-wide shared session. A non-null value scopes this
+  // session to one MajorProgram, letting e.g. Undergraduate and Postgraduate
+  // run independent calendars.
+  majorProgramId?: number | null
 }
 
 export interface Semester {
@@ -127,12 +132,113 @@ export interface Program {
   programCategory: ProgramCategory
   parentAcademicUnitId: number | null
   gradingSchemeId: number | null
+  // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md §1.
+  // UI that reads it must treat `undefined` the same as `null` ("not
+  // assigned to a major program").
+  majorProgramId?: number | null
+  // sandbox/program-structure-depth/SCHEMA_CHANGES.md §5. Lowest
+  // Level a fresh admission offer into this program can target (e.g. 200 for
+  // a Part-Time direct-entry program). Null/undefined = no restriction,
+  // today's exact behavior.
+  entryLevelId?: number | null
 }
+
+// ── Major Programs — sandbox/major-program-scoping/ ─────────────────────────
+// See bruno/academic/Major Programs - *.bru and
+// sandbox/major-program-scoping/API_CONTRACTS.md §6. Distinct from
+// `ProgramCategory`: a MajorProgram is an administrative/scoping boundary
+// (who manages it, which calendar/fees/RBAC it scopes), not a structural
+// shape — see sandbox/major-program-scoping/README.md §2.1.
+
+export interface MajorProgram {
+  id: number
+  code: string
+  name: string
+  description: string | null
+  isActive: boolean
+  moodleRootCategoryId: number | null
+  programCount?: number
+  activeSessionId?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateMajorProgramPayload {
+  code: string
+  name: string
+  description?: string
+}
+
+export type UpdateMajorProgramPayload = Partial<CreateMajorProgramPayload> & {
+  isActive?: boolean
+}
+
+// The caller's resolved major-program authorization scope — carried on the
+// session/`me` response (§C of the same
+// design doc). "ALL" = SUPER_ADMIN (or any other deliberately unscoped
+// grant); an array = the specific major programs this user's role grants are
+// scoped to. When absent, `useMajorProgramScope()`
+// treats that the same as "ALL" so the single-major-program deployment stays
+// the degenerate, unaffected case (see README.md §0's governing rule).
+export type MajorProgramScopeEntry = Pick<MajorProgram, "id" | "code" | "name">
+export type MajorProgramScope = MajorProgramScopeEntry[] | "ALL"
 
 export interface CurriculumLevel {
   id: number
   name: string
   numericValue: number
+}
+
+// ── Cohorts — sandbox/program-structure-depth/ ──────────────────────────────
+// Certificate programs' replacement
+// for Session/Semester/Level — see SCHEMA_CHANGES.md §3. A Cohort is scoped
+// to one CERTIFICATE-category Program, independent of AcademicSession, so
+// multiple sittings (e.g. an ICAN May cohort and a CIB November cohort) can
+// run concurrently with their own dates — something the institution-wide
+// single-active-session model can't represent.
+
+export type CohortStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "EXAM_WINDOW"
+  | "CLOSED"
+  | "CERTIFIED"
+  | "CANCELLED"
+
+export interface Cohort {
+  id: number
+  programId: number
+  code: string
+  name: string
+  startDate: string
+  endDate: string
+  examWindowStart: string | null
+  examWindowEnd: string | null
+  capacity: number | null
+  status: CohortStatus
+  enrolledCount?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCohortPayload {
+  programId: number
+  code: string
+  name: string
+  startDate: string
+  endDate: string
+  examWindowStart?: string
+  examWindowEnd?: string
+  capacity?: number
+}
+
+export type UpdateCohortPayload = Partial<
+  Omit<CreateCohortPayload, "programId">
+>
+
+export interface TransitionCohortPayload {
+  status: CohortStatus
+  reason?: string
 }
 
 // ── Academic Structure (generic AcademicUnit tree) ──────────────────────────
@@ -151,6 +257,14 @@ export type AcademicUnitLinkKind =
   | "program"
   | "level"
   | "semester"
+  // sandbox/major-program-scoping/README.md §4.E. Lets a
+  // MajorProgram get a real mirror root node in the tree (same pattern as
+  // "faculty" via resolveFacultyAcademicUnit), so Moodle sync can push one
+  // root category per major program (matching the "CERTIFICATE PROGRAMS" /
+  // "FOUNDATIONAL/JUPEB PROGRAMS" / "PART-TIME PROGRAMS" top-level Moodle
+  // categories the university already organizes courses under). Not yet a
+  // recognized `linkedEntity.type` on the real backend.
+  | "major_program"
 
 export interface AcademicUnitType {
   id: number
@@ -237,6 +351,8 @@ export interface CreateProgramPayload {
   programCategory?: ProgramCategory
   parentAcademicUnitId?: number | null
   gradingSchemeId?: number | null
+  // See MajorProgram note above.
+  majorProgramId?: number | null
 }
 
 export type UpdateProgramPayload = Partial<CreateProgramPayload>
@@ -278,7 +394,12 @@ export interface Course {
   description: string | null
   credit_units: number
   course_type: CourseType
-  level_id: number
+  // Nullable — sandbox/program-structure-depth/SCHEMA_CHANGES.md
+  // §1: null for a course that only ever attaches to a FOUNDATIONAL or
+  // CERTIFICATE program (neither uses the Level layer). Still required in
+  // practice for every DEGREE/PART_TIME/POSTGRADUATE/DIPLOMA/
+  // SECONDARY_SCHOOL course — see courseSchema's superRefine.
+  level_id: number | null
   owning_department_id: number | null
   syllabus: string | null
   curriculum_semester: number | null
@@ -297,7 +418,8 @@ export interface CreateCoursePayload {
   description?: string
   credit_units: number
   course_type: CourseType
-  level_id: number
+  // Nullable — see Course.level_id note above.
+  level_id: number | null
   owning_department_id?: number | null
   syllabus?: string
 }

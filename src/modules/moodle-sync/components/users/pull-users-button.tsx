@@ -9,6 +9,7 @@ import { usePullUsers } from "../../hooks/use-sync-mutations"
 import { useUnmatchedMoodleUsers } from "../../hooks/use-sync-users"
 import { UnmatchedUsersModal } from "./unmatched-users-modal"
 import { SkippedUsersModal } from "./skipped-users-modal"
+import { ReconcileButton } from "../shared/reconcile-dialog"
 import type { PullUsersResult } from "../../types"
 
 // Encapsulates the "Pull from Moodle" action and its result — the pulled
@@ -42,7 +43,8 @@ export function PullUsersButton() {
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ReconcileButton module="users" moduleLabel="users" />
         <PermissionGate require={{ resource: "moodle-sync", action: "pull" }}>
           <Button
             variant="outline"

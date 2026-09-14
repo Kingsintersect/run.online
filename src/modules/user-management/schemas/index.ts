@@ -16,6 +16,12 @@ export const createUserSchema = z.object({
   role_ids: z
     .array(z.number().int().positive())
     .min(1, "Select at least one role"),
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // §5: when provided alongside
+  // role_ids, each selected role is granted scoped to each selected major
+  // program. Omitted entirely for STUDENT/SUPER_ADMIN creation (unscoped,
+  // today's exact behavior) — see CreateUserModal's conditional field.
+  major_program_ids: z.array(z.number().int().positive()).optional(),
 })
 
 export type CreateUserFormValues = z.infer<typeof createUserSchema>

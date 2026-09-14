@@ -10,6 +10,8 @@ import type { UploadStage } from "@/lib/uploads"
 import { useAppStore, useAppHydrated } from "@/store/appStore"
 import { admissionStepsQueryOptions } from "@/services/admissionStepsApi"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useAllPrograms } from "@/hooks/useCourseStructure"
+import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
 import {
   admissionKeys,
   admissionQueryOptions,
@@ -147,9 +149,19 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   // "Choice Program" process step), PROGRAM_SELECTION drops out of
   // activeSteps below and this pre-fills its fields instead of asking again.
   const { data: admissionStudent } = useQuery(admissionQueryOptions.student())
+  const { data: allProgramsData } = useAllPrograms()
+  // Major-Program Scoping — resolves the active session for the applicant's
+  // already-chosen program's major program once the backend supports scoped
+  // sessions; today (every session unscoped) this is identical to "the"
+  // institution-wide active session.
+  const selectedMajorProgramId = admissionStudent?.program_id
+    ? (allProgramsData?.data ?? []).find(
+        (p) => p.id === admissionStudent.program_id
+      )?.majorProgramId
+    : undefined
   const activeSessionId = useMemo(
-    () => sessions?.find((s) => s.isActive)?.id ?? null,
-    [sessions]
+    () => resolveActiveSession(sessions, selectedMajorProgramId)?.id ?? null,
+    [sessions, selectedMajorProgramId]
   )
 
   // Multi-Program Platform — sandbox/multi-program-platform/ §A/§B. Resolves
@@ -177,7 +189,11 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
       !!admissionStudent?.has_selected_program,
       customFormFields.length > 0
     )
-  }, [admissionConfig, admissionStudent?.has_selected_program, customFormFields])
+  }, [
+    admissionConfig,
+    admissionStudent?.has_selected_program,
+    customFormFields,
+  ])
   const totalSteps = activeSteps.length
 
   // If a disabled step was reached/saved before the admin turned it off, snap to the nearest active one.
@@ -377,10 +393,9 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
       )
       if (!result.success) {
         result.error.issues.forEach((issue) => {
-          form.setError(
-            `customFields.${issue.path.join(".")}` as never,
-            { message: issue.message }
-          )
+          form.setError(`customFields.${issue.path.join(".")}` as never, {
+            message: issue.message,
+          })
         })
         return false
       }

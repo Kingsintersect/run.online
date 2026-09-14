@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { CourseSyncTable } from "@/modules/moodle-sync/components/courses/course-sync-table"
 import { usePullCourses } from "@/modules/moodle-sync/hooks/use-sync-mutations"
+import { ReconcileButton } from "@/modules/moodle-sync/components/shared/reconcile-dialog"
 
 export default function MoodleSyncCoursesPage() {
   const pullCourses = usePullCourses()
@@ -52,24 +53,27 @@ export default function MoodleSyncCoursesPage() {
                 </p>
               </div>
             </div>
-            <PermissionGate
-              require={{ resource: "moodle-sync", action: "pull" }}
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs"
-                disabled={pullCourses.isPending}
-                onClick={handlePullAll}
+            <div className="flex flex-wrap items-center gap-2">
+              <ReconcileButton module="courses" moduleLabel="courses" />
+              <PermissionGate
+                require={{ resource: "moodle-sync", action: "pull" }}
               >
-                {pullCourses.isPending ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Download size={13} />
-                )}
-                Pull from Moodle
-              </Button>
-            </PermissionGate>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  disabled={pullCourses.isPending}
+                  onClick={handlePullAll}
+                >
+                  {pullCourses.isPending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Download size={13} />
+                  )}
+                  Pull from Moodle
+                </Button>
+              </PermissionGate>
+            </div>
           </div>
         </motion.div>
 

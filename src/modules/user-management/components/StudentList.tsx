@@ -92,7 +92,9 @@ const columns: Column<Student & Record<string, unknown>>[] = [
     align: "center",
     sortable: true,
     render: (row) => (
-      <span className="text-sm font-medium">{row.current_level}L</span>
+      <span className="text-sm font-medium">
+        {row.current_level !== null ? `${row.current_level}L` : "—"}
+      </span>
     ),
   },
   {
@@ -391,7 +393,11 @@ function StudentDetail({ student }: { student: Student }) {
         { label: "Programme", value: student.program_name },
         { label: "Department", value: student.department_name },
         { label: "Faculty", value: student.faculty_name },
-        { label: "Level", value: `${student.current_level}L` },
+        {
+          label: "Level",
+          value:
+            student.current_level !== null ? `${student.current_level}L` : "—",
+        },
         { label: "Entry Mode", value: student.entry_mode.replace("_", " ") },
         {
           label: "Mode of Study",
@@ -478,8 +484,10 @@ function EditStudentForm({
     phone_number: student.user.phone_number ?? "",
   })
 
-  const update = (key: keyof UpdateStudentPayload, value: string | number) =>
-    setForm((prev) => ({ ...prev, [key]: value }))
+  const update = (
+    key: keyof UpdateStudentPayload,
+    value: string | number | null
+  ) => setForm((prev) => ({ ...prev, [key]: value }))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -504,7 +512,10 @@ function EditStudentForm({
             className={selectCls}
             value={form.current_level_id ?? ""}
             onChange={(e) =>
-              update("current_level_id", parseInt(e.target.value) || 0)
+              update(
+                "current_level_id",
+                e.target.value ? parseInt(e.target.value) : null
+              )
             }
           >
             <option value="" disabled>

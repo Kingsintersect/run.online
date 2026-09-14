@@ -1,4 +1,8 @@
-import type { UserSyncQueryFilters, AssessmentFilter } from "../types"
+import type {
+  UserSyncQueryFilters,
+  AssessmentFilter,
+  EnrollmentDriftFilters,
+} from "../types"
 
 export const moodleSyncKeys = {
   all: ["moodle-sync"] as const,
@@ -23,6 +27,16 @@ export const moodleSyncKeys = {
     [...moodleSyncKeys.all, "enrollments", filters] as const,
   enrollmentErrors: () =>
     [...moodleSyncKeys.all, "enrollments", "errors"] as const,
+
+  // Enrollment drift — sandbox/moodle-sync-reconciliation/ENROLLMENT_DRIFT.md
+  enrollmentDriftAll: () =>
+    [...moodleSyncKeys.all, "enrollments", "drift"] as const,
+  enrollmentDrift: (filters?: EnrollmentDriftFilters) =>
+    [...moodleSyncKeys.all, "enrollments", "drift", "list", filters] as const,
+  enrollmentDriftSummary: () =>
+    [...moodleSyncKeys.all, "enrollments", "drift", "summary"] as const,
+  enrollmentDriftScan: () =>
+    [...moodleSyncKeys.all, "enrollments", "drift", "scan"] as const,
 
   assessments: (filters?: { courseId?: number; type?: string }) =>
     [...moodleSyncKeys.all, "assessments", filters] as const,

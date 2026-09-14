@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
 import { useSubmitProgramChoice } from "../hooks/useAdmissionQueries"
 import type { EntryMode, StepSectionProps, StudyMode } from "../types/admission"
 
@@ -73,13 +74,20 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
   const { data: sessions } = useAcademicSessions()
   const submitChoice = useSubmitProgramChoice()
 
+  const [programId, setProgramId] = useState<number | null>(student.program_id)
+
+  // Major-Program Scoping — resolves the active session for the applicant's
+  // chosen program's major program once the backend supports scoped
+  // sessions; today (every session unscoped) this is identical to "the"
+  // institution-wide active session.
+  const selectedMajorProgramId = (programsData?.data ?? []).find(
+    (p) => p.id === programId
+  )?.majorProgramId
   const activeSession = useMemo(
-    () => sessions?.find((s) => s.isActive) ?? null,
-    [sessions]
+    () => resolveActiveSession(sessions, selectedMajorProgramId),
+    [sessions, selectedMajorProgramId]
   )
   const startTerm = activeSession?.name ?? student.session
-
-  const [programId, setProgramId] = useState<number | null>(student.program_id)
   const [entryMode, setEntryMode] = useState<EntryMode | "">(
     student.entry_mode ?? ""
   )

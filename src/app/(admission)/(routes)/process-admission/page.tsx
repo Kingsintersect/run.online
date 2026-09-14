@@ -48,10 +48,9 @@ export default function ProcessAdmissionPage() {
 
   // Multi-Program Platform: once the applicant has chosen a program, prefer
   // the server-resolved, program-scoped PROCESS steps over the raw
-  // institution-wide config above. Not yet shipped by the backend
-  // (sandbox/multi-program-platform/API_CONTRACTS.md §A) — 404s and falls
-  // straight back to `admissionConfig.processSteps`, so this is a pure
-  // enhancement, not a behavior change, until it ships.
+  // institution-wide config above
+  // (sandbox/multi-program-platform/API_CONTRACTS.md §A). Falls back to
+  // `admissionConfig.processSteps` if the effective lookup fails.
   const { data: effectiveProcessSteps } = useQuery({
     ...admissionStepsQueryOptions.effective("PROCESS", student?.program_id),
     enabled: !!student?.program_id,

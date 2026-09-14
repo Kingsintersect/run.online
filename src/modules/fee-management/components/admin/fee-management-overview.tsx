@@ -89,17 +89,26 @@ export function FeeManagementOverview({
   // sandbox/fee-management/bursary_403_bug_report.md. Gated here so the
   // page degrades to "unavailable" instead of erroring; the real fix is a
   // backend change outside this project's scope (CLAUDE.md §13).
-  const canSeeReports =
-    role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN
-  const { data: summary, isLoading: loadingSummary } =
-    useCollectionsSummary(undefined, canSeeReports)
+  const canSeeReports = role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN
+  const { data: summary, isLoading: loadingSummary } = useCollectionsSummary(
+    undefined,
+    canSeeReports
+  )
   const { data: overdueData, isLoading: loadingOverdue } =
     useOverdueInvoices(canSeeReports)
   const { data: activeFeeTypes, isLoading: loadingFeeTypes } = useFeeTypes({
     isActive: true,
   })
 
-  const totals = summary?.totals
+  // Real response per bruno/fee/Reports - Summary.bru is a flat aggregate,
+  // not a `.totals` wrapper — see sandbox/TRIPLE_AUDIT_2026-09-13.md §1b.
+  const summaryData = summary?.data
+  const totalOutstanding = summaryData
+    ? Math.max(
+        Number(summaryData.totalInvoiced) - Number(summaryData.totalCollected),
+        0
+      )
+    : undefined
   const overdueCount = overdueData?.data.length ?? 0
   const activeFeeTypeCount = activeFeeTypes?.length ?? 0
   const reportsUnavailable = !canSeeReports
@@ -107,9 +116,9 @@ export function FeeManagementOverview({
   const statCards = [
     {
       label: "Total Invoiced",
-      value: totals ? (
+      value: summaryData ? (
         <CurrencyDisplay
-          amount={totals.totalInvoiced}
+          amount={summaryData.totalInvoiced}
           className="text-xl font-bold text-foreground"
         />
       ) : reportsUnavailable ? (
@@ -120,9 +129,9 @@ export function FeeManagementOverview({
     },
     {
       label: "Collected",
-      value: totals ? (
+      value: summaryData ? (
         <CurrencyDisplay
-          amount={totals.totalPaid}
+          amount={summaryData.totalCollected}
           className="text-xl font-bold text-green-600 dark:text-green-400"
         />
       ) : reportsUnavailable ? (
@@ -133,14 +142,15 @@ export function FeeManagementOverview({
     },
     {
       label: "Outstanding",
-      value: totals ? (
-        <CurrencyDisplay
-          amount={totals.totalOutstanding}
-          className="text-xl font-bold text-destructive"
-        />
-      ) : reportsUnavailable ? (
-        <UnavailableStat />
-      ) : null,
+      value:
+        totalOutstanding !== undefined ? (
+          <CurrencyDisplay
+            amount={totalOutstanding}
+            className="text-xl font-bold text-destructive"
+          />
+        ) : reportsUnavailable ? (
+          <UnavailableStat />
+        ) : null,
       loading: loadingSummary,
       accent: "border-red-200 dark:border-red-900/40",
     },

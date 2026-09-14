@@ -38,7 +38,11 @@ import {
   admissionOfferMutationOptions,
   type AdmissionOffer,
 } from "@/services/admissionOfferApi"
-import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
+import {
+  useAllPrograms,
+  useLevels,
+  useCohorts,
+} from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import {
   createAdmissionOfferSchema,
@@ -142,13 +146,47 @@ export default function ApplicationDetailPage() {
     defaultValues: {
       admissionNumber: "",
       programId: 0,
-      levelId: 0,
-      sessionId: 0,
+      levelId: null,
+      sessionId: null,
+      cohortId: null,
       admissionDate: new Date().toISOString().slice(0, 10),
       admissionType: "merit",
       expiryDate: "",
     },
   })
+
+  // Program Structure Depth — sandbox/program-structure-depth/. The offer
+  // form's Level+Session pair vs. Cohort field swap on this, resolved from
+  // whichever program the officer picks (defaults to DEGREE's shape if the
+  // selected program somehow isn't found, matching the schema's own
+  // default).
+  const selectedOfferProgramId = createOfferForm.watch("programId")
+  const selectedOfferProgram = (programs?.data ?? []).find(
+    (p) => p.id === selectedOfferProgramId
+  )
+  const selectedOfferCategory =
+    selectedOfferProgram?.programCategory ?? "DEGREE"
+  const isCertificateOffer = selectedOfferCategory === "CERTIFICATE"
+  const isFoundationalOffer = selectedOfferCategory === "FOUNDATIONAL"
+  const { data: cohortsForOfferProgram } = useCohorts(
+    isCertificateOffer ? selectedOfferProgramId : null
+  )
+  const openCohorts = (cohortsForOfferProgram?.data ?? []).filter(
+    (c) => c.status === "OPEN"
+  )
+  // Program Structure Depth — sandbox/program-structure-depth/README.md
+  // §4.D. Only offer Levels at or above the program's
+  // entryLevelId (e.g. a Part-Time program shouldn't offer 100 Level).
+  // Filtered client-side rather than folded into the zod schema, since
+  // validating it there would mean carrying both ids' numericValue as
+  // extra form-local fields just to compare them — filtering the picker
+  // achieves the same guarantee more simply.
+  const entryLevel = levels.find(
+    (l) => l.id === selectedOfferProgram?.entryLevelId
+  )
+  const selectableOfferLevels = entryLevel
+    ? levels.filter((l) => l.numericValue >= entryLevel.numericValue)
+    : levels
 
   const createOfferMutation = useMutation({
     ...admissionOfferMutationOptions.create(),
@@ -171,17 +209,47 @@ export default function ApplicationDetailPage() {
   })
 
   const handleOpenCreateOffer = () => {
+    const initialProgramId =
+      Number(application?.program_choice.first_choice_program_id) || 0
+    const initialProgram = (programs?.data ?? []).find(
+      (p) => p.id === initialProgramId
+    )
+    const initialCategory = initialProgram?.programCategory ?? "DEGREE"
     createOfferForm.reset({
       admissionNumber: "",
-      programId:
-        Number(application?.program_choice.first_choice_program_id) || 0,
-      levelId: 0,
-      sessionId: Number(application?.admission_cycle_id) || 0,
+      programId: initialProgramId,
+      programCategory: initialCategory,
+      levelId: null,
+      sessionId:
+        initialCategory === "CERTIFICATE"
+          ? null
+          : Number(application?.admission_cycle_id) || null,
+      cohortId: null,
       admissionDate: new Date().toISOString().slice(0, 10),
       admissionType: "merit",
       expiryDate: "",
     })
     setCreateOfferOpen(true)
+  }
+
+  // Keep the schema's category-conditional refine in sync with whichever
+  // program the officer picks, and clear the fields that no longer apply so
+  // a stale levelId/sessionId can't survive a switch into a CERTIFICATE
+  // program (or vice versa).
+  const handleOfferProgramChange = (programId: number) => {
+    const program = (programs?.data ?? []).find((p) => p.id === programId)
+    const category = program?.programCategory ?? "DEGREE"
+    createOfferForm.setValue("programId", programId)
+    createOfferForm.setValue("programCategory", category)
+    if (category === "CERTIFICATE") {
+      createOfferForm.setValue("levelId", null)
+      createOfferForm.setValue("sessionId", null)
+    } else {
+      createOfferForm.setValue("cohortId", null)
+      if (category === "FOUNDATIONAL") {
+        createOfferForm.setValue("levelId", null)
+      }
+    }
   }
 
   // `admissionNumber` has no server-side generator (see
@@ -225,8 +293,9 @@ export default function ApplicationDetailPage() {
       applicationId: Number(id),
       admissionNumber: data.admissionNumber,
       programId: data.programId,
-      levelId: data.levelId,
-      sessionId: data.sessionId,
+      levelId: data.levelId ?? null,
+      sessionId: data.sessionId ?? null,
+      cohortId: data.cohortId ?? null,
       admissionDate: data.admissionDate,
       admissionType: data.admissionType,
       expiryDate: data.expiryDate || undefined,
@@ -770,9 +839,10 @@ export default function ApplicationDetailPage() {
                   Program
                 </label>
                 <select
-                  {...createOfferForm.register("programId", {
-                    valueAsNumber: true,
-                  })}
+                  value={selectedOfferProgramId || 0}
+                  onChange={(e) =>
+                    handleOfferProgramChange(Number(e.target.value))
+                  }
                   className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 >
                   <option value={0}>Select program</option>
@@ -783,46 +853,101 @@ export default function ApplicationDetailPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">
-                  Level
-                </label>
-                <select
-                  {...createOfferForm.register("levelId", {
-                    valueAsNumber: true,
-                  })}
-                  className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value={0}>Select level</option>
-                  {levels.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Program Structure Depth — no Level for FOUNDATIONAL/CERTIFICATE. */}
+              {!isCertificateOffer && !isFoundationalOffer && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">
+                    Level
+                  </label>
+                  <select
+                    {...createOfferForm.register("levelId", {
+                      setValueAs: (v) => (v ? Number(v) : null),
+                    })}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">Select level</option>
+                    {selectableOfferLevels.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                  {entryLevel && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      This program only offers {entryLevel.name} and above.
+                    </p>
+                  )}
+                  {createOfferForm.formState.errors.levelId && (
+                    <p className="mt-1 text-xs text-destructive">
+                      {createOfferForm.formState.errors.levelId.message}
+                    </p>
+                  )}
+                </div>
+              )}
+              {/* Program Structure Depth — CERTIFICATE uses a Cohort instead of
+                  Session/Level; no institution-wide session concept applies. */}
+              {isCertificateOffer && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">
+                    Cohort
+                  </label>
+                  <select
+                    {...createOfferForm.register("cohortId", {
+                      setValueAs: (v) => (v ? Number(v) : null),
+                    })}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">Select cohort</option>
+                    {openCohorts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {openCohorts.length === 0 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      No open cohorts for this program — create one under
+                      Academics → Course Structure → Cohorts.
+                    </p>
+                  )}
+                  {createOfferForm.formState.errors.cohortId && (
+                    <p className="mt-1 text-xs text-destructive">
+                      {createOfferForm.formState.errors.cohortId.message}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">
-                  Session
-                </label>
-                <select
-                  {...createOfferForm.register("sessionId", {
-                    valueAsNumber: true,
-                  })}
-                  className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value={0}>Select session</option>
-                  {(sessions ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
+              {/* Program Structure Depth — CERTIFICATE has no institution-wide
+                  session concept; it's scoped entirely by the Cohort above. */}
+              {!isCertificateOffer && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-foreground">
+                    Session
+                  </label>
+                  <select
+                    {...createOfferForm.register("sessionId", {
+                      setValueAs: (v) => (v ? Number(v) : null),
+                    })}
+                    className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">Select session</option>
+                    {(sessions ?? []).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  {createOfferForm.formState.errors.sessionId && (
+                    <p className="mt-1 text-xs text-destructive">
+                      {createOfferForm.formState.errors.sessionId.message}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className={isCertificateOffer ? "col-span-2" : undefined}>
                 <label className="mb-1 block text-xs font-medium text-foreground">
                   Admission Type
                 </label>

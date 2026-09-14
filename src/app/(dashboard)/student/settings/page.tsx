@@ -110,7 +110,10 @@ export default function StudentSettingsPage() {
     : (user?.name ?? "")
   const email = student?.user.email ?? user?.email ?? ""
   const department = student?.department_name ?? user?.department ?? ""
-  const level = student ? `${student.current_level}L` : (user?.level ?? "")
+  const level =
+    student && student.current_level !== null
+      ? `${student.current_level}L`
+      : (user?.level ?? "")
   const matric = student?.matric_number ?? ""
 
   const [currentPassword, setCurrentPassword] = useState("")

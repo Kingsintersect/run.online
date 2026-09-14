@@ -38,14 +38,25 @@ export interface AdmissionOffer {
   createdBy: number
   createdAt: string
   updatedAt: string
+  // Program Structure Depth — sandbox/program-structure-depth/. A
+  // CERTIFICATE-category offer uses a
+  // Cohort instead of levelId/sessionId — see school.d.ts's Cohort note.
+  cohortId?: number | null
 }
 
 export interface CreateAdmissionOfferPayload {
   applicationId: number
   admissionNumber: string
   programId: number
-  levelId: number
-  sessionId: number
+  // Nullable per sandbox/program-structure-depth/API_CONTRACTS.md
+  // §1's category-conditional table: required for DEGREE/PART_TIME/etc.,
+  // must be null for FOUNDATIONAL/CERTIFICATE.
+  levelId?: number | null
+  // Nullable; must be null for CERTIFICATE (uses cohortId
+  // instead).
+  sessionId?: number | null
+  // Required for CERTIFICATE, must be null/omitted otherwise.
+  cohortId?: number | null
   admissionDate: string
   admissionType: string
   expiryDate?: string

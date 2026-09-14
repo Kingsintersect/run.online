@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
 import { FormSelect } from "../FormFields"
 import { ENTRY_MODES } from "../../schema/admission-schema"
 import type { FormDefaultValues } from "../../types/form-types"
@@ -66,9 +67,16 @@ export default function ProgramSelectionStep() {
   } = useAllPrograms()
   const { data: sessions } = useAcademicSessions()
 
+  // Major-Program Scoping — resolves the active session for the applicant's
+  // chosen program's major program once the backend supports scoped
+  // sessions; today (every session unscoped) this is identical to "the"
+  // institution-wide active session.
+  const selectedMajorProgramId = (programsData?.data ?? []).find(
+    (p) => p.id === Number(programId)
+  )?.majorProgramId
   const activeSession = useMemo(
-    () => sessions?.find((s) => s.isActive) ?? null,
-    [sessions]
+    () => resolveActiveSession(sessions, selectedMajorProgramId),
+    [sessions, selectedMajorProgramId]
   )
 
   useEffect(() => {

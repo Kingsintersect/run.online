@@ -152,7 +152,7 @@ export function useStudentTranscript(studentId: number | null) {
 
 // Downloads the semester result / transcript PDF and triggers a browser save.
 // `GET /students/me/results/:semesterId/download` 404s if there's no published
-// result for that semester (or until the backend ships it) — surfaced as a
+// result for that semester — surfaced as a
 // friendly toast, not an error boundary.
 export function useDownloadSemesterResult() {
   return useMutation({

@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { ArrowUpRight, ArrowDownLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
@@ -13,6 +14,8 @@ interface PushPullToolbarProps {
   onPull?: () => void
   pullLabel?: string
   pullPending?: boolean
+  /** Rendered before the Pull button — e.g. Reconcile or Reset. */
+  extraActions?: ReactNode
 }
 
 export function PushPullToolbar({
@@ -24,6 +27,7 @@ export function PushPullToolbar({
   onPull,
   pullLabel = "Pull",
   pullPending,
+  extraActions,
 }: PushPullToolbarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/4 px-4 py-3">
@@ -35,7 +39,8 @@ export function PushPullToolbar({
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {extraActions}
         {onPull && (
           <PermissionGate require={{ resource: "moodle-sync", action: "pull" }}>
             <Button

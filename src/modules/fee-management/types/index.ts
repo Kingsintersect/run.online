@@ -59,8 +59,8 @@ export type PaymentDetailResponse = z.infer<
 // ── Reports ───────────────────────────────────────────────────────────────────
 import type * as Reports from "../schemas/reports.schema"
 
-export type CollectionsSummaryRow = z.infer<
-  typeof Reports.CollectionsSummaryRowSchema
+export type CollectionsSummary = z.infer<
+  typeof Reports.CollectionsSummarySchema
 >
 export type CollectionsSummaryResponse = z.infer<
   typeof Reports.CollectionsSummaryResponseSchema

@@ -35,7 +35,6 @@ import {
   StudentRecord,
   TutorRecord,
   GradeReport,
-  StudentGradeRecord,
   DirectorFilter,
 } from "../types/director.types"
 
@@ -147,9 +146,13 @@ async function fetchFeesSummaryData(filter?: DirectorFilter): Promise<{
   }
 
   const [summaryRes, outstandingRes] = await Promise.allSettled([
+    // Real response per bruno/fee/Reports - Summary.bru is flat:
+    // {data: {invoiceCount, totalInvoiced, totalCollected}} — no `totals`
+    // wrapper, and the invoiced-amount field is `totalInvoiced`, not
+    // `totalExpected`. See sandbox/TRIPLE_AUDIT_2026-09-13.md §1b.
     apiClient.get<{
       data?: {
-        totalExpected?: string | number
+        totalInvoiced?: string | number
         totalCollected?: string | number
       }
     }>("/fees/reports/summary", { ...AUTH, params }),
@@ -181,8 +184,8 @@ async function fetchFeesSummaryData(filter?: DirectorFilter): Promise<{
   const summaryData =
     summaryRes.status === "fulfilled" ? summaryRes.value.data : undefined
   const totalExpected =
-    summaryData?.totalExpected != null
-      ? Number(summaryData.totalExpected)
+    summaryData?.totalInvoiced != null
+      ? Number(summaryData.totalInvoiced)
       : byFeeType.reduce((a, f) => a + f.invoiced, 0)
   const totalCollected =
     summaryData?.totalCollected != null
@@ -243,8 +246,7 @@ export const directorService = {
     // check its `hasErrors` flag, not feesRes.status, which is always
     // "fulfilled" regardless of what happened inside it.
     const statsFailed = statsRes.status !== "fulfilled"
-    const feesFailed =
-      feesRes.status !== "fulfilled" || feesRes.value.hasErrors
+    const feesFailed = feesRes.status !== "fulfilled" || feesRes.value.hasErrors
     const graduationFailed = statsFailed || graduatedRes.status !== "fulfilled"
     const hasLoadErrors = statsFailed || feesFailed || graduationFailed
 
@@ -264,9 +266,7 @@ export const directorService = {
       },
       {
         label: "Total Revenue",
-        value: feesFailed
-          ? "—"
-          : `₦${(totalRevenue / 1_000_000).toFixed(1)}M`,
+        value: feesFailed ? "—" : `₦${(totalRevenue / 1_000_000).toFixed(1)}M`,
         icon: "banknote",
       },
       {
@@ -517,61 +517,26 @@ export const directorService = {
   },
 
   // ── Grade Reports ─────────────────────────────────────────────────────────
-  // Real (pending) endpoint — see sandbox/result/missing_grade_apis.readme.md
-  // §8. No bruno/director collection and no `.bru` file exist for this yet;
-  // wired against the designed contract so this starts working the moment
-  // the backend ships it. `faculty`/`department`/`program`/`semester` are
-  // sent as display-name strings (not FK ids) because DirectorFilterBar
-  // (shared with Overview/Financial/Statistical) only collects free-text/
-  // display values — see §8's note on that assumption.
+  // Real endpoint per bruno/director/Grade Reports - Summary.bru — accepts
+  // only an optional `semesterId`; response is `{data: {overall, byFaculty,
+  // byProgram}}`. Replaces the earlier proposed contract (facultyName/
+  // departmentName/programName/level/status/search filters, a
+  // {summary, gradeDistribution, records, meta} response) — the real
+  // endpoint has no per-student records and no grade-distribution
+  // breakdown. See sandbox/TRIPLE_AUDIT_2026-09-13.md §1a.
 
-  async fetchGradeReport(filter?: DirectorFilter): Promise<GradeReport> {
-    const params: Record<string, unknown> = {}
-    if (filter?.faculty && filter.faculty !== "all")
-      params.facultyName = filter.faculty
-    if (filter?.department && filter.department !== "all")
-      params.departmentName = filter.department
-    if (filter?.program && filter.program !== "all")
-      params.programName = filter.program
-    if (filter?.level && filter.level !== "all")
-      params.level = Number(filter.level)
-    if (filter?.semester && filter.semester !== "all")
-      params.semesterName = filter.semester
-    if (filter?.academicYear) params.academicYear = filter.academicYear
-    if (filter?.status && filter.status !== "all") params.status = filter.status
-    if (filter?.search) params.search = filter.search
-
+  async fetchGradeReport(semesterId?: number): Promise<GradeReport> {
     const res = await apiClient.get<{
       data: {
-        summary: {
-          averageGPA: number
-          passRate: number
-          distinctionRate: number
-          totalRecords: number
-        }
-        gradeDistribution: {
-          grade: string
-          count: number
-          percentage: number
-        }[]
-        byFaculty: {
-          faculty: string
-          studentCount: number
-          averageGPA: number
-        }[]
-        records: StudentGradeRecord[]
+        overall: GradeReport["overall"]
+        byFaculty: GradeReport["byFaculty"]
+        byProgram: GradeReport["byProgram"]
       }
-      meta: { total: number; page: number; limit: number }
-    }>("/results/reports/director-grade-summary", { ...AUTH, params })
+    }>("/results/reports/director-grade-summary", {
+      ...AUTH,
+      params: semesterId ? { semesterId } : undefined,
+    })
 
-    return {
-      records: res.data.records,
-      gradeDistribution: res.data.gradeDistribution,
-      averageGPA: res.data.summary.averageGPA,
-      passRate: res.data.summary.passRate,
-      distinctionRate: res.data.summary.distinctionRate,
-      byFaculty: res.data.byFaculty,
-      pagination: res.meta,
-    }
+    return res.data
   },
 }

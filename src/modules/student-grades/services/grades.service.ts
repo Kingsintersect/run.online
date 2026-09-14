@@ -809,8 +809,7 @@ class GradesService {
   // term result sheet otherwise). 404 if no PUBLISHED result exists for that
   // semester — the caller surfaces that as "not available yet" rather than a
   // hard error. Endpoint spec: bruno/student/Download Result.bru.
-  // NOTE (2026-09-10): verified 404 against the live backend — not shipped
-  // yet. The button is built and wired; it degrades gracefully until then.
+  // The button degrades gracefully when no result is available.
   async downloadSemesterResult(semesterId: number): Promise<Blob> {
     return apiClient.get<Blob>(`/students/me/results/${semesterId}/download`, {
       ...AUTH,

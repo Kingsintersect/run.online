@@ -509,8 +509,8 @@ export const enrollmentQueryOptions = {
     createApiQueryOptions({
       queryKey: enrollmentKeys.myCourses(),
       queryFn: () => enrollmentApi.getMyCourses(),
-      // Speculative — 404s until the backend ships it; the page falls back
-      // to the studentId-scoped list, so don't hammer on failure.
+      // The page falls back to the studentId-scoped list on failure, so
+      // don't hammer on failure.
       retry: false,
       staleTime: 5 * 60 * 1000,
     }),
