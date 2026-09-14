@@ -110,7 +110,13 @@ export function ReconcileButton({ module, moduleLabel }: ReconcileButtonProps) {
   }
 
   const data = preview.data
-  const pendingChanges = data?.changes.length ?? 0
+  // A courses apply skips CREATE (bruno/moodle-sync/Reconcile - Apply
+  // Courses.bru) — new Moodle courses come in through Pull All instead.
+  const skippedCreates =
+    module === "courses"
+      ? (data?.changes ?? []).filter((c) => c.kind === "CREATE").length
+      : 0
+  const pendingChanges = (data?.changes.length ?? 0) - skippedCreates
   const grouped = KIND_ORDER.map((kind) => ({
     kind,
     items: (data?.changes ?? []).filter((c) => c.kind === kind),
@@ -204,6 +210,13 @@ export function ReconcileButton({ module, moduleLabel }: ReconcileButtonProps) {
                 </span>
               ))}
             </div>
+
+            {skippedCreates > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {skippedCreates} new course(s) in Moodle won&apos;t be added by
+                reconcile — use Pull All to bring them in.
+              </p>
+            )}
 
             {pendingChanges === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border py-10 text-sm text-muted-foreground">

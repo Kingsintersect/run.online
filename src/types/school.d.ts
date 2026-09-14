@@ -319,7 +319,11 @@ export interface CreateFacultyPayload {
   phoneNumber?: string
 }
 
-export type UpdateFacultyPayload = Partial<CreateFacultyPayload>
+// `isActive` reactivates/deactivates through the same PATCH
+// (bruno/academic/Faculties - Update.bru). Same on Department and Program.
+export type UpdateFacultyPayload = Partial<CreateFacultyPayload> & {
+  isActive?: boolean
+}
 
 export interface CreateDepartmentPayload {
   // Nullable so a Department can anchor a non-degree structure (e.g. a
@@ -334,7 +338,9 @@ export interface CreateDepartmentPayload {
   phoneNumber?: string
 }
 
-export type UpdateDepartmentPayload = Partial<CreateDepartmentPayload>
+export type UpdateDepartmentPayload = Partial<CreateDepartmentPayload> & {
+  isActive?: boolean
+}
 
 export interface CreateProgramPayload {
   // Nullable for the same reason as Department.facultyId above — a
@@ -355,7 +361,9 @@ export interface CreateProgramPayload {
   majorProgramId?: number | null
 }
 
-export type UpdateProgramPayload = Partial<CreateProgramPayload>
+export type UpdateProgramPayload = Partial<CreateProgramPayload> & {
+  isActive?: boolean
+}
 
 export interface CreateCurriculumLevelPayload {
   name: string

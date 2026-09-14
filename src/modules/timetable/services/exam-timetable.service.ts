@@ -22,10 +22,19 @@ export const venuesApi = {
   async list(
     filters: { isExamHall?: boolean; isActive?: boolean } = {}
   ): Promise<{ data: Venue[] }> {
-    return apiClient.get<{ data: Venue[] }>(`${BASE}/venues`, {
-      ...AUTH,
-      params: filters,
-    })
+    // GET /timetable/venues is currently the class-timetable venue-name
+    // autocomplete (bruno/timetable/Venues - List.bru, `string[]`), not the
+    // exam Venue entity — keep only Venue objects so exam screens never
+    // render bare name strings as venues.
+    const res = await apiClient.get<{ data: (Venue | string)[] }>(
+      `${BASE}/venues`,
+      { ...AUTH, params: filters }
+    )
+    return {
+      data: (res.data ?? []).filter(
+        (v): v is Venue => typeof v === "object" && v !== null
+      ),
+    }
   },
 
   async create(payload: CreateVenuePayload): Promise<{ data: Venue }> {

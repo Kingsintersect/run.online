@@ -21,14 +21,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import StatusBadge from "@/components/custom/StatusBadge"
+import { cn } from "@/lib/utils"
 import {
   useFaculties,
   useFaculty,
   useDepartment,
   useAllPrograms,
-  useDeactivateFaculty,
-  useDeactivateDepartment,
-  useDeactivateProgram,
+  useUpdateFaculty,
+  useUpdateDepartment,
+  useUpdateProgram,
 } from "@/hooks/useCourseStructure"
 import { useAcademicUnits } from "@/hooks/useAcademicStructure"
 import { EmptyState } from "./EmptyState"
@@ -90,19 +91,33 @@ function FacultiesList({
   onOpenFaculty: (id: number) => void
 }) {
   const { data, isLoading } = useFaculties()
-  const deactivate = useDeactivateFaculty()
+  const updateFaculty = useUpdateFaculty()
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const [editing, setEditing] = useState<Faculty | null | undefined>(undefined)
 
   const faculties = data?.data ?? []
 
-  const handleDeactivate = async (id: number) => {
+  // PATCH `{isActive}` — a reversible on/off toggle. DELETE only ever
+  // deactivates, so it can't back this button.
+  const handleToggleActive = async (faculty: Faculty) => {
+    const nextActive = !faculty.isActive
+    setTogglingId(faculty.id)
     try {
-      await deactivate.mutateAsync(id)
-      toast.success("Faculty deactivated")
+      await updateFaculty.mutateAsync({
+        id: faculty.id,
+        payload: { isActive: nextActive },
+      })
+      toast.success(
+        `${faculty.name} ${nextActive ? "activated" : "deactivated"}`
+      )
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to deactivate faculty"
+        err instanceof Error
+          ? err.message
+          : `Failed to ${nextActive ? "activate" : "deactivate"} faculty`
       )
+    } finally {
+      setTogglingId(null)
     }
   }
 
@@ -195,17 +210,36 @@ function FacultiesList({
                         >
                           <Pencil className="size-3.5" />
                         </Button>
-                        {faculty.isActive && (
-                          <Button
-                            variant="outline"
-                            size="icon-sm"
-                            onClick={() => handleDeactivate(faculty.id)}
-                            disabled={deactivate.isPending}
-                            title="Deactivate faculty"
-                          >
-                            <Power className="size-3.5 text-destructive" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => handleToggleActive(faculty)}
+                          disabled={togglingId === faculty.id}
+                          title={
+                            faculty.isActive
+                              ? "Deactivate faculty"
+                              : "Activate faculty"
+                          }
+                          aria-label={
+                            faculty.isActive
+                              ? `Deactivate ${faculty.name}`
+                              : `Activate ${faculty.name}`
+                          }
+                          aria-pressed={faculty.isActive}
+                        >
+                          {togglingId === faculty.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Power
+                              className={cn(
+                                "size-3.5",
+                                faculty.isActive
+                                  ? "text-destructive"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              )}
+                            />
+                          )}
+                        </Button>
                       </>
                     )}
                   </div>
@@ -239,8 +273,9 @@ function FacultyDetail({
   onOpenDepartment: (departmentId: number) => void
 }) {
   const { data, isLoading } = useFaculty(facultyId)
-  const deactivateDept = useDeactivateDepartment()
-  const deactivateProgram = useDeactivateProgram()
+  const updateDept = useUpdateDepartment()
+  const updateProgram = useUpdateProgram()
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [editingFaculty, setEditingFaculty] = useState(false)
   const [editingDept, setEditingDept] = useState<Department | null | undefined>(
     undefined
@@ -269,25 +304,48 @@ function FacultyDetail({
       p.parentAcademicUnitId === facultyUnit.id
   )
 
-  const handleDeactivateDept = async (id: number) => {
+  // PATCH `{isActive}` — reversible on/off toggles (bruno/academic/
+  // Departments - Update.bru, Programs - Update.bru). The backend doesn't
+  // document a cascade, so none is assumed here.
+  const handleToggleDept = async (dept: Department) => {
+    const nextActive = !dept.isActive
+    setTogglingKey(`dept-${dept.id}`)
     try {
-      await deactivateDept.mutateAsync(id)
-      toast.success("Department deactivated")
+      await updateDept.mutateAsync({
+        id: dept.id,
+        payload: { isActive: nextActive },
+      })
+      toast.success(`${dept.name} ${nextActive ? "activated" : "deactivated"}`)
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to deactivate department"
+        err instanceof Error
+          ? err.message
+          : `Failed to ${nextActive ? "activate" : "deactivate"} department`
       )
+    } finally {
+      setTogglingKey(null)
     }
   }
 
-  const handleDeactivateDirectProgram = async (id: number) => {
+  const handleToggleDirectProgram = async (program: Program) => {
+    const nextActive = !program.isActive
+    setTogglingKey(`program-${program.id}`)
     try {
-      await deactivateProgram.mutateAsync(id)
-      toast.success("Program deactivated")
+      await updateProgram.mutateAsync({
+        id: program.id,
+        payload: { isActive: nextActive },
+      })
+      toast.success(
+        `${program.name} ${nextActive ? "activated" : "deactivated"}`
+      )
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to deactivate program"
+        err instanceof Error
+          ? err.message
+          : `Failed to ${nextActive ? "activate" : "deactivate"} program`
       )
+    } finally {
+      setTogglingKey(null)
     }
   }
 
@@ -436,17 +494,36 @@ function FacultyDetail({
                         >
                           <Pencil className="size-3.5" />
                         </Button>
-                        {dept.isActive && (
-                          <Button
-                            variant="outline"
-                            size="icon-sm"
-                            onClick={() => handleDeactivateDept(dept.id)}
-                            disabled={deactivateDept.isPending}
-                            title="Deactivate department"
-                          >
-                            <Power className="size-3.5 text-destructive" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          onClick={() => handleToggleDept(dept)}
+                          disabled={togglingKey === `dept-${dept.id}`}
+                          title={
+                            dept.isActive
+                              ? "Deactivate department"
+                              : "Activate department"
+                          }
+                          aria-label={
+                            dept.isActive
+                              ? `Deactivate ${dept.name}`
+                              : `Activate ${dept.name}`
+                          }
+                          aria-pressed={dept.isActive}
+                        >
+                          {togglingKey === `dept-${dept.id}` ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Power
+                              className={cn(
+                                "size-3.5",
+                                dept.isActive
+                                  ? "text-destructive"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              )}
+                            />
+                          )}
+                        </Button>
                       </>
                     )}
                   </div>
@@ -528,19 +605,36 @@ function FacultyDetail({
                     >
                       <Pencil className="size-3.5" />
                     </Button>
-                    {program.isActive && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          handleDeactivateDirectProgram(program.id)
-                        }
-                        disabled={deactivateProgram.isPending}
-                        title="Deactivate program"
-                      >
-                        <Power className="size-3.5 text-destructive" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleToggleDirectProgram(program)}
+                      disabled={togglingKey === `program-${program.id}`}
+                      title={
+                        program.isActive
+                          ? "Deactivate program"
+                          : "Activate program"
+                      }
+                      aria-label={
+                        program.isActive
+                          ? `Deactivate ${program.name}`
+                          : `Activate ${program.name}`
+                      }
+                      aria-pressed={program.isActive}
+                    >
+                      {togglingKey === `program-${program.id}` ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Power
+                          className={cn(
+                            "size-3.5",
+                            program.isActive
+                              ? "text-destructive"
+                              : "text-emerald-600 dark:text-emerald-400"
+                          )}
+                        />
+                      )}
+                    </Button>
                   </>
                 )}
               </div>
@@ -589,7 +683,10 @@ function DepartmentDetail({
   onBack: () => void
 }) {
   const { data, isLoading } = useDepartment(departmentId)
-  const deactivateProgram = useDeactivateProgram()
+  const updateProgram = useUpdateProgram()
+  const [togglingProgramId, setTogglingProgramId] = useState<number | null>(
+    null
+  )
   const [editingDept, setEditingDept] = useState(false)
   const [editingProgram, setEditingProgram] = useState<
     Program | null | undefined
@@ -601,14 +698,27 @@ function DepartmentDetail({
   const lecturers = department?.lecturers ?? []
   const hod = lecturers.find((l) => l.userId === department?.hodUserId)
 
-  const handleDeactivateProgram = async (id: number) => {
+  // PATCH `{isActive}` — reversible on/off toggle (bruno/academic/Programs -
+  // Update.bru).
+  const handleToggleProgram = async (program: Program) => {
+    const nextActive = !program.isActive
+    setTogglingProgramId(program.id)
     try {
-      await deactivateProgram.mutateAsync(id)
-      toast.success("Program deactivated")
+      await updateProgram.mutateAsync({
+        id: program.id,
+        payload: { isActive: nextActive },
+      })
+      toast.success(
+        `${program.name} ${nextActive ? "activated" : "deactivated"}`
+      )
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to deactivate program"
+        err instanceof Error
+          ? err.message
+          : `Failed to ${nextActive ? "activate" : "deactivate"} program`
       )
+    } finally {
+      setTogglingProgramId(null)
     }
   }
 
@@ -751,17 +861,36 @@ function DepartmentDetail({
                         >
                           <Pencil className="size-3.5" />
                         </Button>
-                        {program.isActive && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleDeactivateProgram(program.id)}
-                            disabled={deactivateProgram.isPending}
-                            title="Deactivate program"
-                          >
-                            <Power className="size-3.5 text-destructive" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleToggleProgram(program)}
+                          disabled={togglingProgramId === program.id}
+                          title={
+                            program.isActive
+                              ? "Deactivate program"
+                              : "Activate program"
+                          }
+                          aria-label={
+                            program.isActive
+                              ? `Deactivate ${program.name}`
+                              : `Activate ${program.name}`
+                          }
+                          aria-pressed={program.isActive}
+                        >
+                          {togglingProgramId === program.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Power
+                              className={cn(
+                                "size-3.5",
+                                program.isActive
+                                  ? "text-destructive"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                              )}
+                            />
+                          )}
+                        </Button>
                       </>
                     )}
                   </div>

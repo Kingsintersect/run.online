@@ -141,6 +141,9 @@ export function useUpdateDepartment() {
         qc.invalidateQueries({
           queryKey: courseStructureKeys.departments.detail(variables.id),
         }),
+        // A faculty's detail embeds its departments (with `isActive`), so a
+        // toggle or edit here must refresh the faculty view too.
+        qc.invalidateQueries({ queryKey: courseStructureKeys.faculties.all }),
       ])
     },
   })
