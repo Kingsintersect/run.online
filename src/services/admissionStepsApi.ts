@@ -15,12 +15,19 @@
 /*  deployment had it missing from GET responses and the `?group=`      */
 /*  filter as a no-op — both since fixed; see that doc for the dated    */
 /*  history if this ever needs revisiting).                             */
+/*                                                                     */
+/*  Dynamic Admission (sandbox/dynamic-admission/): PROCESS rows carry  */
+/*  `type`/`config`, passed through verbatim in both directions.        */
 /* ------------------------------------------------------------------ */
 
 import apiClient, {
   createApiMutationOptions,
   createApiQueryOptions,
 } from "@/lib/clients/apiClient"
+import {
+  SYSTEM_FIELD_CATALOG,
+  type SystemFieldDefinition,
+} from "@/lib/admission-catalog"
 import type {
   AdmissionConfig,
   AdmissionFormField,
@@ -28,6 +35,8 @@ import type {
   AdmissionStepGroup,
   CreateAdmissionStepPayload,
   EffectiveAdmissionStep,
+  StageConfig,
+  StageType,
   UpdateAdmissionStepPayload,
 } from "@/types/admissionConfig"
 import type { ProgramCategory } from "@/types/school"
@@ -36,7 +45,8 @@ const AUTH = { access_token: true } as const
 
 /** Actual live shape of one row from GET/POST/PATCH /admissions/config/steps — see the module docblock above.
  *  programCategory/programId/fields: Multi-Program Platform additions — see
- *  sandbox/multi-program-platform/API_CONTRACTS.md §A. Optional/nullable; null = institution-wide. */
+ *  sandbox/multi-program-platform/API_CONTRACTS.md §A. Optional/nullable; null = institution-wide.
+ *  type/config: Dynamic Admission — null until the backend ships typed stages. */
 interface RawAdmissionStep {
   id: number
   group: AdmissionStepGroup
@@ -50,6 +60,8 @@ interface RawAdmissionStep {
   programCategory?: ProgramCategory | null
   programId?: number | null
   fields?: AdmissionFormField[]
+  type?: StageType | null
+  config?: StageConfig | null
 }
 
 function fromRaw(raw: RawAdmissionStep): AdmissionStepDefinition {
@@ -74,6 +86,8 @@ function fromRaw(raw: RawAdmissionStep): AdmissionStepDefinition {
     programCategory: raw.programCategory ?? null,
     programId: raw.programId ?? null,
     fields: raw.fields ?? [],
+    type: raw.type ?? null,
+    config: raw.config ?? null,
   }
 }
 
@@ -91,6 +105,8 @@ interface RawEffectiveStep {
   // steps endpoint.
   isRequired: boolean
   fields?: AdmissionFormField[]
+  type?: StageType | null
+  config?: StageConfig | null
 }
 
 function fromRawEffective(raw: RawEffectiveStep): EffectiveAdmissionStep {
@@ -104,6 +120,8 @@ function fromRawEffective(raw: RawEffectiveStep): EffectiveAdmissionStep {
     icon: raw.icon,
     required: raw.isRequired,
     fields: raw.fields ?? [],
+    type: raw.type ?? null,
+    config: raw.config ?? null,
   }
 }
 
@@ -211,6 +229,21 @@ export const admissionStepsApi = {
     )
     return res.data.map(fromRaw)
   },
+
+  // GET /admissions/config/system-fields — Dynamic Admission API_CONTRACTS
+  // §1.1. Falls back to the matching local catalog until the backend ships
+  // the endpoint; both describe the same Application columns.
+  async systemFields(): Promise<SystemFieldDefinition[]> {
+    try {
+      const res = await apiClient.get<{ data: SystemFieldDefinition[] }>(
+        "/admissions/config/system-fields",
+        AUTH
+      )
+      return res.data.length ? res.data : SYSTEM_FIELD_CATALOG
+    } catch {
+      return SYSTEM_FIELD_CATALOG
+    }
+  },
 }
 
 /* ------------------------------------------------------------------ */
@@ -227,6 +260,7 @@ export const admissionStepsKeys = {
   config: () => [...admissionStepsKeys.all, "config"] as const,
   effective: (group: AdmissionStepGroup, programId?: number | null) =>
     [...admissionStepsKeys.all, "effective", group, programId ?? null] as const,
+  systemFields: () => [...admissionStepsKeys.all, "system-fields"] as const,
 }
 
 export const admissionStepsQueryOptions = {
@@ -248,6 +282,13 @@ export const admissionStepsQueryOptions = {
       queryKey: admissionStepsKeys.effective(group, programId),
       queryFn: () => admissionStepsApi.getEffective(group, programId),
       staleTime: 1000 * 60 * 5,
+    }),
+
+  systemFields: () =>
+    createApiQueryOptions({
+      queryKey: admissionStepsKeys.systemFields(),
+      queryFn: () => admissionStepsApi.systemFields(),
+      staleTime: Infinity,
     }),
 }
 
