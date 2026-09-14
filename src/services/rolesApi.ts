@@ -262,10 +262,36 @@ export const userRolesApi = {
     roleId: number
   ): Promise<ApiListResponse<UserWithRoles>> => {
     try {
-      return await apiClient.get<ApiListResponse<UserWithRoles>>(
-        `/auth/roles/${roleId}/users`,
-        AUTH
-      )
+      // Live shape (verified 2026-09-14): `{ data, meta }` with camelCase
+      // user fields — mapped to the snake_case UserWithRoles the UI renders.
+      const res = await apiClient.get<{
+        data: {
+          id: number
+          email: string
+          username: string
+          firstName: string | null
+          lastName: string | null
+          phoneNumber: string | null
+          isActive: boolean
+          roles?: (string | { id: number; name: string; slug?: string })[]
+        }[]
+        meta?: { total?: number }
+      }>(`/auth/roles/${roleId}/users`, AUTH)
+      const data: UserWithRoles[] = res.data.map((u) => ({
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        first_name: u.firstName,
+        last_name: u.lastName,
+        phone_number: u.phoneNumber,
+        is_active: u.isActive,
+        roles: (u.roles ?? []).map((r, i) =>
+          typeof r === "string"
+            ? { id: i, name: r, slug: r }
+            : { id: r.id, name: r.name, slug: r.slug ?? r.name }
+        ),
+      }))
+      return { data, total: res.meta?.total ?? data.length }
     } catch {
       return { data: [], total: 0 }
     }

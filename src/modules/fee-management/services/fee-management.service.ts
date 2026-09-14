@@ -100,11 +100,13 @@ export const feeManagementService = {
     programId?: number
     levelId?: number
     studentType?: StudentType
-  }) =>
-    apiClient.get<EligibleCountResponse>(`${BASE}/types/eligible-count`, {
-      ...AUTH,
-      params: filters as Record<string, unknown>,
-    }),
+  }): Promise<EligibleCountResponse> =>
+    // Live shape (verified 2026-09-14): `{ data: { eligibleCount } }`.
+    apiClient
+      .get<{
+        data: { eligibleCount: number }
+      }>(`${BASE}/types/eligible-count`, { ...AUTH, params: filters as Record<string, unknown> })
+      .then((res) => ({ count: res.data.eligibleCount })),
 
   // ── Invoices ────────────────────────────────────────────────────────────────
 

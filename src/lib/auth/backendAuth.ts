@@ -1,3 +1,4 @@
+import type { MajorProgramScope } from "@/types/school"
 import { UserRole } from "@/config/nav.config"
 import apiClient from "@/lib/clients/apiClient"
 import { clearAllDedupeCaches } from "@/lib/utils/dedupe-async"
@@ -73,6 +74,8 @@ export type NormalizedBackendAuthUser = {
   roles: UserRole[]
   permissions: string[]
   avatar: string | null
+  // From GET /auth/me — see useMajorProgramScope().
+  majorProgramScope?: MajorProgramScope
 }
 
 const normalizeRole = (value: BackendRoleValue): UserRole | null => {
@@ -209,14 +212,26 @@ export const normalizeBackendAuthUser = (
 // active, so a multi-role user (e.g. TUTOR + HOD) sees the union of both
 // regardless of which role they're switched to. That's a backend modeling
 // choice, not something the frontend works around.
-const fetchMyPermissions = async (accessToken: string): Promise<string[]> => {
+// Also carries `majorProgramScope` ("ALL" or the scoped major programs).
+const fetchMyPermissions = async (
+  accessToken: string
+): Promise<{
+  permissions: string[]
+  majorProgramScope?: MajorProgramScope
+}> => {
   try {
-    const me = await apiClient.get<{ permissions?: string[] }>("/auth/me", {
+    const me = await apiClient.get<{
+      permissions?: string[]
+      majorProgramScope?: MajorProgramScope
+    }>("/auth/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
-    return me.permissions ?? []
+    return {
+      permissions: me.permissions ?? [],
+      majorProgramScope: me.majorProgramScope,
+    }
   } catch {
-    return []
+    return { permissions: [] }
   }
 }
 
@@ -225,6 +240,7 @@ export type RefreshedSessionRoles = {
   availableRoles: UserRole[]
   roles: UserRole[]
   permissions: string[]
+  majorProgramScope?: MajorProgramScope
 }
 
 // Real API: GET /auth/me — Bruno: auth/Me.bru. Called after a backend action
@@ -249,6 +265,7 @@ export const fetchRefreshedSessionRoles = async (
     const me = await apiClient.get<{
       roles?: { name?: string | null }[]
       permissions?: string[]
+      majorProgramScope?: MajorProgramScope
     }>("/auth/me", { access_token: true })
 
     const roles = normalizeRoleList((me.roles ?? []).map((r) => r.name))
@@ -262,6 +279,7 @@ export const fetchRefreshedSessionRoles = async (
       availableRoles: roles,
       roles,
       permissions: me.permissions ?? [],
+      majorProgramScope: me.majorProgramScope,
     }
   } catch {
     return null
@@ -286,11 +304,13 @@ export const loginWithBackend = async (
     throw new Error("Invalid authentication response from backend.")
   }
 
-  const permissions = await fetchMyPermissions(accessToken)
+  const { permissions, majorProgramScope } =
+    await fetchMyPermissions(accessToken)
 
   return {
     ...normalizedUser,
     permissions,
+    majorProgramScope,
     accessToken,
     refreshToken,
   }

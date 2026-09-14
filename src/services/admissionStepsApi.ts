@@ -87,7 +87,9 @@ interface RawEffectiveStep {
   label: string
   description: string
   icon: string
-  required: boolean
+  // Live response (verified 2026-09-14) sends `isRequired`, same as the raw
+  // steps endpoint.
+  isRequired: boolean
   fields?: AdmissionFormField[]
 }
 
@@ -100,7 +102,7 @@ function fromRawEffective(raw: RawEffectiveStep): EffectiveAdmissionStep {
     label: raw.label,
     description: raw.description,
     icon: raw.icon,
-    required: raw.required,
+    required: raw.isRequired,
     fields: raw.fields ?? [],
   }
 }

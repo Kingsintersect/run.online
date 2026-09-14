@@ -70,6 +70,7 @@ export default function AuthSessionBridge({
         permissions: session.user.permissions ?? [],
         name: session.user.name,
         avatar: session.user.avatar ?? null,
+        majorProgramScope: session.user.majorProgramScope ?? null,
       })
       if (sig !== appliedSessionSig.current) {
         appliedSessionSig.current = sig
@@ -89,6 +90,7 @@ export default function AuthSessionBridge({
           avatar: session.user.avatar ?? undefined,
           firstName: session.user.firstName ?? undefined,
           lastName: session.user.lastName ?? undefined,
+          majorProgramScope: session.user.majorProgramScope,
         })
       }
       return

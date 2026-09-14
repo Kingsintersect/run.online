@@ -1,5 +1,6 @@
 import { DefaultSession } from "next-auth"
 import { UserRole } from "@/config/nav.config"
+import type { MajorProgramScope } from "@/types/school"
 
 declare module "next-auth" {
   interface Session {
@@ -15,6 +16,7 @@ declare module "next-auth" {
       lastName: string | null
       avatar?: string | null
       permissions: string[]
+      majorProgramScope?: MajorProgramScope
     }
     error?: string
   }
@@ -31,6 +33,7 @@ declare module "next-auth" {
     lastName: string | null
     permissions: string[]
     avatar?: string | null
+    majorProgramScope?: MajorProgramScope
   }
 }
 
@@ -47,5 +50,6 @@ declare module "next-auth/jwt" {
     lastName?: string | null
     avatar?: string | null
     permissions?: string[]
+    majorProgramScope?: MajorProgramScope
   }
 }

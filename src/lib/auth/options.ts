@@ -1,3 +1,4 @@
+import type { MajorProgramScope } from "@/types/school"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { UserRole } from "@/config/nav.config"
@@ -53,6 +54,7 @@ export const authOptions: NextAuthOptions = {
             lastName: user.lastName,
             avatar: user.avatar,
             permissions: user.permissions,
+            majorProgramScope: user.majorProgramScope,
           }
         } catch {
           return null
@@ -74,6 +76,7 @@ export const authOptions: NextAuthOptions = {
         token.lastName = user.lastName
         token.avatar = user.avatar
         token.permissions = user.permissions
+        token.majorProgramScope = user.majorProgramScope
         return token
       }
 
@@ -90,6 +93,8 @@ export const authOptions: NextAuthOptions = {
           token.availableRoles = session.availableRoles
         if (session.roles) token.roles = session.roles
         if (session.permissions) token.permissions = session.permissions
+        if (session.majorProgramScope)
+          token.majorProgramScope = session.majorProgramScope
       }
 
       return token
@@ -119,6 +124,9 @@ export const authOptions: NextAuthOptions = {
           (token.avatar as string | null | undefined) ?? null
         session.user.permissions =
           (token.permissions as string[] | undefined) ?? []
+        session.user.majorProgramScope = token.majorProgramScope as
+          | MajorProgramScope
+          | undefined
       }
 
       return session
