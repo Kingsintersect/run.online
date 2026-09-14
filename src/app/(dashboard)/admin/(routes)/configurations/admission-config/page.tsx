@@ -475,30 +475,24 @@ export default function AdmissionConfigPage() {
         // A COMPLETE stage must stay last (the backend rejects
         // INVALID_STAGE_SEQUENCE: COMPLETE_NOT_LAST otherwise) — appending
         // every new step at the very end, unconditionally, broke that as
-        // soon as a scope already had one. Slot the new step into COMPLETE's
-        // old position and bump COMPLETE past it instead; scopes without a
-        // COMPLETE stage yet keep the plain append-at-end behavior.
+        // soon as a scope already had one. Bump COMPLETE out of the way
+        // *first*, then create the new step in the vacated slot — creating
+        // it first and bumping COMPLETE after (the initial fix) still sent
+        // a create payload with the same order as COMPLETE, which the
+        // backend's own atomic sequence check rejects as a tie before the
+        // follow-up bump ever runs. Scopes without a COMPLETE stage yet
+        // keep the plain append-at-end behavior.
         const completeRow = rowsFor(formModal.group).find(
           (row) => resolveStageType(row.step) === "COMPLETE"
         )
-        const order = completeRow
-          ? completeRow.step.order
-          : groupItems.reduce((max, s) => Math.max(max, s.order), 0) + 1
-        const created = await createMutation.mutateAsync({
-          ...stepValues,
-          description: stepValues.description ?? "",
-          group: formModal.group,
-          key,
-          order,
-          ...scopePayload(scope),
-          ...(stage ? { type: stage.type, config: stage.config } : {}),
-        })
-        if (completeRow && created.id !== completeRow.step.id) {
-          const nextOrder = completeRow.step.order + 1
+        let order = groupItems.reduce((max, s) => Math.max(max, s.order), 0) + 1
+        if (completeRow) {
+          order = completeRow.step.order
+          const nextOrder = order + 1
           // COMPLETE might still be inherited from a broader scope in this
-          // tab — pushing it past the new step then means customising it
-          // into this scope (at the new position), not editing the shared
-          // default row every other scope also inherits.
+          // tab — pushing it forward then means customising it into this
+          // scope (at the new position), not editing the shared default row
+          // every other scope also inherits.
           if (completeRow.own) {
             await updateMutation.mutateAsync({
               id: completeRow.step.id,
@@ -512,6 +506,15 @@ export default function AdmissionConfigPage() {
             })
           }
         }
+        await createMutation.mutateAsync({
+          ...stepValues,
+          description: stepValues.description ?? "",
+          group: formModal.group,
+          key,
+          order,
+          ...scopePayload(scope),
+          ...(stage ? { type: stage.type, config: stage.config } : {}),
+        })
         toast.success("Step created")
       }
       invalidateAll()
