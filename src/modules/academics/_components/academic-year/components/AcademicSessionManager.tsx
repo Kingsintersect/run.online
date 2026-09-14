@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { toast } from "sonner"
 import {
   useAcademicSessions,
   useCreateSession,
+  useUpdateSession,
   useActivateSession,
 } from "@/hooks/useAcademicSessions"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
@@ -17,6 +19,7 @@ import {
   academicSessionSchema,
   type AcademicSessionFormValues,
 } from "@/schemas/school.schema"
+import type { AcademicSession } from "@/types/school"
 
 import {
   Card,
@@ -43,10 +46,16 @@ import {
   Plus,
   ArrowRight,
   Power,
+  PowerOff,
+  Pencil,
   Loader2,
   Layers,
   Building2,
 } from "lucide-react"
+
+// A "date" input needs exactly YYYY-MM-DD; the API returns a full ISO
+// timestamp for these fields — truncate rather than leave the input blank.
+const toDateInputValue = (iso: string) => iso.slice(0, 10)
 
 interface AcademicSessionManagerProps {
   canManage?: boolean
@@ -66,11 +75,16 @@ export function AcademicSessionManager({
   // sandbox/major-program-scoping/README.md §0/§5's governing rule.
   const hasMultipleMajorPrograms = majorPrograms.length > 1
   const createSession = useCreateSession()
+  const updateSession = useUpdateSession()
   const activateSession = useActivateSession()
 
   const { setSelectedSession, setCurrentStep } = useAcademicSessionSetupStore()
 
   const [showForm, setShowForm] = useState(false)
+  const [editingSession, setEditingSession] = useState<AcademicSession | null>(
+    null
+  )
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
   const [sessionFilter, setSessionFilter] = useState<number | null>(null)
   const {
@@ -90,8 +104,7 @@ export function AcademicSessionManager({
     },
   })
 
-  const onSubmit = async (data: AcademicSessionFormValues) => {
-    await createSession.mutateAsync(data)
+  const closeForm = () => {
     reset({
       name: "",
       startDate: "",
@@ -100,6 +113,19 @@ export function AcademicSessionManager({
       majorProgramId: null,
     })
     setShowForm(false)
+    setEditingSession(null)
+  }
+
+  const onSubmit = async (data: AcademicSessionFormValues) => {
+    if (editingSession) {
+      await updateSession.mutateAsync({ id: editingSession.id, payload: data })
+      toast.success("Session updated")
+      closeForm()
+      return
+    }
+    await createSession.mutateAsync(data)
+    toast.success("Session created")
+    closeForm()
     // Land back on "All" so the session just created is visible alongside
     // every other one, not hidden behind whichever tab happened to be
     // active — it was easy to read that as "the new session displaced the
@@ -111,6 +137,7 @@ export function AcademicSessionManager({
   }
 
   const openCreateForm = () => {
+    setEditingSession(null)
     // Pre-fill the new session's major program with whichever tab is
     // active, since creating one while looking at a specific program's
     // sessions almost always means it belongs to that program.
@@ -122,6 +149,40 @@ export function AcademicSessionManager({
       majorProgramId: sessionFilter,
     })
     setShowForm(true)
+  }
+
+  const openEditForm = (session: AcademicSession) => {
+    setEditingSession(session)
+    reset({
+      name: session.name,
+      startDate: toDateInputValue(session.startDate),
+      endDate: toDateInputValue(session.endDate),
+      isActive: session.isActive,
+      majorProgramId: session.majorProgramId ?? null,
+    })
+    setShowForm(true)
+  }
+
+  const handleToggleActive = async (session: AcademicSession) => {
+    setTogglingId(session.id)
+    try {
+      if (session.isActive) {
+        await updateSession.mutateAsync({
+          id: session.id,
+          payload: { isActive: false },
+        })
+        toast.success(`${session.name} deactivated`)
+      } else {
+        await activateSession.mutateAsync(session.id)
+        toast.success(`${session.name} activated`)
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't update this session"
+      )
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   const visibleSessions = sessionFilter
@@ -164,9 +225,7 @@ export function AcademicSessionManager({
           </p>
         </div>
         {canManage && (
-          <Button
-            onClick={() => (showForm ? setShowForm(false) : openCreateForm())}
-          >
+          <Button onClick={() => (showForm ? closeForm() : openCreateForm())}>
             <Plus className="size-4" data-icon="inline-start" />
             New Session
           </Button>
@@ -186,9 +245,15 @@ export function AcademicSessionManager({
       {showForm && canManage && (
         <Card>
           <CardHeader>
-            <CardTitle>Create Academic Session</CardTitle>
+            <CardTitle>
+              {editingSession
+                ? "Edit Academic Session"
+                : "Create Academic Session"}
+            </CardTitle>
             <CardDescription>
-              e.g., 2024/2025 — September 2024 to August 2025
+              {editingSession
+                ? "Update this session's name or dates."
+                : "e.g., 2024/2025 — September 2024 to August 2025"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -249,6 +314,7 @@ export function AcademicSessionManager({
                         onValueChange={(val) =>
                           field.onChange(val === "none" ? null : Number(val))
                         }
+                        disabled={!!editingSession}
                       >
                         <SelectTrigger
                           id="session-major-program"
@@ -268,26 +334,28 @@ export function AcademicSessionManager({
                     )}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Institution-wide sessions are shared by every program.
+                    {editingSession
+                      ? "The major program can't be changed after creation."
+                      : "Institution-wide sessions are shared by every program."}
                   </p>
                 </div>
               )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowForm(false)}>
+              <Button variant="outline" onClick={closeForm}>
                 Cancel
               </Button>
               <Button
                 onClick={handleSubmit(onSubmit)}
-                disabled={createSession.isPending}
+                disabled={createSession.isPending || updateSession.isPending}
               >
-                {createSession.isPending && (
+                {(createSession.isPending || updateSession.isPending) && (
                   <Loader2
                     className="size-4 animate-spin"
                     data-icon="inline-start"
                   />
                 )}
-                Create Session
+                {editingSession ? "Save Changes" : "Create Session"}
               </Button>
             </div>
           </CardContent>
@@ -370,14 +438,35 @@ export function AcademicSessionManager({
                     Configure
                     <ArrowRight className="size-4" data-icon="inline-end" />
                   </Button>
-                  {canManage && !session.isActive && (
+                  {canManage && (
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => activateSession.mutate(session.id)}
-                      title="Activate session"
+                      onClick={() => openEditForm(session)}
+                      title="Edit session"
                     >
-                      <Power className="size-4" />
+                      <Pencil className="size-4" />
+                    </Button>
+                  )}
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handleToggleActive(session)}
+                      disabled={togglingId === session.id}
+                      title={
+                        session.isActive
+                          ? "Deactivate session"
+                          : "Activate session"
+                      }
+                    >
+                      {togglingId === session.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : session.isActive ? (
+                        <PowerOff className="size-4" />
+                      ) : (
+                        <Power className="size-4" />
+                      )}
                     </Button>
                   )}
                 </div>
