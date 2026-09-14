@@ -1,5 +1,6 @@
 import apiClient from "@/lib/clients/apiClient"
 import type { FormDefaultValues } from "../types/form-types"
+import type { DynamicAnswers, DynamicFieldValue } from "../lib/dynamic-form"
 
 const AUTH = { access_token: true } as const
 
@@ -105,7 +106,12 @@ export async function submitApplication(
   values: FormDefaultValues,
   profile: CurrentUserProfile,
   sessionId: number,
-  onUploadProgress?: (percent: number) => void
+  onUploadProgress?: (percent: number) => void,
+  /** Answers to dynamic questions — see buildDynamicPayload in ../lib/dynamic-form.ts. */
+  dynamic?: {
+    answers: DynamicAnswers
+    customFields: Record<string, DynamicFieldValue>
+  }
 ): Promise<SubmitApplicationResponse> {
   const payload: Record<string, unknown> = {
     // Identity — from the logged-in user's own profile, not re-collected.
@@ -182,15 +188,16 @@ export async function submitApplication(
     first_sitting_result: values.first_sitting_result,
     second_sitting_result: values.second_sitting_result,
 
-    // Multi-Program Platform (sandbox/multi-program-platform/ §B) — the
-    // applicant's program's own custom questions, keyed by
-    // AdmissionFormField.key. Omitted entirely for a program with none, so
-    // this changes nothing for the existing flow. objectToFormData
-    // (apiClient.ts) flattens this the same way it already does
-    // other_documents — nested `custom_fields[key]` multipart fields.
-    ...(values.customFields &&
-      Object.keys(values.customFields).length > 0 && {
-        custom_fields: values.customFields,
+    // Dynamic questions (sandbox/dynamic-admission/API_CONTRACTS.md §3.4):
+    // `answers[STEP][field]` is the new contract; `customFields[field]` is
+    // what the live submit endpoint reads today (Applications - Submit.bru).
+    // objectToFormData flattens both into bracketed multipart keys. Omitted
+    // entirely when there are none.
+    ...(dynamic &&
+      Object.keys(dynamic.answers).length > 0 && { answers: dynamic.answers }),
+    ...(dynamic &&
+      Object.keys(dynamic.customFields).length > 0 && {
+        customFields: dynamic.customFields,
       }),
   }
 

@@ -5,10 +5,10 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { ArrowLeft, ArrowRight, Send, Save, Eraser, Trash2 } from "lucide-react"
-import { FormStep } from "../types/form-types"
 
 interface FormNavigationProps {
-  currentStep: FormStep
+  isFirst: boolean
+  isLast: boolean
   currentStepPosition: number
   totalSteps: number
   isSubmitting: boolean
@@ -21,7 +21,8 @@ interface FormNavigationProps {
 }
 
 export default function FormNavigation({
-  currentStep,
+  isFirst,
+  isLast,
   currentStepPosition,
   totalSteps,
   isSubmitting,
@@ -32,8 +33,6 @@ export default function FormNavigation({
   onClearStep,
   onClearForm,
 }: FormNavigationProps) {
-  const isFirst = currentStep === FormStep.PERSONAL_INFO
-  const isLast = currentStep === FormStep.REVIEW
   const [clearStepOpen, setClearStepOpen] = useState(false)
   const [clearFormOpen, setClearFormOpen] = useState(false)
 
@@ -64,6 +63,7 @@ export default function FormNavigation({
           onClick={() => setClearStepOpen(true)}
           disabled={isSubmitting}
           title="Clear this step"
+          aria-label="Clear this step"
           className="text-muted-foreground hover:text-destructive"
         >
           <Eraser className="size-4" />
@@ -75,6 +75,7 @@ export default function FormNavigation({
           onClick={() => setClearFormOpen(true)}
           disabled={isSubmitting}
           title="Clear entire form"
+          aria-label="Clear entire form"
           className="text-muted-foreground hover:text-destructive"
         >
           <Trash2 className="size-4" />
@@ -121,7 +122,6 @@ export default function FormNavigation({
         )}
       </div>
 
-      {/* Progress text */}
       <span className="sr-only">
         Step {currentStepPosition + 1} of {totalSteps}
       </span>

@@ -3,31 +3,28 @@
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
-import { FORM_STEPS, type FormStep } from "../types/form-types"
+import type { WizardStep } from "../lib/dynamic-form"
 
 interface FormStepIndicatorProps {
-  currentStep: FormStep
-  activeSteps: FormStep[]
-  completedSteps: Set<FormStep>
-  onStepClick: (step: FormStep) => void
+  steps: Pick<WizardStep, "id" | "title" | "icon">[]
+  currentStepId: string
+  completedSteps: Set<string>
+  onStepClick: (stepId: string) => void
 }
 
 export default function FormStepIndicator({
-  currentStep,
-  activeSteps,
+  steps,
+  currentStepId,
   completedSteps,
   onStepClick,
 }: FormStepIndicatorProps) {
-  const steps = FORM_STEPS.filter((step) => activeSteps.includes(step.id))
-
   return (
-    <div className="w-full overflow-x-auto py-4">
-      <div className="flex min-w-max items-center justify-center gap-1 px-4">
+    <nav aria-label="Application steps" className="w-full overflow-x-auto py-4">
+      <ol className="flex min-w-max items-center justify-center gap-1 px-4">
         {steps.map((step, index) => {
           const isCompleted = completedSteps.has(step.id)
-          const isCurrent = currentStep === step.id
-          const stepPos = activeSteps.indexOf(step.id)
-          const prevStepId = stepPos > 0 ? activeSteps[stepPos - 1] : undefined
+          const isCurrent = currentStepId === step.id
+          const prevStepId = index > 0 ? steps[index - 1].id : undefined
           const isAccessible =
             isCompleted ||
             isCurrent ||
@@ -35,12 +32,13 @@ export default function FormStepIndicator({
           const Icon = step.icon
 
           return (
-            <div key={step.id} className="flex items-center">
-              {/* Step Circle */}
+            <li key={step.id} className="flex items-center">
               <motion.button
                 type="button"
                 onClick={() => isAccessible && onStepClick(step.id)}
                 disabled={!isAccessible}
+                aria-current={isCurrent ? "step" : undefined}
+                aria-label={`${step.title}${isCompleted ? " (complete)" : ""}`}
                 className={cn(
                   "group relative flex flex-col items-center gap-1.5",
                   isAccessible ? "cursor-pointer" : "cursor-not-allowed"
@@ -48,7 +46,6 @@ export default function FormStepIndicator({
                 whileHover={isAccessible ? { scale: 1.05 } : undefined}
                 whileTap={isAccessible ? { scale: 0.95 } : undefined}
               >
-                {/* Circle */}
                 <motion.div
                   className={cn(
                     "relative flex size-10 items-center justify-center rounded-full border-2 transition-colors",
@@ -80,7 +77,6 @@ export default function FormStepIndicator({
                     <Icon className="size-4" />
                   )}
 
-                  {/* Active ring pulse */}
                   {isCurrent && (
                     <motion.div
                       className="absolute inset-0 rounded-full border-2 border-primary"
@@ -94,7 +90,6 @@ export default function FormStepIndicator({
                   )}
                 </motion.div>
 
-                {/* Label */}
                 <span
                   className={cn(
                     "max-w-20 text-center text-[10px] leading-tight",
@@ -107,7 +102,6 @@ export default function FormStepIndicator({
                 </span>
               </motion.button>
 
-              {/* Connector Line */}
               {index < steps.length - 1 && (
                 <div className="relative mx-1 h-0.5 w-8 bg-muted-foreground/20 sm:w-12">
                   <motion.div
@@ -118,10 +112,10 @@ export default function FormStepIndicator({
                   />
                 </div>
               )}
-            </div>
+            </li>
           )
         })}
-      </div>
-    </div>
+      </ol>
+    </nav>
   )
 }

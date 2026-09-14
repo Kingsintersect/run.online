@@ -10,7 +10,6 @@ import {
   FolderOpen,
   Settings,
   CheckCircle,
-  ListPlus,
 } from "lucide-react"
 import type { ElementType } from "react"
 import type {
@@ -23,7 +22,7 @@ import type {
   qualificationDocumentsSchema,
   programSelectionSchema,
 } from "../schema/admission-schema"
-import type { AdmissionFormField } from "@/types/admissionConfig"
+import type { DynamicAnswers } from "../lib/dynamic-form"
 
 // ─── Step Enum ───────────────────────────────────────────────────────────────
 export enum FormStep {
@@ -108,12 +107,6 @@ export const FORM_STEPS: StepConfig[] = [
     icon: Settings,
   },
   {
-    id: FormStep.ADDITIONAL_INFO,
-    title: "Additional Information",
-    description: "Program-specific questions for the program you selected",
-    icon: ListPlus,
-  },
-  {
     id: FormStep.REVIEW,
     title: "Review & Submit",
     description: "Review your application before submitting",
@@ -138,91 +131,8 @@ export const FORM_STEP_KEYS: Record<FormStep, string> = {
   [FormStep.ADDITIONAL_INFO]: "ADDITIONAL_INFO",
 }
 
-/** The 9 built-in step keys — anything else in a resolved FORM-group step
- *  list is a Multi-Program Platform custom step, whose `fields` are shown
- *  in the ADDITIONAL_INFO step instead of a dedicated hardcoded component.
- *  See sandbox/multi-program-platform/ §B. */
-export const KNOWN_FORM_STEP_KEY_SET = new Set(Object.values(FORM_STEP_KEYS))
-
-/** Every custom (non-built-in) FORM-group field resolved for the
- *  applicant's program, flattened across however many custom steps the
- *  registry defines — they all render together on ADDITIONAL_INFO rather
- *  than each getting their own wizard page (see README.md §2/§B for why:
- *  a wizard page needs a stable numeric FormStep identity throughout this
- *  module, which a variable-length admin-defined step list can't supply
- *  without a much larger rework). */
-export function getCustomFormFields(
-  effectiveFormSteps: { key: string; fields?: AdmissionFormField[] }[]
-): AdmissionFormField[] {
-  return effectiveFormSteps
-    .filter((s) => !KNOWN_FORM_STEP_KEY_SET.has(s.key))
-    .flatMap((s) => s.fields ?? [])
-    .sort((a, b) => a.order - b.order)
-}
-
-/**
- * Ordered list of form steps that are actually enabled, given the admin's
- * step registry rows (src/services/admissionStepsApi.ts). Steps are sorted
- * by the registry's `order` field, so admin-driven reordering is reflected
- * here. REVIEW is always last and always included regardless of its stored
- * order — it's the terminal step. Custom/unknown keys (steps the admin
- * created that don't match one of the 9 built-in FormStep values) have no
- * matching UI component yet and are silently excluded — see
- * sandbox/admission/admission_features_workflow.md.
- *
- * PROGRAM_SELECTION is excluded only once the applicant has a confirmed
- * pre-application program choice on record (`programAlreadyChosen` — from
- * `AdmissionStudent.has_selected_program`, set at the earlier "Choice
- * Program" PROCESS step, before the application fee). Until that choice
- * actually exists — which today is always, since the backend endpoint it
- * needs doesn't exist yet, see sandbox/REFACTOR_BACKEND_APIS.md — this step
- * stays in the form, because otherwise programId/entryMode would never be
- * collectible anywhere and every submission would fail validation with no
- * way for the applicant to fix it. It ignores the admin's enabled/required
- * toggle for this key entirely (that toggle is now hidden from the admin
- * config panel too — see admission-config/page.tsx).
- */
-export function getActiveFormSteps(
-  stepDefinitions: {
-    key: string
-    enabled: boolean
-    required: boolean
-    order: number
-  }[],
-  programAlreadyChosen: boolean,
-  // Multi-Program Platform — sandbox/multi-program-platform/ §B. Only
-  // included when the applicant's program actually has custom FORM-group
-  // fields resolved for it — an institution/program with none never shows
-  // this step, so nothing changes for the existing 9-step flow by default.
-  hasCustomFields = false
-): FormStep[] {
-  const byKey = new Map(stepDefinitions.map((s) => [s.key, s]))
-
-  const ordered = FORM_STEPS.filter(
-    (step) => step.id !== FormStep.REVIEW && step.id !== FormStep.ADDITIONAL_INFO
-  )
-    .map((step) => ({
-      step: step.id,
-      isOptional: step.isOptional,
-      def: byKey.get(FORM_STEP_KEYS[step.id]),
-    }))
-    .filter(({ step, def, isOptional }) => {
-      if (step === FormStep.PROGRAM_SELECTION) return !programAlreadyChosen
-      // If the registry row is missing entirely (e.g. deleted), fall back to
-      // whether this step is optional by design — a deleted optional step
-      // stays excluded, a deleted non-optional one defensively stays included
-      // rather than silently breaking the form.
-      return def ? def.enabled || def.required : !isOptional
-    })
-    .sort((a, b) => (a.def?.order ?? 0) - (b.def?.order ?? 0))
-    .map(({ step }) => step)
-
-  return [
-    ...ordered,
-    ...(hasCustomFields ? [FormStep.ADDITIONAL_INFO] : []),
-    FormStep.REVIEW,
-  ]
-}
+// The wizard's step list is built from the admission step registry in
+// ../lib/dynamic-form.ts (buildWizardSteps) — sandbox/dynamic-admission/.
 
 // ─── Storage Key ─────────────────────────────────────────────────────────────
 export const FORM_STORAGE_KEY = "odl_admission_form"
@@ -292,7 +202,7 @@ export const DEFAULT_FORM_VALUES: FormDefaultValues = {
 
   agreeToTerms: false,
 
-  customFields: {},
+  answers: {},
 }
 
 // ─── Step Field Mappings ─────────────────────────────────────────────────────
@@ -355,10 +265,8 @@ export const STEP_FIELDS: Record<FormStep, string[]> = {
     "studyMode",
   ],
   [FormStep.REVIEW]: ["agreeToTerms"],
-  // Real per-key errors live under `customFields.<key>` (see
-  // useAdmissionForm.ts's ADDITIONAL_INFO validation branch) — this single
-  // entry is only a stand-in so STEP_FIELDS/FIELD_TO_STEP stay total maps.
-  [FormStep.ADDITIONAL_INFO]: ["customFields"],
+  // Retired — dynamic questions now live on their own steps under `answers`.
+  [FormStep.ADDITIONAL_INFO]: [],
 }
 
 /** Reverse lookup of STEP_FIELDS — which step a given field name lives on, for the submit error summary. */
@@ -447,7 +355,7 @@ export const FIELD_LABELS: Record<string, string> = {
   startTerm: "Start Term",
   studyMode: "Study Mode",
   agreeToTerms: "Terms & Conditions Agreement",
-  customFields: "Additional Information",
+  answers: "Additional Information",
 }
 
 export function getFieldLabel(field: string): string {
@@ -529,6 +437,19 @@ export function collectFormErrors(
   return results
 }
 
+/** The error message stored at a dotted form path, e.g. `answers.EXTRA.phone`. */
+export function errorMessageAt(
+  errors: FieldErrors,
+  path: string
+): string | undefined {
+  let node: unknown = errors
+  for (const segment of path.split(".")) {
+    if (!node || typeof node !== "object") return undefined
+    node = (node as Record<string, unknown>)[segment]
+  }
+  return isFieldErrorLeaf(node) ? node.message : undefined
+}
+
 // ─── Per-Step Schema Types ───────────────────────────────────────────────────
 export type StepSchemaMap = {
   [FormStep.PERSONAL_INFO]: typeof personalInfoSchema
@@ -598,11 +519,9 @@ export interface FormDefaultValues {
 
   agreeToTerms: boolean
 
-  // Multi-Program Platform — sandbox/multi-program-platform/ §B. Answers to
-  // the applicant's program's own custom FORM-group fields, keyed by
-  // AdmissionFormField.key. Empty object for a program with none — the
-  // existing 9-step flow never populates or reads this.
-  customFields: Record<string, unknown>
+  // Dynamic Admission — answers to questions that aren't system fields,
+  // by step key then field key (sandbox/dynamic-admission/API_CONTRACTS.md §3.4).
+  answers: DynamicAnswers
 }
 
 // ─── Step Component Props ────────────────────────────────────────────────────

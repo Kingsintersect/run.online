@@ -35,20 +35,32 @@ import {
 } from "../schema/admission-schema"
 import {
   FormStep,
+  FORM_STEP_KEYS,
   FORM_STORAGE_KEY,
   STEP_STORAGE_KEY,
   DEFAULT_FORM_VALUES,
   STEP_FIELDS,
-  getActiveFormSteps,
-  getCustomFormFields,
+  backendFieldToFormField,
   getFieldLabel,
-  collectFormErrors,
+  getStepForField,
   type FormDefaultValues,
 } from "../types/form-types"
-import { buildStepSchema } from "../lib/dynamic-field-schema"
-import type { AdmissionFormField } from "@/types/admissionConfig"
+import {
+  buildDynamicPayload,
+  buildFieldIndex,
+  buildWizardSteps,
+  fieldPath,
+  formValueKeyFor,
+  makeLookup,
+  migrateSavedStepId,
+  stepFields,
+  validateStepFields,
+  type FieldIndexEntry,
+  type StepIssue,
+  type WizardStep,
+} from "../lib/dynamic-form"
 
-// ─── Per-step schema resolver map ────────────────────────────────────────────
+// ─── Per-step schema resolver map (hand-built steps) ─────────────────────────
 const STEP_SCHEMAS = {
   [FormStep.PERSONAL_INFO]: personalInfoSchema,
   [FormStep.SPONSOR_INFO]: sponsorInfoSchema,
@@ -60,17 +72,17 @@ const STEP_SCHEMAS = {
   [FormStep.PROGRAM_SELECTION]: programSelectionSchema,
 } as const
 
+const BUILT_IN_STEP_IDS = new Set<string>(Object.values(FORM_STEP_KEYS))
+
 export interface UseAdmissionFormReturn {
   form: UseFormReturn<FormDefaultValues>
-  currentStep: FormStep
-  activeSteps: FormStep[]
+  /** The wizard's steps, in order — built from the admission step registry. */
+  steps: WizardStep[]
+  currentStep: WizardStep
   totalSteps: number
-  completedSteps: Set<FormStep>
-  /** The applicant's program's own custom FORM-group fields (Multi-Program
-   *  Platform §B), resolved and ready for ADDITIONAL_INFO's renderer. Empty
-   *  when the program has none — which also means ADDITIONAL_INFO never
-   *  appears in activeSteps at all. */
-  customFormFields: AdmissionFormField[]
+  completedSteps: Set<string>
+  /** Every dynamic field across the form, by key. */
+  fieldIndex: Map<string, FieldIndexEntry>
   isLoading: boolean
   isSubmitting: boolean
   isSubmitted: boolean
@@ -86,23 +98,21 @@ export interface UseAdmissionFormReturn {
    * and on form reset. Rendered above the footer alongside client-side errors.
    */
   submitError: SubmitError | null
-  goToStep: (step: FormStep) => void
+  goToStep: (stepId: string) => void
   nextStep: () => Promise<boolean>
   prevStep: () => void
   submitForm: () => Promise<void>
   saveProgress: () => Promise<void>
   resetForm: () => Promise<void>
-  clearStep: (step: FormStep) => Promise<void>
-  isStepValid: (step: FormStep) => boolean
-  getStepErrors: (step: FormStep) => string[]
+  clearStep: (stepId: string) => Promise<void>
+  /** Label and owning step for an error path (client form path or backend error key). */
+  describeErrorPath: (path: string) => { label: string; stepId?: string }
   direction: 1 | -1
 }
 
 export function useAdmissionForm(): UseAdmissionFormReturn {
-  const [currentStep, setCurrentStep] = useState<FormStep>(
-    FormStep.PERSONAL_INFO
-  )
-  const [completedSteps, setCompletedSteps] = useState<Set<FormStep>>(new Set())
+  const [currentStepId, setCurrentStepId] = useState("")
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const queryClient = useQueryClient()
@@ -125,13 +135,8 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   const skipNextAutoSaveRef = useRef(true)
 
   // ─── Per-user storage keys ────────────────────────────────────────────────
-  // Bug fix: the storage keys used to be the bare FORM_STORAGE_KEY/
-  // STEP_STORAGE_KEY constants with no user scoping at all, so IndexedDB (and
-  // its companion localStorage step/completed entries) were shared by every
-  // account that ever logged in on the same browser — one applicant would see
-  // a previous applicant's saved draft. Suffixing every key with the logged-in
-  // user's id keeps each account's draft fully isolated; a fresh account (or
-  // signing in as someone else on the same device) always starts blank.
+  // Every key is suffixed with the logged-in user's id so each account's
+  // draft stays isolated on a shared browser.
   const isAppHydrated = useAppHydrated()
   const userId = useAppStore((s) => s.user?.id)
   const formStorageKey = userId ? `${FORM_STORAGE_KEY}_${userId}` : null
@@ -140,20 +145,16 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     ? `${stepStorageKey}_completed`
     : null
 
-  // ─── Admin-configured active steps — admins can disable/reorder steps ───
+  // ─── Admin-configured steps ─────────────────────────────────────────────
   const { data: admissionConfig } = useQuery(
     admissionStepsQueryOptions.config()
   )
   const { data: sessions } = useAcademicSessions()
   // If the applicant already made a real pre-application program choice (the
-  // "Choice Program" process step), PROGRAM_SELECTION drops out of
-  // activeSteps below and this pre-fills its fields instead of asking again.
+  // "Choice Program" process stage), PROGRAM_SELECTION drops out of the
+  // steps and its values are pre-filled instead of asked again.
   const { data: admissionStudent } = useQuery(admissionQueryOptions.student())
   const { data: allProgramsData } = useAllPrograms()
-  // Major-Program Scoping — resolves the active session for the applicant's
-  // already-chosen program's major program once the backend supports scoped
-  // sessions; today (every session unscoped) this is identical to "the"
-  // institution-wide active session.
   const selectedMajorProgramId = admissionStudent?.program_id
     ? (allProgramsData?.data ?? []).find(
         (p) => p.id === admissionStudent.program_id
@@ -164,13 +165,9 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     [sessions, selectedMajorProgramId]
   )
 
-  // Multi-Program Platform — sandbox/multi-program-platform/ §A/§B. Resolves
-  // the applicant's program's own FORM-group steps once a program is known
-  // (via the earlier "Choice Program" process step); before that, resolves
-  // with no programId (institution defaults only, i.e. no custom fields —
-  // matches today's behavior exactly). Not yet shipped by the backend —
-  // 404s and leaves customFormFields empty, so ADDITIONAL_INFO simply never
-  // appears until it does.
+  // The applicant's program's resolved FORM steps, with their field
+  // definitions (sandbox/dynamic-admission/API_CONTRACTS.md §3.3). Before a
+  // program is chosen this resolves the institution defaults.
   const { data: effectiveFormSteps } = useQuery({
     ...admissionStepsQueryOptions.effective(
       "FORM",
@@ -178,33 +175,32 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     ),
     retry: false,
   })
-  const customFormFields = useMemo(
-    () => getCustomFormFields(effectiveFormSteps ?? []),
-    [effectiveFormSteps]
+
+  const steps = useMemo(
+    () =>
+      buildWizardSteps({
+        configSteps: admissionConfig?.formSteps ?? [],
+        effectiveSteps: effectiveFormSteps,
+        programAlreadyChosen: !!admissionStudent?.has_selected_program,
+      }),
+    [
+      admissionConfig,
+      effectiveFormSteps,
+      admissionStudent?.has_selected_program,
+    ]
   )
+  const fieldIndex = useMemo(() => buildFieldIndex(steps), [steps])
+  const currentStep = steps.find((s) => s.id === currentStepId) ?? steps[0]
+  const totalSteps = steps.length
 
-  const activeSteps = useMemo(() => {
-    return getActiveFormSteps(
-      admissionConfig?.formSteps ?? [],
-      !!admissionStudent?.has_selected_program,
-      customFormFields.length > 0
-    )
-  }, [
-    admissionConfig,
-    admissionStudent?.has_selected_program,
-    customFormFields,
-  ])
-  const totalSteps = activeSteps.length
-
-  // If a disabled step was reached/saved before the admin turned it off, snap to the nearest active one.
+  // A step that's no longer active (admin changed the form, or the saved
+  // draft predates it) — continue at the first step not yet completed.
   useEffect(() => {
-    if (isLoading || activeSteps.includes(currentStep)) return
+    if (isLoading || steps.some((s) => s.id === currentStepId)) return
     const fallback =
-      activeSteps.find((s) => s > currentStep) ??
-      activeSteps[activeSteps.length - 1] ??
-      FormStep.PERSONAL_INFO
-    setCurrentStep(fallback)
-  }, [activeSteps, currentStep, isLoading])
+      steps.find((s) => !completedSteps.has(s.id)) ?? steps[steps.length - 1]
+    if (fallback) setCurrentStepId(fallback.id)
+  }, [steps, currentStepId, isLoading, completedSteps])
 
   const form = useForm<FormDefaultValues>({
     defaultValues: DEFAULT_FORM_VALUES,
@@ -212,75 +208,53 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   })
 
   // ─── Load persisted data on mount ────────────────────────────────────────
-  // Waits for the app store to finish hydrating so `userId` (and therefore
-  // the scoped storage keys) reflects the real logged-in account before
-  // anything is read — loading too early risked resolving `userId` as
-  // undefined for a moment and reading nothing, or briefly hitting the old
-  // unscoped bucket.
   useEffect(() => {
     if (!isAppHydrated || hasLoadedRef.current) return
     hasLoadedRef.current = true
 
     const loadSavedData = async () => {
       try {
-        // One-time cleanup of the pre-fix shared bucket — it's no longer read
-        // or written by anyone, so purge it rather than leave a dead,
-        // cross-account record sitting in IndexedDB/localStorage.
+        // One-time cleanup of the pre-fix shared (unscoped) bucket.
         formStorage.clearFormData(FORM_STORAGE_KEY).catch(() => {})
         localStorage.removeItem(STEP_STORAGE_KEY)
         localStorage.removeItem(`${STEP_STORAGE_KEY}_completed`)
 
-        if (!formStorageKey || !stepStorageKey || !stepCompletedStorageKey) {
+        if (!formStorageKey || !stepStorageKey || !stepCompletedStorageKey)
           return
-        }
 
         const savedData = await formStorage.loadFormData(formStorageKey)
         if (savedData) {
           // saveProgress() stores `null` in place of `undefined` (IndexedDB
-          // can't hold `undefined` as a value). Drop those keys on the way back
-          // in so DEFAULT_FORM_VALUES supplies the field's real default — an
-          // object spread only skips *missing* keys, so a stored `null` would
-          // otherwise overwrite the default and reach the schemas, where an
-          // optional field fails with "expected array, received null".
+          // can't hold `undefined`). Drop those keys so DEFAULT_FORM_VALUES
+          // supplies the real default. `customFields` belonged to the retired
+          // "Additional Information" step; its questions now live on their
+          // own steps under `answers`.
           const restored: Record<string, unknown> = {}
           for (const [key, value] of Object.entries(savedData)) {
-            if (value !== null) restored[key] = value
+            if (value !== null && key !== "customFields") restored[key] = value
           }
-
-          const dataWithDefaults = {
+          form.reset({
             ...DEFAULT_FORM_VALUES,
             ...restored,
-          } as FormDefaultValues
-          form.reset(dataWithDefaults)
+          } as FormDefaultValues)
           toast.success("Your previous progress has been restored.")
         }
 
+        // Older drafts saved the step as a FormStep number; newer ones use the step key.
         const savedStep = localStorage.getItem(stepStorageKey)
-        if (savedStep !== null) {
-          const step = Number(savedStep)
-          // Upper bound was FormStep.REVIEW (8) — the previous highest
-          // value. ADDITIONAL_INFO (9, Multi-Program Platform §B) is now
-          // the true max, appended after REVIEW specifically so REVIEW's
-          // own value never shifted (see the FormStep enum's comment) —
-          // this bound needs to widen to match, or a saved draft sitting on
-          // ADDITIONAL_INFO would fail to restore and silently bounce back
-          // to step 0 on reload.
-          if (step >= 0 && step <= FormStep.ADDITIONAL_INFO) {
-            setCurrentStep(step as FormStep)
-          }
-        }
+        if (savedStep) setCurrentStepId(migrateSavedStepId(savedStep))
 
         const savedCompleted = localStorage.getItem(stepCompletedStorageKey)
         if (savedCompleted) {
-          const parsed = JSON.parse(savedCompleted) as number[]
-          setCompletedSteps(new Set(parsed as FormStep[]))
+          const parsed = JSON.parse(savedCompleted) as (number | string)[]
+          setCompletedSteps(
+            new Set(parsed.map((s) => migrateSavedStepId(String(s))))
+          )
         }
       } catch (error) {
         console.error("Failed to load saved form data:", error)
       } finally {
         setIsLoading(false)
-        // Skip the auto-save that fires when isLoading transitions to false
-        // since we just loaded data — no need to immediately write it back
         skipNextAutoSaveRef.current = true
       }
     }
@@ -295,12 +269,7 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   ])
 
   // ─── TEMPORARY: enforce the Program Selection placeholder default ───────
-  // A draft saved before DEFAULT_FORM_VALUES.programId/entryMode got their
-  // temporary non-empty defaults (see form-types.ts) restores the old
-  // 0/"" values via the load effect above, silently overriding the new
-  // default. Force it back to a valid value here so testing isn't blocked
-  // by stale IndexedDB data. Remove alongside the other TEMPORARY markers
-  // once Choice Program is live and this step is retired.
+  // Remove alongside the other TEMPORARY markers once Choice Program is live.
   useEffect(() => {
     if (isLoading) return
     if (!form.getValues("programId")) {
@@ -313,7 +282,7 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     }
   }, [isLoading, form])
 
-  // ─── Pre-fill program choice from the earlier "Choice Program" step ─────
+  // ─── Pre-fill program choice from the earlier "Choice Program" stage ─────
   useEffect(() => {
     if (isLoading || !admissionStudent?.has_selected_program) return
     if (!admissionStudent.program_id || !admissionStudent.entry_mode) return
@@ -330,26 +299,17 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   // ─── Save progress to IndexedDB ─────────────────────────────────────────
   const saveProgress = useCallback(async () => {
     if (typeof window === "undefined") return
-    // No logged-in user id yet (store still hydrating) — nothing to scope
-    // the save to, so don't write anywhere rather than risk an unscoped save.
     if (!formStorageKey || !stepStorageKey || !stepCompletedStorageKey) return
 
     try {
       const values = form.getValues()
-
-      // Sanitize: replace undefined values with null for IndexedDB compatibility
-      // and keep File instances intact (storage.ts handles file extraction)
       const sanitized: Record<string, unknown> = {}
       for (const [key, value] of Object.entries(values)) {
-        if (value === undefined) {
-          sanitized[key] = null
-        } else {
-          sanitized[key] = value
-        }
+        sanitized[key] = value === undefined ? null : value
       }
 
       await formStorage.saveFormData(formStorageKey, sanitized)
-      localStorage.setItem(stepStorageKey, String(currentStep))
+      if (currentStep) localStorage.setItem(stepStorageKey, currentStep.id)
       localStorage.setItem(
         stepCompletedStorageKey,
         JSON.stringify([...completedSteps])
@@ -368,184 +328,180 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
 
   // ─── Auto-save on step change ────────────────────────────────────────────
   useEffect(() => {
-    if (!isLoading) {
-      // Skip the redundant save right after initial load
-      if (skipNextAutoSaveRef.current) {
-        skipNextAutoSaveRef.current = false
-        return
-      }
-      saveProgress()
+    if (isLoading) return
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false
+      return
     }
-  }, [currentStep, isLoading, saveProgress])
+    saveProgress()
+  }, [currentStepId, isLoading, saveProgress])
 
-  // ─── Validate current step fields ────────────────────────────────────────
-  const validateCurrentStep = useCallback(async (): Promise<boolean> => {
-    if (currentStep === FormStep.REVIEW) return true
+  // ─── Validation ──────────────────────────────────────────────────────────
+  const validateStep = useCallback(
+    async (step: WizardStep): Promise<StepIssue[]> => {
+      if (step.kind === "review") return []
+      const values = form.getValues()
+      const issues: StepIssue[] = []
 
-    // Multi-Program Platform §B — ADDITIONAL_INFO's "schema" is built at
-    // runtime from the program's resolved custom fields, not a static
-    // per-step entry in STEP_SCHEMAS below.
-    if (currentStep === FormStep.ADDITIONAL_INFO) {
-      if (customFormFields.length === 0) return true
-      const schema = buildStepSchema(customFormFields)
-      const result = await schema.safeParseAsync(
-        form.getValues("customFields") ?? {}
-      )
-      if (!result.success) {
-        result.error.issues.forEach((issue) => {
-          form.setError(`customFields.${issue.path.join(".")}` as never, {
-            message: issue.message,
+      if (step.kind === "builtin") {
+        // Exam result documents aren't asked while results are awaited.
+        const skip =
+          step.formStep === FormStep.QUALIFICATION_DOCUMENTS &&
+          values.awaiting_result
+        const schema = STEP_SCHEMAS[step.formStep as keyof typeof STEP_SCHEMAS]
+        if (schema && !skip) {
+          const stepValues: Record<string, unknown> = {}
+          STEP_FIELDS[step.formStep].forEach((field) => {
+            stepValues[field] = values[field as keyof FormDefaultValues]
           })
-        })
-        return false
+          const result = await schema.safeParseAsync(stepValues)
+          if (!result.success) {
+            for (const issue of result.error.issues) {
+              const path = issue.path.map(String).join(".")
+              issues.push({
+                path,
+                label: getFieldLabel(String(issue.path[0] ?? path)),
+                message: issue.message,
+              })
+            }
+          }
+        }
       }
-      form.clearErrors("customFields" as never)
-      return true
-    }
 
-    // Skip document validation when awaiting results
-    if (
-      currentStep === FormStep.QUALIFICATION_DOCUMENTS &&
-      form.getValues("awaiting_result")
-    ) {
-      return true
-    }
+      issues.push(
+        ...validateStepFields(
+          step.id,
+          stepFields(step),
+          values,
+          makeLookup(values, fieldIndex)
+        )
+      )
+      return issues
+    },
+    [form, fieldIndex]
+  )
 
-    const stepSchema = STEP_SCHEMAS[currentStep as keyof typeof STEP_SCHEMAS]
-    if (!stepSchema) return true
+  const applyIssues = useCallback(
+    (step: WizardStep, issues: StepIssue[]) => {
+      const paths = [
+        ...(step.kind === "builtin" ? STEP_FIELDS[step.formStep] : []),
+        ...stepFields(step).map((f) => fieldPath(step.id, f)),
+      ]
+      form.clearErrors(paths as never)
+      for (const issue of issues) {
+        form.setError(issue.path as never, { message: issue.message })
+      }
+    },
+    [form]
+  )
 
-    const fields = STEP_FIELDS[currentStep]
-    const values = form.getValues()
+  const toastFirstIssue = (issues: StepIssue[]) => {
+    const [first] = issues
+    const extra =
+      issues.length > 1
+        ? ` (+${issues.length - 1} more issue${issues.length > 2 ? "s" : ""})`
+        : ""
+    toast.error(
+      first
+        ? `${first.label}: ${first.message}${extra}`
+        : "Please review the highlighted fields before proceeding."
+    )
+  }
 
-    // Extract only this step's field values
-    const stepValues: Record<string, unknown> = {}
-    fields.forEach((field) => {
-      stepValues[field] = values[field as keyof FormDefaultValues]
-    })
-
-    const result = await stepSchema.safeParseAsync(stepValues)
-
-    if (!result.success) {
-      // Map errors to react-hook-form
-      result.error.issues.forEach((issue) => {
-        const fieldPath = issue.path.join(".") as keyof FormDefaultValues
-        form.setError(fieldPath, { message: issue.message })
-      })
-      return false
-    }
-
-    // Clear step errors
-    fields.forEach((field) => {
-      form.clearErrors(field as keyof FormDefaultValues)
-    })
-
-    return true
-  }, [currentStep, form, customFormFields])
-
-  // ─── Navigation (moves along admin-configured activeSteps, not raw +/-1) ─
+  // ─── Navigation ───────────────────────────────────────────────────────────
   const nextStep = useCallback(async (): Promise<boolean> => {
-    const isValid = await validateCurrentStep()
-    if (!isValid) {
-      const fields = new Set(STEP_FIELDS[currentStep])
-      const stepErrors = collectFormErrors(form.formState.errors).filter((e) =>
-        fields.has(e.field)
-      )
-      const first = stepErrors[0]
-      const extra =
-        stepErrors.length > 1
-          ? ` (+${stepErrors.length - 1} more issue${stepErrors.length > 2 ? "s" : ""})`
-          : ""
-      toast.error(
-        first
-          ? `${getFieldLabel(first.field)}: ${first.message}${extra}`
-          : "Please review the highlighted fields before proceeding."
-      )
+    if (!currentStep) return false
+    const issues = await validateStep(currentStep)
+    applyIssues(currentStep, issues)
+    if (issues.length > 0) {
+      toastFirstIssue(issues)
       return false
     }
 
-    setCompletedSteps((prev) => new Set([...prev, currentStep]))
+    setCompletedSteps((prev) => new Set([...prev, currentStep.id]))
     setDirection(1)
-
-    const idx = activeSteps.indexOf(currentStep)
-    if (idx !== -1 && idx < activeSteps.length - 1) {
-      setCurrentStep(activeSteps[idx + 1])
-    }
+    const idx = steps.findIndex((s) => s.id === currentStep.id)
+    if (idx !== -1 && idx < steps.length - 1)
+      setCurrentStepId(steps[idx + 1].id)
 
     await saveProgress()
     return true
-  }, [currentStep, activeSteps, validateCurrentStep, saveProgress, form])
+  }, [currentStep, steps, validateStep, applyIssues, saveProgress])
 
   const prevStep = useCallback(() => {
-    const idx = activeSteps.indexOf(currentStep)
+    if (!currentStep) return
+    const idx = steps.findIndex((s) => s.id === currentStep.id)
     if (idx > 0) {
       setDirection(-1)
-      setCurrentStep(activeSteps[idx - 1])
+      setCurrentStepId(steps[idx - 1].id)
     }
-  }, [currentStep, activeSteps])
+  }, [currentStep, steps])
 
   const goToStep = useCallback(
-    (step: FormStep) => {
-      if (!activeSteps.includes(step)) return
-      const currentIdx = activeSteps.indexOf(currentStep)
-      const targetIdx = activeSteps.indexOf(step)
-      // Only allow going to completed steps or the current step + 1 (within active steps)
+    (stepId: string) => {
+      if (!currentStep) return
+      const targetIdx = steps.findIndex((s) => s.id === stepId)
+      if (targetIdx === -1) return
+      const currentIdx = steps.findIndex((s) => s.id === currentStep.id)
+      // Only completed steps, earlier steps, or the next one.
       if (
         targetIdx <= currentIdx ||
-        completedSteps.has(step) ||
+        completedSteps.has(stepId) ||
         targetIdx === currentIdx + 1
       ) {
         setDirection(targetIdx > currentIdx ? 1 : -1)
-        setCurrentStep(step)
+        setCurrentStepId(stepId)
       }
     },
-    [currentStep, activeSteps, completedSteps]
+    [currentStep, steps, completedSteps]
   )
 
-  // ─── Check if a step has valid data ──────────────────────────────────────
-  const isStepValid = useCallback(
-    (step: FormStep): boolean => {
-      if (step === FormStep.REVIEW) return true
-
-      if (step === FormStep.ADDITIONAL_INFO) {
-        if (customFormFields.length === 0) return true
-        const schema = buildStepSchema(customFormFields)
-        return schema.safeParse(form.getValues("customFields") ?? {}).success
+  // ─── Error descriptions (submit summary) ─────────────────────────────────
+  const describeErrorPath = useCallback(
+    (path: string): { label: string; stepId?: string } => {
+      const segments = path.split(".")
+      const findField = (stepId: string, key: string) => {
+        const step = steps.find((s) => s.id === stepId)
+        return step ? stepFields(step).find((f) => f.key === key) : undefined
       }
 
-      const stepSchema = STEP_SCHEMAS[step as keyof typeof STEP_SCHEMAS]
-      if (!stepSchema) return true
-
-      const fields = STEP_FIELDS[step]
-      const values = form.getValues()
-
-      const stepValues: Record<string, unknown> = {}
-      fields.forEach((field) => {
-        stepValues[field] = values[field as keyof FormDefaultValues]
-      })
-
-      const result = stepSchema.safeParse(stepValues)
-      return result.success
-    },
-    [form, customFormFields]
-  )
-
-  // ─── Get step-specific errors ────────────────────────────────────────────
-  const getStepErrors = useCallback(
-    (step: FormStep): string[] => {
-      if (step === FormStep.ADDITIONAL_INFO) {
-        const errs = form.formState.errors.customFields as
-          | Record<string, { message?: string }>
-          | undefined
-        return Object.values(errs ?? {})
-          .map((e) => e?.message)
-          .filter((m): m is string => !!m)
+      // Client path for a dynamic answer: answers.STEP.field
+      if (segments[0] === "answers" && segments.length >= 3) {
+        const field = findField(segments[1], segments[2])
+        return {
+          label: field?.label ?? getFieldLabel(segments[2]),
+          stepId: steps.some((s) => s.id === segments[1])
+            ? segments[1]
+            : undefined,
+        }
       }
-      const fields = new Set(STEP_FIELDS[step])
-      return collectFormErrors(form.formState.errors)
-        .filter((e) => fields.has(e.field))
-        .map((e) => e.message)
+
+      // New backend contract: STEP_KEY.field_key
+      if (segments.length >= 2 && steps.some((s) => s.id === segments[0])) {
+        const field = findField(segments[0], segments[1])
+        if (field) return { label: field.label, stepId: segments[0] }
+      }
+
+      // Legacy/system field, e.g. "passport" or "other_documents.0"
+      const formField = backendFieldToFormField(path)
+      for (const step of steps) {
+        const bound = stepFields(step).find(
+          (f) => formValueKeyFor(f) === formField
+        )
+        if (bound) return { label: bound.label, stepId: step.id }
+      }
+      const legacyStep = getStepForField(formField)
+      const legacyId =
+        legacyStep !== undefined ? FORM_STEP_KEYS[legacyStep] : undefined
+      return {
+        label: getFieldLabel(formField),
+        stepId:
+          legacyId && steps.some((s) => s.id === legacyId)
+            ? legacyId
+            : undefined,
+      }
     },
-    [form.formState.errors]
+    [steps]
   )
 
   // ─── Submit full form ────────────────────────────────────────────────────
@@ -556,20 +512,52 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     startSubmitProgress()
     try {
       const values = form.getValues()
-      const result = await odlProgramSchema.safeParseAsync(values)
+      const lookup = makeLookup(values, fieldIndex)
+      const issues: StepIssue[] = []
 
-      if (!result.success) {
+      const hasDynamicBuiltIns = steps.some(
+        (s) => s.kind === "dynamic" && BUILT_IN_STEP_IDS.has(s.id)
+      )
+      if (!hasDynamicBuiltIns) {
+        // Today's whole-form rules (they cross steps), plus any dynamic questions.
+        const result = await odlProgramSchema.safeParseAsync(values)
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            const path = issue.path.map(String).join(".")
+            issues.push({
+              path,
+              label: getFieldLabel(String(issue.path[0] ?? path)),
+              message: issue.message,
+            })
+          }
+        }
+        for (const step of steps) {
+          issues.push(
+            ...validateStepFields(step.id, stepFields(step), values, lookup)
+          )
+        }
+      } else {
+        // Standard steps come from field definitions, so their conditions
+        // carry the cross-step rules.
+        for (const step of steps) issues.push(...(await validateStep(step)))
+        if (!values.agreeToTerms) {
+          issues.push({
+            path: "agreeToTerms",
+            label: getFieldLabel("agreeToTerms"),
+            message: "You must agree to terms and conditions",
+          })
+        }
+      }
+
+      if (issues.length > 0) {
         console.warn(
           "Submission validation errors:",
-          result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`)
+          issues.map((i) => `${i.path}: ${i.message}`)
         )
-        result.error.issues.forEach((issue) => {
-          const fieldPath = issue.path.join(".") as keyof FormDefaultValues
-          form.setError(fieldPath, { message: issue.message })
-        })
+        for (const issue of issues) {
+          form.setError(issue.path as never, { message: issue.message })
+        }
         toast.error("Please review and fix all errors before submitting.")
-        // Nothing was sent, so drop back to idle rather than showing a failed
-        // upload — the error summary above the footer explains what's wrong.
         resetSubmitProgress()
         return
       }
@@ -587,16 +575,13 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
         values,
         profile,
         activeSessionId,
-        handleSubmitProgress
+        handleSubmitProgress,
+        buildDynamicPayload(steps, values, lookup)
       )
       succeedSubmitProgress()
 
-      // SuccessModal redirects to /process-admission ~10s from now, but the
-      // student query has a 60s staleTime — without this the page would render
-      // from the pre-submit snapshot and look like nothing happened. It also
-      // matters for a re-application after rejection: the stale snapshot still
-      // says `admission_status: "rejected"`, which would drop the applicant
-      // straight back onto the rejection panel they just acted on.
+      // The student query has a 60s staleTime — refresh it so the redirect
+      // doesn't render the pre-submit snapshot.
       await queryClient.invalidateQueries({ queryKey: admissionKeys.student() })
 
       if (formStorageKey) await formStorage.clearFormData(formStorageKey)
@@ -621,6 +606,9 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     }
   }, [
     form,
+    fieldIndex,
+    steps,
+    validateStep,
     activeSessionId,
     formStorageKey,
     stepStorageKey,
@@ -634,15 +622,11 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   ])
 
   // ─── Reset form ──────────────────────────────────────────────────────────
-  // Deliberately does NOT call saveProgress() afterward — that would
-  // re-persist STEP_STORAGE_KEY/completedSteps from their stale pre-reset
-  // closure values, silently undoing the removeItem calls below. Clearing
-  // storage and leaving it empty is correct: the next mount's load-effect
-  // finds nothing to restore and falls through to the current
-  // DEFAULT_FORM_VALUES exactly as intended.
+  // Deliberately doesn't call saveProgress() afterward — that would re-persist
+  // the step/completed state from stale closure values.
   const resetForm = useCallback(async () => {
     form.reset(DEFAULT_FORM_VALUES)
-    setCurrentStep(FormStep.PERSONAL_INFO)
+    setCurrentStepId(steps[0]?.id ?? "")
     setCompletedSteps(new Set())
     setSubmitAttempted(false)
     setSubmitError(null)
@@ -651,45 +635,54 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     if (stepCompletedStorageKey)
       localStorage.removeItem(stepCompletedStorageKey)
     toast.info("Form has been reset.")
-  }, [form, formStorageKey, stepStorageKey, stepCompletedStorageKey])
+  }, [form, steps, formStorageKey, stepStorageKey, stepCompletedStorageKey])
 
-  // ─── Clear just the current step's fields back to their defaults ────────
-  // Uses form.reset() over the whole values object (rather than per-field
-  // setValue calls) because reset() is what reliably forces every watch()
-  // subscriber — including file-preview components — to re-render with the
-  // cleared value; individual setValue calls were silently not "sticking"
-  // visually for some field types.
+  // ─── Clear just one step's answers back to their defaults ───────────────
+  // form.reset() over the whole values object reliably re-renders every
+  // watch() subscriber (including file previews).
   const clearStep = useCallback(
-    async (step: FormStep) => {
-      const clearedFields = Object.fromEntries(
-        STEP_FIELDS[step].map((field) => [
-          field,
-          DEFAULT_FORM_VALUES[field as keyof FormDefaultValues],
+    async (stepId: string) => {
+      const step = steps.find((s) => s.id === stepId)
+      if (!step) return
+      const values = form.getValues()
+      const clearedKeys = [
+        ...(step.kind === "builtin" ? STEP_FIELDS[step.formStep] : []),
+        ...stepFields(step).flatMap((f) => {
+          const key = formValueKeyFor(f)
+          return key ? [key] : []
+        }),
+      ]
+      const cleared = Object.fromEntries(
+        clearedKeys.map((key) => [
+          key,
+          DEFAULT_FORM_VALUES[key as keyof FormDefaultValues],
         ])
       ) as Partial<FormDefaultValues>
+      const answers = { ...(values.answers ?? {}) }
+      delete answers[stepId]
 
       form.reset(
-        { ...form.getValues(), ...clearedFields },
+        { ...values, ...cleared, answers },
         { keepDirty: false, keepTouched: false, keepIsSubmitted: false }
       )
       setCompletedSteps((prev) => {
         const next = new Set(prev)
-        next.delete(step)
+        next.delete(stepId)
         return next
       })
       await saveProgress()
       toast.info("Step cleared.")
     },
-    [form, saveProgress]
+    [form, steps, saveProgress]
   )
 
   return {
     form,
+    steps,
     currentStep,
-    activeSteps,
     totalSteps,
     completedSteps,
-    customFormFields,
+    fieldIndex,
     isLoading,
     isSubmitting,
     submitStage: submitProgress.stage,
@@ -704,8 +697,7 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     saveProgress,
     resetForm,
     clearStep,
-    isStepValid,
-    getStepErrors,
+    describeErrorPath,
     direction,
   }
 }
