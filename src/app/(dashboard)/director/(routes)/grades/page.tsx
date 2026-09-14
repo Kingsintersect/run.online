@@ -15,6 +15,8 @@ import {
 } from "@/modules/director"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import { useSemesters } from "@/hooks/useSemesters"
+import { useAllPrograms, useMajorPrograms } from "@/hooks/useCourseStructure"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import {
   useGrades,
   useGradeDistributionData,
@@ -37,6 +39,8 @@ export default function GradeReportsPage() {
     gradeReport: report,
     semesterId,
     setSemesterId,
+    majorProgramId: majorProgramFilter,
+    setMajorProgramId: setMajorProgramFilter,
     isLoading,
     error,
     refetch,
@@ -45,6 +49,27 @@ export default function GradeReportsPage() {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const { data: sessions } = useAcademicSessions()
   const { data: semesters = [] } = useSemesters(sessionId)
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
+    (mp) => mp.isActive
+  )
+  // byProgram has no program id, only a display name — the real filter is
+  // majorProgramId sent to the endpoint (A15, unconfirmed). Meanwhile,
+  // best-effort narrow the already-loaded breakdown by matching its name
+  // against programs known to belong to the selected major program; an
+  // unmatched or renamed program name just won't be filtered out, rather
+  // than the whole breakdown disappearing.
+  const { data: programsRes } = useAllPrograms()
+  const programNamesInMajorProgram = new Set(
+    (programsRes?.data ?? [])
+      .filter((p) => p.majorProgramId === majorProgramFilter)
+      .map((p) => p.name)
+  )
+  const byProgram = majorProgramFilter
+    ? (report?.byProgram ?? []).filter((entry) =>
+        programNamesInMajorProgram.has(entry.program)
+      )
+    : (report?.byProgram ?? [])
 
   const {
     grades: records,
@@ -92,6 +117,12 @@ export default function GradeReportsPage() {
             <span>{error}</span>
           </div>
         )}
+
+        <MajorProgramTabs
+          programs={majorPrograms}
+          value={majorProgramFilter}
+          onChange={setMajorProgramFilter}
+        />
 
         {/* Semester filter — the only filter the real endpoint accepts */}
         <div className="semester-filter-row">
@@ -294,14 +325,14 @@ export default function GradeReportsPage() {
                     ))}
                   </tr>
                 ))
-              ) : (report?.byProgram ?? []).length === 0 ? (
+              ) : byProgram.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="et-empty">
                     No program-level data for the selected filter.
                   </td>
                 </tr>
               ) : (
-                (report?.byProgram ?? []).map((p) => (
+                byProgram.map((p) => (
                   <tr key={p.program}>
                     <td className="fac-name">{p.program}</td>
                     <td>{p.studentCount.toLocaleString()}</td>
@@ -343,7 +374,14 @@ export default function GradeReportsPage() {
             above. Flatter than the earlier proposed shape (one row per
             student per course, not a per-semester summary with an
             expandable course breakdown) since that aggregate isn't
-            something the real API computes for us. */}
+            something the real API computes for us.
+
+            Not yet filtered by the major-program tab above (only the KPIs
+            and the by-program table are): GradeFilters.programId only takes
+            one program at a time, and "every program under this major
+            program" can't be expressed through it without either a real
+            majorProgramId filter on /results/grades or issuing one request
+            per program — left as a known gap rather than faking it. */}
         <div className="section-divider">
           <h2>Student Grade Records</h2>
         </div>

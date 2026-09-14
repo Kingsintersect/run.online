@@ -525,7 +525,16 @@ export const directorService = {
   // endpoint has no per-student records and no grade-distribution
   // breakdown. See sandbox/TRIPLE_AUDIT_2026-09-13.md §1a.
 
-  async fetchGradeReport(semesterId?: number): Promise<GradeReport> {
+  // majorProgramId is not confirmed live on this endpoint (it accepts only
+  // semesterId per the comment on useDirectorGrades) — sent speculatively
+  // per CLAUDE.md §14; see BACKEND_DEVIATIONS_2026-09-14.md A15. The
+  // byProgram breakdown has no program id to filter by either way, so the
+  // caller best-effort name-matches it against the programs list — see
+  // GradeReportsPage's note.
+  async fetchGradeReport(
+    semesterId?: number,
+    majorProgramId?: number
+  ): Promise<GradeReport> {
     const res = await apiClient.get<{
       data: {
         overall: GradeReport["overall"]
@@ -534,7 +543,7 @@ export const directorService = {
       }
     }>("/results/reports/director-grade-summary", {
       ...AUTH,
-      params: semesterId ? { semesterId } : undefined,
+      params: { semesterId, majorProgramId },
     })
 
     return res.data

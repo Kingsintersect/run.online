@@ -6,8 +6,8 @@ import { directorService } from "../services/director.service"
 
 export const directorGradeReportKeys = {
   all: ["director", "grade-report"] as const,
-  report: (semesterId: number | null) =>
-    [...directorGradeReportKeys.all, semesterId] as const,
+  report: (semesterId: number | null, majorProgramId: number | null) =>
+    [...directorGradeReportKeys.all, semesterId, majorProgramId] as const,
 }
 
 // Real endpoint per bruno/director/Grade Reports - Summary.bru accepts only
@@ -20,11 +20,16 @@ export const directorGradeReportKeys = {
 // sandbox/TRIPLE_AUDIT_2026-09-13.md §1a.
 export function useDirectorGrades() {
   const [semesterId, setSemesterId] = useState<number | null>(null)
+  const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
   const queryClient = useQueryClient()
 
   const query = useQuery({
-    queryKey: directorGradeReportKeys.report(semesterId),
-    queryFn: () => directorService.fetchGradeReport(semesterId ?? undefined),
+    queryKey: directorGradeReportKeys.report(semesterId, majorProgramId),
+    queryFn: () =>
+      directorService.fetchGradeReport(
+        semesterId ?? undefined,
+        majorProgramId ?? undefined
+      ),
   })
 
   const refetch = () => {
@@ -37,6 +42,8 @@ export function useDirectorGrades() {
     gradeReport: query.data ?? null,
     semesterId,
     setSemesterId,
+    majorProgramId,
+    setMajorProgramId,
     isLoading: query.isLoading,
     error: query.isError ? "Failed to load grade report" : null,
     refetch,
