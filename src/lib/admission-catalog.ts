@@ -33,6 +33,15 @@ export interface StageTypeDefinition<T extends StageType = StageType> {
 
 export const STAGE_TYPE_CATALOG: { [K in StageType]: StageTypeDefinition<K> } =
   {
+    MAJOR_PROGRAM_CHOICE: {
+      type: "MAJOR_PROGRAM_CHOICE",
+      label: "Major program choice",
+      description:
+        "The applicant picks their major program (e.g. Degree, Part-Time, Certificate) before choosing a specific program.",
+      icon: "Building2",
+      multiple: false,
+      defaultConfig: {},
+    },
     PROGRAM_CHOICE: {
       type: "PROGRAM_CHOICE",
       label: "Program choice",
@@ -112,6 +121,7 @@ export const STAGE_TYPE_CATALOG: { [K in StageType]: StageTypeDefinition<K> } =
   }
 
 export const STAGE_TYPES: StageType[] = [
+  "MAJOR_PROGRAM_CHOICE",
   "PROGRAM_CHOICE",
   "PAYMENT",
   "FORM",

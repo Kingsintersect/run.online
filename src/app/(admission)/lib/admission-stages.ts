@@ -84,6 +84,18 @@ export function composeFallbackStages(
     }
 
     switch (typed.type) {
+      case "MAJOR_PROGRAM_CHOICE":
+        stages.push({
+          ...base,
+          type: "MAJOR_PROGRAM_CHOICE",
+          config: typed.config,
+          status: done(!!student.major_program_id),
+          state: {
+            majorProgramId: student.major_program_id ?? null,
+            majorProgramName: student.major_program_name ?? null,
+          },
+        })
+        break
       case "PROGRAM_CHOICE":
         stages.push({
           ...base,
@@ -231,5 +243,40 @@ export function writeLocalAcknowledgement(
     localStorage.setItem(ackStorageKey(userId), JSON.stringify([...next]))
   } catch {
     // Storage full or blocked — the acknowledgement just won't persist across reloads.
+  }
+}
+
+// ── Major program choice, per user, until the backend stores it ──
+// sandbox/dynamic-admission/ — no live endpoint yet (BACKEND_DEVIATIONS
+// A16); same local-fallback treatment as content acknowledgements above.
+
+const majorProgramChoiceStorageKey = (userId: string) =>
+  `admission_major_program_${userId}`
+
+export function readLocalMajorProgramChoice(
+  userId: string | null | undefined
+): number | null {
+  if (!userId || typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(majorProgramChoiceStorageKey(userId))
+    const parsed = raw ? Number(raw) : NaN
+    return Number.isFinite(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function writeLocalMajorProgramChoice(
+  userId: string | null | undefined,
+  majorProgramId: number
+) {
+  if (!userId || typeof window === "undefined") return
+  try {
+    localStorage.setItem(
+      majorProgramChoiceStorageKey(userId),
+      String(majorProgramId)
+    )
+  } catch {
+    // Storage full or blocked — the choice just won't persist across reloads.
   }
 }

@@ -10,6 +10,7 @@ import { useDevSimulate } from "../../hooks/useAdmissionQueries"
 import { useAdmissionStages } from "../../hooks/useAdmissionStages"
 import {
   AdmissionStepIndicator,
+  MajorProgramChoiceSection,
   ChoiceProgramSection,
   ApplicationPaymentSection,
   ApplicationFormSection,
@@ -28,6 +29,7 @@ export default function ProcessAdmissionPage() {
     currentStage,
     source,
     student,
+    majorProgramOptions,
     fees,
     isLoading,
     configError,
@@ -35,6 +37,7 @@ export default function ProcessAdmissionPage() {
     refresh,
     acknowledge,
     isAcknowledging,
+    chooseMajorProgram,
     uploadDocument,
     removeDocument,
     isChangingDocuments,
@@ -61,6 +64,16 @@ export default function ProcessAdmissionPage() {
     // settings decide the details, so stages can be added, removed or
     // reordered without a page change.
     switch (currentStage.type) {
+      case "MAJOR_PROGRAM_CHOICE":
+        return (
+          <MajorProgramChoiceSection
+            key={currentStage.key}
+            {...sectionProps}
+            majorProgramOptions={majorProgramOptions}
+            onChoose={chooseMajorProgram}
+            isSubmitting={false}
+          />
+        )
       case "PROGRAM_CHOICE":
         return (
           <ChoiceProgramSection

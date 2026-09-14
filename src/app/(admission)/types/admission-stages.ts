@@ -16,6 +16,11 @@ export type StageBlockedReason =
   | "OFFER_DECLINED"
   | "OFFER_EXPIRED"
 
+export interface MajorProgramChoiceStageState {
+  majorProgramId?: number | null
+  majorProgramName?: string | null
+}
+
 export interface ProgramChoiceStageState {
   programId?: number | null
   programName?: string | null
@@ -59,6 +64,7 @@ export interface DocumentUploadStageState {
 export type EmptyStageState = Record<string, never>
 
 export interface StageStateByType {
+  MAJOR_PROGRAM_CHOICE: MajorProgramChoiceStageState
   PROGRAM_CHOICE: ProgramChoiceStageState
   PAYMENT: PaymentStageState
   FORM: EmptyStageState

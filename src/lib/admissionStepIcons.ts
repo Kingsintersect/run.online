@@ -20,6 +20,7 @@ import {
   Mail,
   MapPin,
   ListChecks,
+  Building2,
   type LucideIcon,
 } from "lucide-react"
 
@@ -46,6 +47,7 @@ export const ADMISSION_STEP_ICON_MAP: Record<string, LucideIcon> = {
   Mail,
   MapPin,
   ListChecks,
+  Building2,
 }
 
 export const ADMISSION_STEP_ICON_NAMES = Object.keys(ADMISSION_STEP_ICON_MAP)

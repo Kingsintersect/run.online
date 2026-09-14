@@ -73,6 +73,19 @@ export function validateStageSequence(
     })
   }
 
+  const [firstMajorChoice] = indexesOf("MAJOR_PROGRAM_CHOICE")
+  if (
+    firstMajorChoice !== undefined &&
+    firstChoice !== undefined &&
+    firstChoice < firstMajorChoice
+  ) {
+    issues.push({
+      code: "PROGRAM_CHOICE_BEFORE_MAJOR_PROGRAM_CHOICE",
+      message:
+        "The program choice must come after the major program choice, so its own picker can narrow to that major program's programs.",
+    })
+  }
+
   const [firstDecision] = indexesOf("DECISION")
   active.forEach(({ step, type }, i) => {
     if (type !== "PAYMENT") return

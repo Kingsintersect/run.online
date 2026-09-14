@@ -60,6 +60,15 @@ export interface AdmissionStudent {
   entry_mode: EntryMode | null
   study_mode: StudyMode | null
   start_term: string | null
+  /**
+   * Major-Program Scoping — picked at the "Major Program Choice" process
+   * stage, before the program itself. Not part of the live backend contract
+   * yet (sandbox/dynamic-admission/, BACKEND_DEVIATIONS A16) — always
+   * undefined from the real GET /admission/student today; useAdmissionStages
+   * merges in the local fallback value until the backend stores it.
+   */
+  major_program_id?: number | null
+  major_program_name?: string | null
 }
 
 /** Payment initiation response from the backend */

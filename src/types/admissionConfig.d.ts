@@ -20,6 +20,7 @@ export type AdmissionStepGroup = "PROCESS" | "FORM"
 // ── Typed process stages (Dynamic Admission — SCHEMA_CHANGES.md §2) ──
 
 export type StageType =
+  | "MAJOR_PROGRAM_CHOICE"
   | "PROGRAM_CHOICE"
   | "PAYMENT"
   | "FORM"
@@ -37,6 +38,15 @@ export type AdmissionFeeCategory =
   | "OTHER"
 
 export type FileAccept = "IMAGE" | "DOCUMENT" | "ANY"
+
+// Major-Program Scoping — sandbox/major-program-scoping/. Picking a major
+// program (Degree, Part-Time, Certificate, …) before a specific program is
+// a separate step from PROGRAM_CHOICE below: an institution with more than
+// one major program needs it first so PROGRAM_CHOICE's own picker can
+// narrow to that major program's programs, and so later stages/the
+// application form resolve against the right one. No settings of its own —
+// see MajorProgramChoiceSection.tsx.
+export type MajorProgramChoiceStageConfig = Record<string, never>
 
 export interface ProgramChoiceStageConfig {
   collectEntryMode: boolean
@@ -86,6 +96,7 @@ export interface CompleteStageConfig {
 }
 
 export interface StageConfigByType {
+  MAJOR_PROGRAM_CHOICE: MajorProgramChoiceStageConfig
   PROGRAM_CHOICE: ProgramChoiceStageConfig
   PAYMENT: PaymentStageConfig
   FORM: FormStageConfig

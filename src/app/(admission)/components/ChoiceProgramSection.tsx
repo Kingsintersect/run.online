@@ -94,8 +94,24 @@ export function ChoiceProgramSection({
 
   const [programId, setProgramId] = useState<number | null>(student.program_id)
 
+  // Major-Program Scoping — if the applicant already picked a major program
+  // (the "Major Program Choice" stage, when one precedes this one), only
+  // offer programs under it. No major program chosen (that stage isn't
+  // configured, or hasn't run yet) means every program stays offered —
+  // unchanged from before this existed.
+  const allPrograms = useMemo(() => programsData?.data ?? [], [programsData])
+  const scopedPrograms = useMemo(
+    () =>
+      student.major_program_id
+        ? allPrograms.filter(
+            (p) => p.majorProgramId === student.major_program_id
+          )
+        : allPrograms,
+    [allPrograms, student.major_program_id]
+  )
+
   // Major-Program Scoping — the active session for the chosen program's major program.
-  const selectedMajorProgramId = (programsData?.data ?? []).find(
+  const selectedMajorProgramId = allPrograms.find(
     (p) => p.id === programId
   )?.majorProgramId
   const activeSession = useMemo(
@@ -110,7 +126,7 @@ export function ChoiceProgramSection({
     student.study_mode ?? "online"
   )
 
-  const programOptions = (programsData?.data ?? []).map((p) => ({
+  const programOptions = scopedPrograms.map((p) => ({
     value: String(p.id),
     label: `${p.name} (${p.code})`,
   }))
@@ -215,8 +231,9 @@ export function ChoiceProgramSection({
             )}
             {noProgramsAvailable && (
               <p className="text-sm text-muted-foreground">
-                No programs have been set up for this institution yet. Please
-                contact the admissions office.
+                {student.major_program_id && allPrograms.length > 0
+                  ? `No programs have been set up under ${student.major_program_name ?? "this major program"} yet. Please contact the admissions office.`
+                  : "No programs have been set up for this institution yet. Please contact the admissions office."}
               </p>
             )}
           </div>

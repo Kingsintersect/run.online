@@ -95,6 +95,16 @@ export function StageConfigEditor({
   disabled,
 }: StageConfigEditorProps) {
   switch (draft.type) {
+    case "MAJOR_PROGRAM_CHOICE":
+      return (
+        <p className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+          The applicant picks their major program here (e.g. Degree, Part-Time,
+          Certificate) — it has no settings of its own. Put it before Program
+          Choice so that stage&apos;s own picker can narrow to this major
+          program&apos;s programs.
+        </p>
+      )
+
     case "PROGRAM_CHOICE": {
       const config = draft.config
       const set = (patch: Partial<StageConfigByType["PROGRAM_CHOICE"]>) =>

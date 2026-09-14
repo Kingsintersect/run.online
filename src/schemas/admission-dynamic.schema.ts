@@ -33,6 +33,7 @@ const slugKey = z
 export const stageConfigSchemas: {
   [K in StageType]: z.ZodType<StageConfigByType[K]>
 } = {
+  MAJOR_PROGRAM_CHOICE: z.object({}).strict(),
   PROGRAM_CHOICE: z.object({
     collectEntryMode: z.boolean(),
     collectStudyMode: z.boolean(),

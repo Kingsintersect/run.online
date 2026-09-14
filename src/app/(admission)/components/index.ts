@@ -1,4 +1,5 @@
 export { AdmissionStepIndicator } from "./AdmissionStepIndicator"
+export { MajorProgramChoiceSection } from "./MajorProgramChoiceSection"
 export { ChoiceProgramSection } from "./ChoiceProgramSection"
 export { ApplicationPaymentSection } from "./ApplicationPaymentSection"
 export { ApplicationFormSection } from "./ApplicationFormSection"
