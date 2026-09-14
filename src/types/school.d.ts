@@ -638,6 +638,48 @@ export interface AdmissionApplication {
   denial_reason: string | null
   created_at: string
   updated_at: string
+  /** Dynamic Admission — answers as the applicant saw the form. Absent until the backend ships it. */
+  form?: ApplicationFormSheet | null
+  /** Answers to program-specific questions, by field key. */
+  custom_fields?: Record<string, ApplicationAnswerValue> | null
+}
+
+// ── Application answer sheet — sandbox/dynamic-admission/API_CONTRACTS.md §3.6 ──
+export interface ApplicationFormFile {
+  documentId: number
+  fileName: string
+  url: string
+}
+
+export type ApplicationAnswerValue =
+  | string
+  | number
+  | boolean
+  | null
+  | string[]
+  | ApplicationFormFile
+  | ApplicationFormFile[]
+  | Record<string, string | number | boolean | null>[]
+
+export interface ApplicationFormSheetField {
+  key: string
+  label: string
+  type: import("./admissionConfig").FormFieldType
+  systemKey: string | null
+  value: ApplicationAnswerValue
+  displayValue: string | null
+  visible: boolean
+}
+
+export interface ApplicationFormSheetStep {
+  key: string
+  label: string
+  fields: ApplicationFormSheetField[]
+}
+
+export interface ApplicationFormSheet {
+  version: number
+  steps: ApplicationFormSheetStep[]
 }
 
 export type UpdateApplicationPayload = {

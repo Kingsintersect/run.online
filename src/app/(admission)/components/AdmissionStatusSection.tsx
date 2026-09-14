@@ -32,6 +32,7 @@ import { toast } from "sonner"
 import { signOut } from "next-auth/react"
 import { logoutFromBackend } from "@/lib/auth/backendAuth"
 import { SUPPORT_EMAIL } from "@/config/global.config"
+import type { DecisionStageConfig } from "@/types/admissionConfig"
 import type { StepSectionProps } from "../types/admission"
 
 function useCountdown(expiryDate: string | null) {
@@ -60,10 +61,17 @@ function useCountdown(expiryDate: string | null) {
   return timeLeft
 }
 
+interface AdmissionStatusSectionProps extends StepSectionProps {
+  /** The DECISION stage's settings — whether to show the offer countdown. */
+  config?: DecisionStageConfig
+}
+
 export function AdmissionStatusSection({
   student,
   onRefresh,
-}: StepSectionProps) {
+  config,
+}: AdmissionStatusSectionProps) {
+  const showOfferExpiry = config?.showOfferExpiry ?? true
   const { simulateOffered, simulateDeclined, simulateExpired } =
     useDevSimulate()
   const acceptAdmission = useAcceptAdmission()
@@ -74,7 +82,9 @@ export function AdmissionStatusSection({
   const isRejected = student.admission_status === "rejected"
   const isDeclined = student.admission_status === "declined"
   const isExpired = student.admission_status === "expired"
-  const countdown = useCountdown(isOffered ? student.offer_expiry_date : null)
+  const countdown = useCountdown(
+    isOffered && showOfferExpiry ? student.offer_expiry_date : null
+  )
 
   const handleAccept = async () => {
     try {

@@ -22,6 +22,10 @@ import type {
   PaymentStatus,
   StudyMode,
 } from "../types/admission"
+import type {
+  AdmissionStagesPayload,
+  ResolvedStage,
+} from "../types/admission-stages"
 const AUTH = { access_token: true } as const
 
 /* ------------------------------------------------------------------ */
@@ -164,6 +168,67 @@ export const admissionService = {
       study_mode: null,
       start_term: null,
       ...data,
+    }
+  },
+
+  /* ---------- Admission stages (sandbox/dynamic-admission/ §4) ---------- */
+  // GET /admission/me/stages — the applicant's resolved, typed stages with
+  // status. Not live yet; useAdmissionStages composes the same shape until it is.
+  async fetchMyStages(): Promise<AdmissionStagesPayload> {
+    const { data } = await apiClient.get<{ data: AdmissionStagesPayload }>(
+      "/admission/me/stages",
+      AUTH
+    )
+    return data
+  },
+
+  async acknowledgeStage(key: string): Promise<ResolvedStage> {
+    const { data } = await apiClient.post<{ data: ResolvedStage }>(
+      `/admission/me/stages/${encodeURIComponent(key)}/acknowledge`,
+      undefined,
+      AUTH
+    )
+    return data
+  },
+
+  async uploadStageDocuments(
+    key: string,
+    documents: Record<string, File>
+  ): Promise<ResolvedStage> {
+    const { data } = await apiClient.post<{ data: ResolvedStage }>(
+      `/admission/me/stages/${encodeURIComponent(key)}/documents`,
+      { documents },
+      { ...AUTH, contentType: "multipart" }
+    )
+    return data
+  },
+
+  async removeStageDocument(
+    key: string,
+    docKey: string
+  ): Promise<ResolvedStage> {
+    const { data } = await apiClient.delete<{ data: ResolvedStage }>(
+      `/admission/me/stages/${encodeURIComponent(key)}/documents/${encodeURIComponent(docKey)}`,
+      AUTH
+    )
+    return data
+  },
+
+  async initiateStagePayment(
+    key: string,
+    amount?: number
+  ): Promise<PaymentInitiationResponse> {
+    const { data } = await apiClient.post<{
+      data: { authorizationUrl: string; reference: string }
+    }>(
+      `/admission/me/stages/${encodeURIComponent(key)}/payments/initiate`,
+      amount ? { amount } : undefined,
+      AUTH
+    )
+    return {
+      success: true,
+      reference: data.reference,
+      gateway_url: data.authorizationUrl,
     }
   },
 
@@ -411,6 +476,7 @@ export const admissionKeys = {
   all: ["admission"] as const,
   fees: () => [...admissionKeys.all, "fees"] as const,
   student: () => [...admissionKeys.all, "student"] as const,
+  stages: () => [...admissionKeys.all, "stages"] as const,
   verifyAppPayment: (reference: string) =>
     [...admissionKeys.all, "verify-app", reference] as const,
   verifyAccPayment: (reference: string) =>
@@ -430,6 +496,14 @@ export const admissionQueryOptions = {
     createApiQueryOptions({
       queryKey: admissionKeys.student(),
       queryFn: admissionService.fetchStudentAdmission,
+    }),
+
+  stages: () =>
+    createApiQueryOptions({
+      queryKey: admissionKeys.stages(),
+      queryFn: admissionService.fetchMyStages,
+      retry: false,
+      staleTime: 1000 * 30,
     }),
 
   verifyApplicationPayment: (reference: string) =>
@@ -452,6 +526,39 @@ export const admissionQueryOptions = {
 }
 
 export const admissionMutationOptions = {
+  acknowledgeStage: () =>
+    createApiMutationOptions<ResolvedStage, string>({
+      mutationKey: [...admissionKeys.all, "stages", "acknowledge"],
+      mutationFn: (key) => admissionService.acknowledgeStage(key),
+    }),
+
+  uploadStageDocuments: () =>
+    createApiMutationOptions<
+      ResolvedStage,
+      { key: string; documents: Record<string, File> }
+    >({
+      mutationKey: [...admissionKeys.all, "stages", "documents", "upload"],
+      mutationFn: ({ key, documents }) =>
+        admissionService.uploadStageDocuments(key, documents),
+    }),
+
+  removeStageDocument: () =>
+    createApiMutationOptions<ResolvedStage, { key: string; docKey: string }>({
+      mutationKey: [...admissionKeys.all, "stages", "documents", "remove"],
+      mutationFn: ({ key, docKey }) =>
+        admissionService.removeStageDocument(key, docKey),
+    }),
+
+  initiateStagePayment: () =>
+    createApiMutationOptions<
+      PaymentInitiationResponse,
+      { key: string; amount?: number }
+    >({
+      mutationKey: [...admissionKeys.all, "stages", "payments", "initiate"],
+      mutationFn: ({ key, amount }) =>
+        admissionService.initiateStagePayment(key, amount),
+    }),
+
   submitProgramChoice: () =>
     createApiMutationOptions<
       AdmissionStudent,

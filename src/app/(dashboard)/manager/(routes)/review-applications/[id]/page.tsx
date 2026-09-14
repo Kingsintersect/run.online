@@ -25,6 +25,7 @@ import DocumentList from "@/components/custom/DocumentList"
 import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ZoomableImage } from "@/components/custom/ZoomableImage"
+import { ApplicationAnswers } from "./components/ApplicationAnswers"
 import { getFileKind } from "@/lib/utils"
 import {
   applicationReviewApi,
@@ -609,6 +610,9 @@ export default function ApplicationDetailPage() {
             />
           </div>
         </SectionCard>
+
+        {/* Dynamic answers — program-specific questions and the full answer sheet */}
+        <ApplicationAnswers application={application} />
 
         {/* Academic Records — view only */}
         <SectionCard title="Academic Records" icon={BookOpen}>

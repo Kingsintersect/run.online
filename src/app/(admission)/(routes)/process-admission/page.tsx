@@ -1,20 +1,13 @@
 "use client"
 
-import { useMemo } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, GraduationCap, RotateCcw, Loader2 } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
-import {
-  useFees,
-  useStudentAdmission,
-  useDevSimulate,
-} from "../../hooks/useAdmissionQueries"
-import { admissionKeys } from "../../services/admissionService"
-import { admissionStepsQueryOptions } from "@/services/admissionStepsApi"
+import { useDevSimulate } from "../../hooks/useAdmissionQueries"
+import { useAdmissionStages } from "../../hooks/useAdmissionStages"
 import {
   AdmissionStepIndicator,
   ChoiceProgramSection,
@@ -24,38 +17,30 @@ import {
   AcceptanceFeeSection,
   TuitionPaymentSection,
   AdmissionCompleteSection,
+  ContentStageSection,
+  DocumentUploadStageSection,
+  PaymentStageSection,
 } from "../../components"
-import { AdmissionStep } from "../../types/admission"
-
-const KNOWN_STEP_KEYS: readonly string[] = Object.values(AdmissionStep)
-import { GraduationCap, RotateCcw, Loader2 } from "lucide-react"
-import { sortByOrder } from "@/lib/admissionConfig"
-import { deriveStep } from "../../store/admissionStore"
 
 export default function ProcessAdmissionPage() {
-  const queryClient = useQueryClient()
-  const { data: fees, isLoading: feesLoading } = useFees()
   const {
-    data: student,
-    isLoading: studentLoading,
-    refetch,
-  } = useStudentAdmission()
-  const {
-    data: admissionConfig,
-    isLoading: configLoading,
-    isError: configError,
-  } = useQuery(admissionStepsQueryOptions.config())
-
-  // Multi-Program Platform: once the applicant has chosen a program, prefer
-  // the server-resolved, program-scoped PROCESS steps over the raw
-  // institution-wide config above
-  // (sandbox/multi-program-platform/API_CONTRACTS.md §A). Falls back to
-  // `admissionConfig.processSteps` if the effective lookup fails.
-  const { data: effectiveProcessSteps } = useQuery({
-    ...admissionStepsQueryOptions.effective("PROCESS", student?.program_id),
-    enabled: !!student?.program_id,
-    retry: false,
-  })
+    stages,
+    currentStage,
+    source,
+    student,
+    fees,
+    isLoading,
+    configError,
+    configEmpty,
+    refresh,
+    acknowledge,
+    isAcknowledging,
+    uploadDocument,
+    removeDocument,
+    isChangingDocuments,
+    initiatePayment,
+    isInitiatingPayment,
+  } = useAdmissionStages()
   const {
     resetAll,
     simulateProgramChosen,
@@ -68,45 +53,110 @@ export default function ProcessAdmissionPage() {
     simulateTuitionPaid,
   } = useDevSimulate()
 
-  // Derived directly from both queries' live data on every render — not
-  // stored in Zustand and set imperatively from two independent effects.
-  // That older approach raced: whichever of `student`/`admissionConfig`
-  // resolved first computed the step from the *other* value's still-empty
-  // default, and nothing was guaranteed to recompute once both were in,
-  // so a freshly-logged-in applicant could get stuck on the wrong step
-  // until a full page reload happened to settle the race differently.
-  // A plain `useMemo` has no such window: it always reflects the current
-  // `student` + `processSteps`, whichever order they arrived in.
-  const orderedSteps = useMemo(() => {
-    if (effectiveProcessSteps?.length) {
-      // Already server-resolved (program > category > institution default)
-      // and pre-filtered to active steps only — adapt into the shape
-      // AdmissionStepIndicator/deriveStep already consume rather than
-      // touching either of them.
-      return sortByOrder(
-        effectiveProcessSteps.map((s) => ({ ...s, enabled: true }))
-      )
+  const renderStage = () => {
+    if (!currentStage || !student || !fees) return null
+    const sectionProps = { student, fees, onRefresh: refresh }
+
+    // Rendered by type (sandbox/dynamic-admission/): the stage's own
+    // settings decide the details, so stages can be added, removed or
+    // reordered without a page change.
+    switch (currentStage.type) {
+      case "PROGRAM_CHOICE":
+        return (
+          <ChoiceProgramSection
+            key={currentStage.key}
+            {...sectionProps}
+            config={currentStage.config}
+            title={currentStage.label}
+            description={currentStage.description || undefined}
+          />
+        )
+      case "PAYMENT":
+        // Until the backend resolves fees per stage, the three fees the
+        // student record already tracks keep their dedicated screens.
+        if (source === "fallback") {
+          switch (currentStage.config.feeCategory) {
+            case "APPLICATION":
+              return (
+                <ApplicationPaymentSection
+                  key={currentStage.key}
+                  {...sectionProps}
+                />
+              )
+            case "ACCEPTANCE":
+              return (
+                <AcceptanceFeeSection
+                  key={currentStage.key}
+                  {...sectionProps}
+                />
+              )
+            case "TUITION":
+              return (
+                <TuitionPaymentSection
+                  key={currentStage.key}
+                  {...sectionProps}
+                />
+              )
+          }
+        }
+        return (
+          <PaymentStageSection
+            key={currentStage.key}
+            stage={currentStage}
+            source={source}
+            onPay={(amount) => initiatePayment(currentStage.key, amount)}
+            isPaying={isInitiatingPayment}
+          />
+        )
+      case "FORM":
+        return (
+          <ApplicationFormSection key={currentStage.key} {...sectionProps} />
+        )
+      case "DECISION":
+        return (
+          <AdmissionStatusSection
+            key={currentStage.key}
+            {...sectionProps}
+            config={currentStage.config}
+          />
+        )
+      case "CONTENT":
+        return (
+          <ContentStageSection
+            key={currentStage.key}
+            stage={currentStage}
+            onAcknowledge={() => acknowledge(currentStage.key)}
+            isSubmitting={isAcknowledging}
+          />
+        )
+      case "DOCUMENT_UPLOAD":
+        return (
+          <DocumentUploadStageSection
+            key={currentStage.key}
+            stage={currentStage}
+            source={source}
+            onUpload={(documentKey, file) =>
+              uploadDocument(currentStage.key, documentKey, file)
+            }
+            onRemove={(documentKey) =>
+              removeDocument(currentStage.key, documentKey)
+            }
+            isBusy={isChangingDocuments}
+          />
+        )
+      case "COMPLETE":
+        return (
+          <AdmissionCompleteSection
+            key={currentStage.key}
+            {...sectionProps}
+            config={currentStage.config}
+            completedStageLabels={stages
+              .filter((s) => s.status === "COMPLETED" && s.type !== "COMPLETE")
+              .map((s) => s.label)}
+          />
+        )
     }
-    return sortByOrder(
-      (admissionConfig?.processSteps ?? []).filter(
-        (s) => s.enabled || s.required
-      )
-    )
-  }, [admissionConfig, effectiveProcessSteps])
-  const currentStep = useMemo(
-    () => deriveStep(student ?? null, orderedSteps),
-    [student, orderedSteps]
-  )
-
-  const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: admissionKeys.student() })
-    refetch()
   }
-
-  const isLoading = feesLoading || studentLoading || configLoading
-  const processSteps = admissionConfig?.processSteps ?? []
-  const configEmpty =
-    !configLoading && !configError && processSteps.length === 0
 
   return (
     <PermissionGate
@@ -114,7 +164,6 @@ export default function ProcessAdmissionPage() {
       denyBehavior="screen"
     >
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Page header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -137,20 +186,20 @@ export default function ProcessAdmissionPage() {
           </div>
         </motion.div>
 
-        {/* Step indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8 rounded-2xl border border-border/50 bg-card/50 p-4 shadow-sm backdrop-blur-sm"
-        >
-          <AdmissionStepIndicator
-            currentStep={currentStep}
-            stepDefinitions={processSteps}
-          />
-        </motion.div>
+        {stages.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8 rounded-2xl border border-border/50 bg-card/50 p-4 shadow-sm backdrop-blur-sm"
+          >
+            <AdmissionStepIndicator
+              stages={stages}
+              currentStageKey={currentStage?.key ?? null}
+            />
+          </motion.div>
+        )}
 
-        {/* Loading skeleton */}
         {isLoading && (
           <div className="space-y-4">
             <Skeleton className="h-8 w-48" />
@@ -159,7 +208,6 @@ export default function ProcessAdmissionPage() {
           </div>
         )}
 
-        {/* Admission step configuration failed to load or is empty */}
         {!isLoading && (configError || configEmpty) && (
           <EmptyState
             icon={AlertTriangle}
@@ -175,7 +223,7 @@ export default function ProcessAdmissionPage() {
             }
             action={
               configError ? (
-                <Button variant="outline" size="sm" onClick={handleRefresh}>
+                <Button variant="outline" size="sm" onClick={refresh}>
                   Try again
                 </Button>
               ) : undefined
@@ -183,88 +231,8 @@ export default function ProcessAdmissionPage() {
           />
         )}
 
-        {/* Step sections — AnimatePresence for smooth transitions */}
-        {!isLoading && !configError && !configEmpty && student && fees && (
-          <AnimatePresence mode="wait">
-            {currentStep === AdmissionStep.CHOICE_PROGRAM && (
-              <ChoiceProgramSection
-                key="choice-program"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.APPLICATION_PAYMENT && (
-              <ApplicationPaymentSection
-                key="app-payment"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.APPLICATION_FORM && (
-              <ApplicationFormSection
-                key="app-form"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.ADMISSION_STATUS && (
-              <AdmissionStatusSection
-                key="admission-status"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.ACCEPTANCE_FEE && (
-              <AcceptanceFeeSection
-                key="acceptance-fee"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.TUITION_PAYMENT && (
-              <TuitionPaymentSection
-                key="tuition-payment"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {currentStep === AdmissionStep.COMPLETED && (
-              <AdmissionCompleteSection
-                key="completed"
-                student={student}
-                fees={fees}
-                onRefresh={handleRefresh}
-              />
-            )}
-
-            {/* A custom admin-created step with no matching UI yet — see the "Custom" badge in the admission config admin page */}
-            {!KNOWN_STEP_KEYS.includes(currentStep) && (
-              <motion.div
-                key="unknown-step"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <EmptyState
-                  icon={AlertTriangle}
-                  title="This step isn't available yet"
-                  description="The admissions office added a custom step here that doesn't have a page built for it yet. Please contact the admissions office to continue."
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {!isLoading && !configError && !configEmpty && (
+          <AnimatePresence mode="wait">{renderStage()}</AnimatePresence>
         )}
 
         {/* Dev toolbar — only in development */}
@@ -279,110 +247,69 @@ export default function ProcessAdmissionPage() {
               🛠 Development Controls — Simulate Workflow Steps
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  simulateProgramChosen.mutate({
-                    programId: 1,
-                    programName: "B.Sc. Computer Science",
-                    entryMode: "UTME",
-                    studyMode: "online",
-                    startTerm: student?.session ?? "2026/2027",
-                  })
-                }
-                disabled={simulateProgramChosen.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateProgramChosen.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Choice Program: Program Chosen
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateAppPaymentPaid.mutate()}
-                disabled={simulateAppPaymentPaid.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateAppPaymentPaid.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Step 0→1: App Payment Paid
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateApplied.mutate()}
-                disabled={simulateApplied.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateApplied.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Step 1→2: Form Submitted
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateOffered.mutate()}
-                disabled={simulateOffered.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateOffered.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Step 2→3: Admission Offered
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateAccepted.mutate()}
-                disabled={simulateAccepted.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateAccepted.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Step 3→4: Acceptance Fee Paid
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateDeclined.mutate()}
-                disabled={simulateDeclined.isPending}
-                className="gap-1.5 text-xs text-destructive"
-              >
-                {simulateDeclined.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Simulate: Declined
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateExpired.mutate()}
-                disabled={simulateExpired.isPending}
-                className="gap-1.5 text-xs text-amber-600"
-              >
-                {simulateExpired.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Simulate: Expired
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => simulateTuitionPaid.mutate()}
-                disabled={simulateTuitionPaid.isPending}
-                className="gap-1.5 text-xs"
-              >
-                {simulateTuitionPaid.isPending && (
-                  <Loader2 className="size-3 animate-spin" />
-                )}
-                Step 4→5: Tuition Paid
-              </Button>
+              {[
+                {
+                  label: "Choice Program: Program Chosen",
+                  mutation: simulateProgramChosen,
+                  run: () =>
+                    simulateProgramChosen.mutate({
+                      programId: 1,
+                      programName: "B.Sc. Computer Science",
+                      entryMode: "UTME",
+                      studyMode: "online",
+                      startTerm: student?.session ?? "2026/2027",
+                    }),
+                },
+                {
+                  label: "App Payment Paid",
+                  mutation: simulateAppPaymentPaid,
+                  run: () => simulateAppPaymentPaid.mutate(),
+                },
+                {
+                  label: "Form Submitted",
+                  mutation: simulateApplied,
+                  run: () => simulateApplied.mutate(),
+                },
+                {
+                  label: "Admission Offered",
+                  mutation: simulateOffered,
+                  run: () => simulateOffered.mutate(),
+                },
+                {
+                  label: "Acceptance Fee Paid",
+                  mutation: simulateAccepted,
+                  run: () => simulateAccepted.mutate(),
+                },
+                {
+                  label: "Simulate: Declined",
+                  mutation: simulateDeclined,
+                  run: () => simulateDeclined.mutate(),
+                },
+                {
+                  label: "Simulate: Expired",
+                  mutation: simulateExpired,
+                  run: () => simulateExpired.mutate(),
+                },
+                {
+                  label: "Tuition Paid",
+                  mutation: simulateTuitionPaid,
+                  run: () => simulateTuitionPaid.mutate(),
+                },
+              ].map(({ label, mutation, run }) => (
+                <Button
+                  key={label}
+                  variant="outline"
+                  size="sm"
+                  onClick={run}
+                  disabled={mutation.isPending}
+                  className="gap-1.5 text-xs"
+                >
+                  {mutation.isPending && (
+                    <Loader2 className="size-3 animate-spin" />
+                  )}
+                  {label}
+                </Button>
+              ))}
               <Button
                 variant="outline"
                 size="sm"
@@ -399,13 +326,13 @@ export default function ProcessAdmissionPage() {
               </Button>
             </div>
             <p className="mt-2 text-[10px] text-muted-foreground">
-              Current step:{" "}
-              <span className="font-mono font-bold">{currentStep}</span> |
-              Student: {student?.name ?? "—"} | Status:{" "}
-              {student?.admission_status ?? "—"} | has_selected_program:{" "}
-              <span className="font-mono">
-                {String(student?.has_selected_program)}
-              </span>
+              Stages from: <span className="font-mono font-bold">{source}</span>{" "}
+              | Current:{" "}
+              <span className="font-mono font-bold">
+                {currentStage?.key ?? "—"}
+              </span>{" "}
+              | Student: {student?.name ?? "—"} | Status:{" "}
+              {student?.admission_status ?? "—"}
             </p>
           </motion.div>
         )}

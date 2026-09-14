@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
+import type { ProgramChoiceStageConfig } from "@/types/admissionConfig"
 import { useSubmitProgramChoice } from "../hooks/useAdmissionQueries"
 import type { EntryMode, StepSectionProps, StudyMode } from "../types/admission"
 
@@ -65,7 +66,24 @@ const STUDY_MODE_CARDS: {
   },
 ]
 
-export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
+interface ChoiceProgramSectionProps extends StepSectionProps {
+  /** The stage's settings — which extras to ask for. All asked when omitted. */
+  config?: ProgramChoiceStageConfig
+  title?: string
+  description?: string
+}
+
+export function ChoiceProgramSection({
+  student,
+  onRefresh,
+  config,
+  title,
+  description,
+}: ChoiceProgramSectionProps) {
+  const collectEntryMode = config?.collectEntryMode ?? true
+  const collectStudyMode = config?.collectStudyMode ?? true
+  const collectStartTerm = config?.collectStartTerm ?? true
+
   const {
     data: programsData,
     isLoading: isLoadingPrograms,
@@ -76,10 +94,7 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
 
   const [programId, setProgramId] = useState<number | null>(student.program_id)
 
-  // Major-Program Scoping — resolves the active session for the applicant's
-  // chosen program's major program once the backend supports scoped
-  // sessions; today (every session unscoped) this is identical to "the"
-  // institution-wide active session.
+  // Major-Program Scoping — the active session for the chosen program's major program.
   const selectedMajorProgramId = (programsData?.data ?? []).find(
     (p) => p.id === programId
   )?.majorProgramId
@@ -102,17 +117,22 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
   const noProgramsAvailable =
     !isLoadingPrograms && !isProgramsError && programOptions.length === 0
 
-  const canSubmit = !!programId && !!entryMode
+  const canSubmit = !!programId && (!collectEntryMode || !!entryMode)
 
   const handleSubmit = async () => {
-    if (!programId || !entryMode) {
-      toast.error("Please select a program and entry mode to continue.")
+    if (!programId || (collectEntryMode && !entryMode)) {
+      toast.error(
+        collectEntryMode
+          ? "Please select a program and entry mode to continue."
+          : "Please select a program to continue."
+      )
       return
     }
     try {
       await submitChoice.mutateAsync({
         programId,
-        entryMode,
+        // Extras the stage doesn't ask for keep the applicant's earlier answer or the default.
+        entryMode: entryMode || student.entry_mode || "UTME",
         studyMode,
         startTerm,
       })
@@ -141,10 +161,12 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
               <GraduationCap className="size-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-lg">Choose Your Program</CardTitle>
+              <CardTitle className="text-lg">
+                {title ?? "Choose Your Program"}
+              </CardTitle>
               <CardDescription>
-                Select the program, entry mode, and study mode you&apos;re
-                applying for before paying the application fee
+                {description ??
+                  "Select the program you're applying for before continuing with your admission"}
               </CardDescription>
             </div>
           </div>
@@ -154,7 +176,7 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
           <Separator />
 
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="choice-program">
               Program <span className="text-destructive">*</span>
             </Label>
             <Select
@@ -164,7 +186,7 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
                 isLoadingPrograms || isProgramsError || noProgramsAvailable
               }
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="choice-program" className="w-full">
                 <SelectValue
                   placeholder={
                     isLoadingPrograms
@@ -199,82 +221,94 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>
-              Entry Mode <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={entryMode}
-              onValueChange={(val) => setEntryMode(val as EntryMode)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select your entry mode" />
-              </SelectTrigger>
-              <SelectContent>
-                {ENTRY_MODES.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {collectEntryMode && (
+            <div className="space-y-2">
+              <Label htmlFor="choice-entry-mode">
+                Entry Mode <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={entryMode}
+                onValueChange={(val) => setEntryMode(val as EntryMode)}
+              >
+                <SelectTrigger id="choice-entry-mode" className="w-full">
+                  <SelectValue placeholder="Select your entry mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ENTRY_MODES.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <Label>Start Term</Label>
-            <Input value={startTerm} disabled className="disabled:opacity-70" />
-          </div>
+          {collectStartTerm && (
+            <div className="space-y-2">
+              <Label htmlFor="choice-start-term">Start Term</Label>
+              <Input
+                id="choice-start-term"
+                value={startTerm}
+                disabled
+                className="disabled:opacity-70"
+              />
+            </div>
+          )}
 
-          <div className="space-y-3">
-            <Label>
-              Study Mode <span className="text-destructive">*</span>
-            </Label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {STUDY_MODE_CARDS.map((mode) => {
-                const Icon = mode.icon
-                const isSelected = studyMode === mode.value
+          {collectStudyMode && (
+            <div className="space-y-3">
+              <Label>
+                Study Mode <span className="text-destructive">*</span>
+              </Label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {STUDY_MODE_CARDS.map((mode) => {
+                  const Icon = mode.icon
+                  const isSelected = studyMode === mode.value
 
-                return (
-                  <button
-                    key={mode.value}
-                    type="button"
-                    onClick={() => !mode.disabled && setStudyMode(mode.value)}
-                    disabled={mode.disabled}
-                    className={cn(
-                      "relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all",
-                      mode.disabled
-                        ? "cursor-not-allowed border-border opacity-50"
-                        : isSelected
-                          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                          : "border-border hover:border-primary/30 hover:bg-muted/30"
-                    )}
-                  >
-                    <div
+                  return (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => !mode.disabled && setStudyMode(mode.value)}
+                      disabled={mode.disabled}
+                      aria-pressed={isSelected}
                       className={cn(
-                        "rounded-lg p-2.5",
-                        isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
+                        "relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all",
+                        mode.disabled
+                          ? "cursor-not-allowed border-border opacity-50"
+                          : isSelected
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                            : "border-border hover:border-primary/30 hover:bg-muted/30"
                       )}
                     >
-                      <Icon className="size-5" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{mode.label}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {mode.description}
-                      </p>
-                    </div>
-                    {isSelected && (
-                      <div className="ml-auto rounded-full bg-primary p-0.5">
-                        <BookOpen className="size-3.5 text-primary-foreground" />
+                      <div
+                        className={cn(
+                          "rounded-lg p-2.5",
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        )}
+                      >
+                        <Icon className="size-5" />
                       </div>
-                    )}
-                  </button>
-                )
-              })}
+                      <div>
+                        <p className="font-semibold">{mode.label}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {mode.description}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <div className="ml-auto rounded-full bg-primary p-0.5">
+                          <BookOpen className="size-3.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <Button
             onClick={handleSubmit}
@@ -288,7 +322,7 @@ export function ChoiceProgramSection({ student, onRefresh }: StepSectionProps) {
                 Saving…
               </>
             ) : (
-              "Continue to Application Fee"
+              "Save and continue"
             )}
           </Button>
         </CardContent>
