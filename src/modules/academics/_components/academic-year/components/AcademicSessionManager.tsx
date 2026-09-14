@@ -92,9 +92,28 @@ export function AcademicSessionManager({
 
   const onSubmit = async (data: AcademicSessionFormValues) => {
     await createSession.mutateAsync(data)
-    // Keep the active filter tab's major program pre-selected for the next
-    // session, since an admin managing one program's calendar is likely to
-    // create several sessions for it in a row.
+    reset({
+      name: "",
+      startDate: "",
+      endDate: "",
+      isActive: false,
+      majorProgramId: null,
+    })
+    setShowForm(false)
+    // Land back on "All" so the session just created is visible alongside
+    // every other one, not hidden behind whichever tab happened to be
+    // active — it was easy to read that as "the new session displaced the
+    // others" when really the (still-engaged) filter was just narrower than
+    // expected. A reload used to "fix" this only because the filter is
+    // local state that resets on remount; now creating does the same thing
+    // without needing one.
+    setSessionFilter(null)
+  }
+
+  const openCreateForm = () => {
+    // Pre-fill the new session's major program with whichever tab is
+    // active, since creating one while looking at a specific program's
+    // sessions almost always means it belongs to that program.
     reset({
       name: "",
       startDate: "",
@@ -102,7 +121,7 @@ export function AcademicSessionManager({
       isActive: false,
       majorProgramId: sessionFilter,
     })
-    setShowForm(false)
+    setShowForm(true)
   }
 
   const visibleSessions = sessionFilter
@@ -145,7 +164,9 @@ export function AcademicSessionManager({
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => setShowForm(!showForm)}>
+          <Button
+            onClick={() => (showForm ? setShowForm(false) : openCreateForm())}
+          >
             <Plus className="size-4" data-icon="inline-start" />
             New Session
           </Button>
@@ -281,7 +302,7 @@ export function AcademicSessionManager({
           description="Create your first academic session to get started with fee configuration."
           action={
             canManage ? (
-              <Button onClick={() => setShowForm(true)}>
+              <Button onClick={openCreateForm}>
                 <Plus className="size-4" data-icon="inline-start" />
                 Create First Session
               </Button>
@@ -295,7 +316,7 @@ export function AcademicSessionManager({
           description="Create a session scoped to this major program, or switch to a different tab."
           action={
             canManage ? (
-              <Button onClick={() => setShowForm(true)}>
+              <Button onClick={openCreateForm}>
                 <Plus className="size-4" data-icon="inline-start" />
                 New Session
               </Button>
