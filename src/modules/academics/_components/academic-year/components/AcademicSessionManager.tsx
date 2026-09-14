@@ -1,15 +1,17 @@
 "use client"
 
-import { useState } from "react"
-import { useForm } from "react-hook-form"
+import { useMemo, useState } from "react"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   useAcademicSessions,
   useCreateSession,
   useActivateSession,
 } from "@/hooks/useAcademicSessions"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useSessionDetail } from "@/modules/timetable/hooks/useAcademicCalendar"
 import Modal from "@/components/custom/Modal"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import { useAcademicSessionSetupStore } from "@/store/dashboard/academicSessionSetupStore"
 import {
   academicSessionSchema,
@@ -27,6 +29,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { EmptyState } from "./EmptyState"
 import {
   CalendarDays,
@@ -35,6 +45,7 @@ import {
   Power,
   Loader2,
   Layers,
+  Building2,
 } from "lucide-react"
 
 interface AcademicSessionManagerProps {
@@ -45,6 +56,15 @@ export function AcademicSessionManager({
   canManage = false,
 }: AcademicSessionManagerProps) {
   const { data: sessions, isLoading } = useAcademicSessions()
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  // Every screen a single-major-program (or major-program-less) deployment
+  // sees must render exactly as it did before this feature existed — see
+  // sandbox/major-program-scoping/README.md §0/§5's governing rule.
+  const hasMultipleMajorPrograms = majorPrograms.length > 1
   const createSession = useCreateSession()
   const activateSession = useActivateSession()
 
@@ -52,21 +72,47 @@ export function AcademicSessionManager({
 
   const [showForm, setShowForm] = useState(false)
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
+  const [sessionFilter, setSessionFilter] = useState<number | null>(null)
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<AcademicSessionFormValues>({
     resolver: zodResolver(academicSessionSchema),
-    defaultValues: { name: "", startDate: "", endDate: "", isActive: false },
+    defaultValues: {
+      name: "",
+      startDate: "",
+      endDate: "",
+      isActive: false,
+      majorProgramId: null,
+    },
   })
 
   const onSubmit = async (data: AcademicSessionFormValues) => {
     await createSession.mutateAsync(data)
-    reset()
+    // Keep the active filter tab's major program pre-selected for the next
+    // session, since an admin managing one program's calendar is likely to
+    // create several sessions for it in a row.
+    reset({
+      name: "",
+      startDate: "",
+      endDate: "",
+      isActive: false,
+      majorProgramId: sessionFilter,
+    })
     setShowForm(false)
   }
+
+  const visibleSessions = sessionFilter
+    ? sessions?.filter((s) => s.majorProgramId === sessionFilter)
+    : sessions
+
+  const majorProgramName = (id: number | null | undefined) =>
+    id == null
+      ? "Institution-wide"
+      : (majorPrograms.find((mp) => mp.id === id)?.name ?? "Institution-wide")
 
   const handleSelect = (id: number, name: string) => {
     setSelectedSession(id, name)
@@ -94,6 +140,8 @@ export function AcademicSessionManager({
           </h2>
           <p className="text-sm text-muted-foreground">
             Create a new session or select an existing one to configure.
+            {hasMultipleMajorPrograms &&
+              " Each major program can run its own active session."}
           </p>
         </div>
         {canManage && (
@@ -103,6 +151,15 @@ export function AcademicSessionManager({
           </Button>
         )}
       </div>
+
+      {/* Major-program filter — different major programs can run
+          independent calendars (e.g. Undergraduate vs Foundational/JUPEB),
+          so sessions are filtered here rather than shown as one flat list. */}
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={sessionFilter}
+        onChange={setSessionFilter}
+      />
 
       {/* Create Form - only if can manage */}
       {showForm && canManage && (
@@ -157,6 +214,43 @@ export function AcademicSessionManager({
                   </p>
                 )}
               </div>
+              {hasMultipleMajorPrograms && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="session-major-program">Major Program</Label>
+                  <Controller
+                    name="majorProgramId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={
+                          field.value == null ? "none" : String(field.value)
+                        }
+                        onValueChange={(val) =>
+                          field.onChange(val === "none" ? null : Number(val))
+                        }
+                      >
+                        <SelectTrigger
+                          id="session-major-program"
+                          className="w-full"
+                        >
+                          <SelectValue placeholder="Institution-wide" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Institution-wide</SelectItem>
+                          {majorPrograms.map((mp) => (
+                            <SelectItem key={mp.id} value={String(mp.id)}>
+                              {mp.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Institution-wide sessions are shared by every program.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowForm(false)}>
@@ -194,9 +288,23 @@ export function AcademicSessionManager({
             ) : undefined
           }
         />
+      ) : !visibleSessions?.length && !showForm ? (
+        <EmptyState
+          icon={CalendarDays}
+          title="No sessions for this major program yet"
+          description="Create a session scoped to this major program, or switch to a different tab."
+          action={
+            canManage ? (
+              <Button onClick={() => setShowForm(true)}>
+                <Plus className="size-4" data-icon="inline-start" />
+                New Session
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sessions?.map((session) => (
+          {visibleSessions?.map((session) => (
             <Card key={session.id} className="relative">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -224,6 +332,15 @@ export function AcademicSessionManager({
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-2">
+                {hasMultipleMajorPrograms && (
+                  <Badge
+                    variant="outline"
+                    className="mb-1 gap-1.5 text-[11px] font-normal text-muted-foreground"
+                  >
+                    <Building2 className="size-3" />
+                    {majorProgramName(session.majorProgramId)}
+                  </Badge>
+                )}
                 <div className="flex items-center gap-2">
                   <Button
                     className="flex-1"

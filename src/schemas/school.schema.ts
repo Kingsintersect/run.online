@@ -8,6 +8,9 @@ export const academicSessionSchema = z
     startDate: z.string().min(1, "Start date is required"),
     endDate: z.string().min(1, "End date is required"),
     isActive: z.boolean(),
+    // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md
+    // §2. null = institution-wide shared session, matching today's behavior.
+    majorProgramId: z.number().nullable(),
   })
   .refine((data) => data.endDate > data.startDate, {
     message: "End date must be after start date",
