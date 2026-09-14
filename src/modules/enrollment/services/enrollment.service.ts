@@ -197,6 +197,7 @@ export const enrollmentApi = {
           semesterId: filters.semesterId,
           studentId: filters.studentId,
           offeringId: filters.offeringId,
+          majorProgramId: filters.majorProgramId,
           limit: filters.limit,
         },
       }),

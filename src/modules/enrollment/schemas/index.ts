@@ -38,6 +38,11 @@ export const EnrollmentFilterSchema = z.object({
   studentId: z.number().int().optional(),
   offeringId: z.number().int().optional(),
   status: EnrollmentStatusSchema.optional(),
+  // Major-Program Scoping — not confirmed live on this endpoint. Sent
+  // speculatively per CLAUDE.md §14; see BACKEND_DEVIATIONS_2026-09-14.md
+  // A14. This list is paginated, so nothing re-filters client-side against
+  // a possibly-incomplete page once results come back.
+  majorProgramId: z.number().int().optional(),
   page: z.number().int().min(1).optional(),
   limit: z.number().int().min(1).max(100).optional(),
 })
