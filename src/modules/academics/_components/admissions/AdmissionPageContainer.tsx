@@ -74,6 +74,10 @@ export default function AdmissionsPage({
   const visibleSessions = majorProgramFilter
     ? sessions?.filter((s) => s.majorProgramId === majorProgramFilter)
     : sessions
+  const majorProgramName = (id: number | null | undefined) =>
+    id == null
+      ? "Institution-wide"
+      : (majorPrograms.find((mp) => mp.id === id)?.name ?? "Institution-wide")
   const [selectedSessionId, setSelectedSessionId] = useState("")
   const [showForm, setShowForm] = useState(false)
   const [editingCycle, setEditingCycle] = useState<AdmissionCycle | null>(null)
@@ -83,6 +87,8 @@ export default function AdmissionsPage({
   const selectedSessionIdNum = selectedSessionId
     ? Number(selectedSessionId)
     : null
+  const selectedSession =
+    sessions?.find((s) => s.id === selectedSessionIdNum) ?? null
   const { data: cycles, isLoading: isLoadingCycles } =
     useAdmissionCycles(selectedSessionIdNum)
   const createCycle = useCreateAdmissionCycle()
@@ -251,7 +257,8 @@ export default function AdmissionsPage({
                   )
                   .map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} {s.isActive ? "(Active)" : ""}
+                      {s.name} — {majorProgramName(s.majorProgramId)}
+                      {s.isActive ? " (Active)" : ""}
                     </option>
                   ))}
               </select>
@@ -295,9 +302,10 @@ export default function AdmissionsPage({
         )}
 
         {/* Create / Edit form */}
-        {selectedSessionId && showForm && canManage && (
+        {selectedSessionId && showForm && canManage && selectedSession && (
           <AdmissionCycleForm
-            sessions={sessions ?? []}
+            session={selectedSession}
+            majorProgramLabel={majorProgramName(selectedSession.majorProgramId)}
             editingCycle={editingCycle}
             isPending={isPending}
             onSubmit={handleFormSubmit}

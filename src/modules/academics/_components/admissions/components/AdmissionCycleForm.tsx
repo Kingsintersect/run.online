@@ -22,10 +22,19 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, X, Plus } from "lucide-react"
+import { CalendarDays, Loader2, X, Plus } from "lucide-react"
 
 interface AdmissionCycleFormProps {
-  sessions: AcademicSession[]
+  /**
+   * The session this cycle belongs to — always the one already selected on
+   * the page above, never a choice made inside this form. A cycle can't
+   * sensibly attach to a session other than the one you're currently
+   * viewing (it would just never show up in the list you're looking at),
+   * so there is no session picker here — see AdmissionPageContainer.tsx.
+   */
+  session: AcademicSession
+  /** Label for `session`'s major program, e.g. "Certificate Programmes" or "Institution-wide". */
+  majorProgramLabel: string
   editingCycle?: AdmissionCycle | null
   isPending: boolean
   onSubmit: (data: AdmissionCycleFormValues) => void
@@ -34,7 +43,8 @@ interface AdmissionCycleFormProps {
 }
 
 export function AdmissionCycleForm({
-  sessions,
+  session,
+  majorProgramLabel,
   editingCycle,
   isPending,
   onSubmit,
@@ -50,7 +60,7 @@ export function AdmissionCycleForm({
     resolver: zodResolver(admissionCycleSchema),
     defaultValues: editingCycle
       ? {
-          academic_session_id: String(editingCycle.academic_session_id),
+          academic_session_id: String(session.id),
           application_start_date: editingCycle.application_start_date,
           application_end_date: editingCycle.application_end_date,
           late_application_allowed: editingCycle.late_application_allowed,
@@ -62,7 +72,7 @@ export function AdmissionCycleForm({
           instructions: editingCycle.instructions,
         }
       : {
-          academic_session_id: "",
+          academic_session_id: String(session.id),
           application_start_date: "",
           application_end_date: "",
           late_application_allowed: false,
@@ -120,35 +130,29 @@ export function AdmissionCycleForm({
           <h3 className="mb-3 text-sm font-semibold text-foreground">
             Application Window
           </h3>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="academic_session_id">Academic Session</Label>
-              <select
-                id="academic_session_id"
-                {...register("academic_session_id")}
-                aria-invalid={!!errors.academic_session_id}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-invalid:border-destructive"
-              >
-                <option value="">Select session</option>
-                {sessions
-                  ?.sort(
-                    (a, b) =>
-                      new Date(b.startDate).getTime() -
-                      new Date(a.startDate).getTime()
-                  )
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} {s.isActive ? "(Active)" : ""}
-                    </option>
-                  ))}
-              </select>
-              {errors.academic_session_id && (
-                <p className="text-sm text-destructive">
-                  {errors.academic_session_id.message}
-                </p>
-              )}
-            </div>
 
+          {/* Read-only — this cycle always belongs to the session already
+              selected on the page above; see the prop comment on `session`. */}
+          <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+            <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">
+                {session.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {majorProgramLabel}
+                {session.isActive ? " · Active" : ""}
+              </p>
+            </div>
+          </div>
+          <input type="hidden" {...register("academic_session_id")} />
+          {errors.academic_session_id && (
+            <p className="-mt-3 mb-4 text-sm text-destructive">
+              {errors.academic_session_id.message}
+            </p>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="application_start_date">Start Date</Label>
               <Input
