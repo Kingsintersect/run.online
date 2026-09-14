@@ -337,3 +337,31 @@ before generating any code.**
 - only focus on the frontend api integration from bruno.
 - leave the backend and focuse on the frontend dev.
 - the backend has been completely built remotley.
+
+---
+
+## 14. Build ahead of the backend — never wait
+
+- **Do not wait for the backend to build a capability before building its frontend.** If
+  `sandbox/` already has a design for it, build the frontend against that design now. If no
+  design exists yet, write one first (the established `README.md` / `SCHEMA_CHANGES.md` /
+  `API_CONTRACTS.md` trio in a new `sandbox/<feature>/` folder — see existing folders for the
+  pattern), then build the frontend against it. Either way, the frontend ships now, not after
+  the backend catches up.
+- **Every screen built ahead of the backend must have a working fallback**, active whenever
+  the real endpoint doesn't exist yet (404) or a live probe hasn't confirmed it: derive the
+  same data from whatever real endpoints already exist, or degrade to an honest empty/disabled
+  state — never a broken page, a silent no-op, or a hardcoded stub pretending to be live data.
+- **The fallback and the real path share one interface.** Build the hook/service layer so a
+  component calls one thing (e.g. `useAdmissionStages()`) that internally prefers the live
+  endpoint and falls back when it 404s — never a component that has to know which mode it's
+  in. This is what "synchronise automatically" means: the day the backend ships the real
+  endpoint, the frontend starts using it with no rewrite, because the interface never changed.
+- **Flag every backend gap this produces**, the same way already established in this repo:
+  add it to `sandbox/BACKEND_DEVIATIONS_2026-09-14.md` (or the current dated deviations file)
+  under Part A if nothing exists yet, Part B if it exists but doesn't match the design — or a
+  dedicated `<feature>/BACKEND_HANDOFF.md` for a large new capability. Never treat "the
+  backend isn't ready" as a reason to skip or stub out frontend work; treat it as something to
+  document for the backend team while the frontend ships anyway.
+- This does not relax §13: still never implement or modify backend code. It only means the
+  frontend's own build schedule never blocks on the backend's.

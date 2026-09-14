@@ -173,13 +173,44 @@ export type CreateAdmissionOfferFormValues = z.infer<
 // Bulk offer creation shares one level / type / date / expiry across every
 // selected application; program and session are derived per-application from
 // its own program choice + admission cycle, and admission numbers are
-// auto-generated, so none of those appear here.
-export const bulkCreateAdmissionOffersSchema = z.object({
-  levelId: z.number().int().positive("Select a level"),
-  admissionDate: z.string().min(1, "Admission date is required"),
-  admissionType: z.string().min(1, "Admission type is required").max(20),
-  expiryDate: z.string().optional(),
-})
+// auto-generated, so none of those appear here. Every application in one
+// bulk batch must share the same programCategory (the dialog blocks mixed
+// batches before this form ever renders — see bulk-create-offers-dialog.tsx)
+// so a single shared `programCategory` carrier drives whether `levelId` is
+// required, exactly like createAdmissionOfferSchema above. CERTIFICATE
+// batches are blocked before this form renders too (a cohort is
+// program-specific, not something one bulk action can assign across
+// applications), so this schema never needs a cohortId branch.
+export const bulkCreateAdmissionOffersSchema = z
+  .object({
+    programCategory: z
+      .enum([
+        "DEGREE",
+        "POSTGRADUATE",
+        "CERTIFICATE",
+        "DIPLOMA",
+        "SECONDARY_SCHOOL",
+        "FOUNDATIONAL",
+        "PART_TIME",
+      ])
+      .optional(),
+    levelId: z.number().int().positive().nullable().optional(),
+    admissionDate: z.string().min(1, "Admission date is required"),
+    admissionType: z.string().min(1, "Admission type is required").max(20),
+    expiryDate: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      (data.programCategory ?? "DEGREE") !== "FOUNDATIONAL" &&
+      !data.levelId
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["levelId"],
+        message: "Select a level",
+      })
+    }
+  })
 
 export type BulkCreateAdmissionOffersFormValues = z.infer<
   typeof bulkCreateAdmissionOffersSchema
