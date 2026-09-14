@@ -30,6 +30,10 @@ export const feeManagementService = {
 
   listFeeTypes: async (filters?: {
     sessionId?: number
+    // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+    // §8 (A12, not yet built). Sent regardless; the frontend also filters
+    // client-side in fee-type-table.tsx so results are correct either way.
+    majorProgramId?: number
     category?: string
     isActive?: boolean
   }) => {
@@ -97,6 +101,8 @@ export const feeManagementService = {
   getEligibleCount: (filters: {
     category: FeeCategory
     sessionId?: number
+    // A12 (pending) — see listFeeTypes' note above.
+    majorProgramId?: number
     programId?: number
     levelId?: number
     studentType?: StudentType
@@ -105,7 +111,10 @@ export const feeManagementService = {
     apiClient
       .get<{
         data: { eligibleCount: number }
-      }>(`${BASE}/types/eligible-count`, { ...AUTH, params: filters as Record<string, unknown> })
+      }>(`${BASE}/types/eligible-count`, {
+        ...AUTH,
+        params: filters as Record<string, unknown>,
+      })
       .then((res) => ({ count: res.data.eligibleCount })),
 
   // ── Invoices ────────────────────────────────────────────────────────────────

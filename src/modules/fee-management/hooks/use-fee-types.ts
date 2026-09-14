@@ -7,6 +7,7 @@ import type { FeeCategory, StudentType } from "../types"
 
 export function useFeeTypes(filters?: {
   sessionId?: number
+  majorProgramId?: number
   category?: string
   isActive?: boolean
 }) {
@@ -41,6 +42,7 @@ export function useGenerationStatus(id: number, enabled: boolean) {
 interface EligibleCountFilters {
   category: FeeCategory
   sessionId?: number
+  majorProgramId?: number
   programId?: number
   levelId?: number
   studentType?: StudentType

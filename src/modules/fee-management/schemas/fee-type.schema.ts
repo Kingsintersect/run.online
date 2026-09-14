@@ -10,6 +10,13 @@ const FeeTypeDtoBaseSchema = z.object({
   category: FeeCategorySchema,
   amount: z.coerce.number().positive("Amount must be a positive number"),
   sessionId: z.number().int().positive().optional(),
+  // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md
+  // §2a (new capability, not yet built — flagged in
+  // BACKEND_DEVIATIONS_2026-09-14.md A12). Distinct from `programId`: this
+  // scopes to "every program under this major program" without pinning one
+  // exact program. Sent to the backend now so it starts working the day
+  // A12 ships, with no frontend change needed then.
+  majorProgramId: z.number().int().positive().optional(),
   programId: z.number().int().positive().optional(),
   levelId: z.number().int().positive().optional(),
   studentType: StudentTypeSchema.default("ALL"),
@@ -49,6 +56,14 @@ export const FeeTypeResponseSchema = z.object({
   amount: z.string(), // Decimal serialized as string from backend — use Number() only for display
   sessionId: z.number().nullable(),
   session: z.object({ id: z.number(), name: z.string() }).nullable(),
+  // Optional/defaulted rather than required — see A12: not returned by the
+  // live backend yet, so a response missing it entirely still parses.
+  majorProgramId: z.number().nullable().optional().default(null),
+  majorProgram: z
+    .object({ id: z.number(), name: z.string() })
+    .nullable()
+    .optional()
+    .default(null),
   programId: z.number().nullable(),
   program: z.object({ id: z.number(), name: z.string() }).nullable(),
   levelId: z.number().nullable(),

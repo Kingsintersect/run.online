@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useFormContext, useWatch, Controller } from "react-hook-form"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2, Users } from "lucide-react"
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
-import { useLevels } from "@/hooks/useCourseStructure"
+import { useLevels, useMajorPrograms } from "@/hooks/useCourseStructure"
 import { courseStructureQueryOptions } from "@/services/courseStructureApi"
 import { useEligibleCount } from "../../hooks/use-fee-types"
 import type { CreateFeeTypeInputValues, FeeCategory } from "../../types"
@@ -37,6 +37,7 @@ export function FeeTypeScopeSelector() {
     | FeeCategory
     | undefined
   const sessionId = useWatch({ control, name: "sessionId" })
+  const majorProgramId = useWatch({ control, name: "majorProgramId" })
   const programId = useWatch({ control, name: "programId" })
   const levelId = useWatch({ control, name: "levelId" })
   const studentType = useWatch({ control, name: "studentType" })
@@ -51,6 +52,7 @@ export function FeeTypeScopeSelector() {
   useEffect(() => {
     if (isApplicantCategory) {
       setValue("sessionId", undefined)
+      setValue("majorProgramId", undefined)
       setValue("programId", undefined)
       setValue("levelId", undefined)
     }
@@ -61,9 +63,54 @@ export function FeeTypeScopeSelector() {
     courseStructureQueryOptions.programs.list()
   )
   const { data: levelsData, isLoading: loadingLevels } = useLevels()
+  const { data: majorProgramsRes } = useMajorPrograms()
 
-  const programs = programsData?.data ?? []
+  const allPrograms = programsData?.data ?? []
   const levels = levelsData?.data ?? []
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  const hasMultipleMajorPrograms = majorPrograms.length > 1
+
+  // Major Program — sandbox/major-program-scoping/SCHEMA_CHANGES.md §2a
+  // (new capability, not yet built on the backend — BACKEND_DEVIATIONS
+  // A12). This is a real form field, sent as `majorProgramId`: choosing one
+  // scopes the fee to every program under it (when Program below is left
+  // blank), not just narrows these pickers cosmetically. Also filters the
+  // Session/Program pickers to that major program's own rows, same as the
+  // scope tabs already built for Academic Sessions and Admissions
+  // Management. Until A12 ships, the backend has no `majorProgramId` column
+  // to act on — see the warning rendered below the field.
+  const programs = majorProgramId
+    ? allPrograms.filter((p) => p.majorProgramId === majorProgramId)
+    : allPrograms
+  const scopedSessions = majorProgramId
+    ? (sessions ?? []).filter((s) => s.majorProgramId === majorProgramId)
+    : (sessions ?? [])
+
+  // Changing the major program clears an already-selected session or
+  // program that's no longer in the narrowed list, rather than leaving a
+  // selection hidden from its own dropdown.
+  const handleMajorProgramIdChange = (id: number | null) => {
+    setValue("majorProgramId", id ?? undefined)
+    if (
+      programId &&
+      !allPrograms.some(
+        (p) => p.id === programId && (!id || p.majorProgramId === id)
+      )
+    ) {
+      setValue("programId", undefined)
+    }
+    if (
+      sessionId &&
+      !(sessions ?? []).some(
+        (s) => s.id === sessionId && (!id || s.majorProgramId === id)
+      )
+    ) {
+      setValue("sessionId", undefined)
+    }
+  }
 
   // Eligible count preview — only fires when scope fields are configured
   const countFilters =
@@ -71,6 +118,7 @@ export function FeeTypeScopeSelector() {
       ? {
           category,
           sessionId: sessionId ?? undefined,
+          majorProgramId: majorProgramId ?? undefined,
           programId: programId ?? undefined,
           levelId: levelId ?? undefined,
           studentType: studentType ?? undefined,
@@ -133,6 +181,48 @@ export function FeeTypeScopeSelector() {
             Eligibility Scope
           </p>
 
+          {/* Major Program */}
+          {hasMultipleMajorPrograms && (
+            <div className="space-y-1.5">
+              <Label htmlFor="fee-major-program">
+                Major Program
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (optional — blank = every major program)
+                </span>
+              </Label>
+              <Select
+                value={majorProgramId?.toString() ?? NONE}
+                onValueChange={(v) =>
+                  handleMajorProgramIdChange(v === NONE ? null : Number(v))
+                }
+              >
+                <SelectTrigger id="fee-major-program" className={selectClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>
+                    <span className="text-muted-foreground italic">
+                      Every major program
+                    </span>
+                  </SelectItem>
+                  {majorPrograms.map((mp) => (
+                    <SelectItem key={mp.id} value={mp.id.toString()}>
+                      {mp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {majorProgramId && !programId && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Backend support for scoping a fee to a whole major program is
+                  pending (sandbox/major-program-scoping A12) — until it ships,
+                  this fee will apply to every student unless you also pick a
+                  specific Program below.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Session */}
           <div className="space-y-1.5">
             <Label htmlFor="fee-session">
@@ -171,7 +261,7 @@ export function FeeTypeScopeSelector() {
                           : "— No session —"}
                       </span>
                     </SelectItem>
-                    {sessions?.map((s) => (
+                    {scopedSessions.map((s) => (
                       <SelectItem key={s.id} value={s.id.toString()}>
                         {s.name}
                         {s.isActive && (

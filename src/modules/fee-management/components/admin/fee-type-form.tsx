@@ -48,6 +48,7 @@ export function FeeTypeForm({
             ? Number(defaultValues.amount)
             : undefined,
           sessionId: defaultValues.sessionId ?? undefined,
+          majorProgramId: defaultValues.majorProgramId ?? undefined,
           programId: defaultValues.programId ?? undefined,
           levelId: defaultValues.levelId ?? undefined,
           studentType: defaultValues.studentType ?? "ALL",

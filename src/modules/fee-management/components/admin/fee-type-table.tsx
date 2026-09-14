@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import {
   Loader2,
@@ -22,6 +23,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { courseStructureQueryOptions } from "@/services/courseStructureApi"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useFeeTypes } from "../../hooks/use-fee-types"
@@ -53,6 +57,9 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
     useFeeManagementUiStore()
   const [search, setSearch] = useState("")
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
 
   const {
     data: feeTypes,
@@ -62,15 +69,62 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
     category: feeTypeTableFilters.category,
     isActive: feeTypeTableFilters.isActive,
     sessionId: feeTypeTableFilters.sessionId,
+    // A12 (pending) — harmless to send now; the client-side filter below
+    // stays correct either way until the backend honors it.
+    majorProgramId: majorProgramFilter ?? undefined,
   })
+
+  // The backend doesn't return `majorProgramId` on a fee type yet (A12,
+  // pending), so cross-reference the specific `programId` against the full
+  // programs list (which does carry `majorProgramId`) as a fallback — and
+  // prefer `ft.majorProgramId` directly the moment the backend starts
+  // sending it, since that also covers "every program under X" fees that
+  // have no single `programId` to derive from.
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const { data: programsRes } = useQuery({
+    ...courseStructureQueryOptions.programs.list(),
+    staleTime: 1000 * 60 * 30,
+  })
+  const majorPrograms = useMemo(
+    () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
+    [majorProgramsRes]
+  )
+  const majorProgramIdByProgramId = useMemo(
+    () =>
+      new Map(
+        (programsRes?.data ?? []).map((p) => [p.id, p.majorProgramId ?? null])
+      ),
+    [programsRes]
+  )
 
   const activate = useActivateFeeType()
   const deactivate = useDeactivateFeeType()
   const deleteFee = useDeleteFeeType()
 
-  const filtered = (feeTypes ?? []).filter(
-    (ft) => !search || ft.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = (feeTypes ?? []).filter((ft) => {
+    if (search && !ft.name.toLowerCase().includes(search.toLowerCase())) {
+      return false
+    }
+    if (majorProgramFilter) {
+      if (ft.majorProgramId != null) {
+        // Explicit and authoritative once the backend sends it — covers
+        // "every program under X" fees with no single programId to derive
+        // a major program from.
+        return ft.majorProgramId === majorProgramFilter
+      }
+      if (ft.programId) {
+        return (
+          majorProgramIdByProgramId.get(ft.programId) === majorProgramFilter
+        )
+      }
+      // No majorProgramId and no program — genuinely institution-wide
+      // (applies to every student), so it stays visible under every tab,
+      // unlike an institution-wide Academic Session, which doesn't
+      // "belong" to any one program's calendar.
+      return true
+    }
+    return true
+  })
 
   if (isLoading) {
     return (
@@ -84,6 +138,15 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
 
   return (
     <div className="space-y-4">
+      {/* ── Major-program filter — different major programs can charge
+          different fees; an institution-wide fee (no program) stays visible
+          under every tab since it applies to those students too. ────── */}
+      <MajorProgramTabs
+        programs={majorPrograms}
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
+
       {/* ── Filters bar ──────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
         <Input
@@ -227,6 +290,13 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
                           {ft.session.name}
                         </span>
                       )}
+                      {/* Only shown once the backend actually returns it (A12) — a
+                          program already implies its own major program. */}
+                      {ft.majorProgram && !ft.program && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                          {ft.majorProgram.name}
+                        </span>
+                      )}
                       {ft.program && (
                         <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                           {ft.program.name}
@@ -243,6 +313,7 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
                         </span>
                       )}
                       {!ft.session &&
+                        !ft.majorProgram &&
                         !ft.program &&
                         !ft.level &&
                         ft.studentType === "ALL" && (
