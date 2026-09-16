@@ -18,10 +18,12 @@ const AUTH = { access_token: true }
 // ── Academic Sessions ───────────────────────
 
 // Real backend contract per bruno/academic (the sole source of truth — see
-// CLAUDE.md §13). AcademicSession and Semester have NO delete endpoint by
-// design — academic_README.md: "retire a session/semester by leaving
-// isActive = false, never by deleting the row." No delete() method exists
-// here for either resource; don't add one without a matching real endpoint.
+// CLAUDE.md §13). Semester still has NO delete endpoint — retire one by
+// leaving isActive = false. AcademicSession gained a real safe-delete
+// endpoint 2026-09-15 (BACKEND_DEVIATIONS A11 / bruno/academic/
+// Sessions - Delete.bru): 204 only when nothing references the session
+// anywhere in the schema, else 409 SESSION_IN_USE naming every blocking
+// table + row count.
 export const academicSessionApi = {
   list: async () => {
     return apiClient.get<ApiListResponse<AcademicSession>>(
@@ -56,6 +58,10 @@ export const academicSessionApi = {
       ApiSingleResponse<AcademicSession>,
       Record<string, never>
     >(`/academic/sessions/${id}/activate`, {}, AUTH)
+  },
+
+  delete: async (id: number) => {
+    return apiClient.delete<void>(`/academic/sessions/${id}`, AUTH)
   },
 }
 
@@ -148,6 +154,12 @@ export const feeManagementMutationOptions = {
     createApiMutationOptions<ApiSingleResponse<AcademicSession>, number>({
       mutationKey: [...feeManagementKeys.sessions(), "activate"],
       mutationFn: academicSessionApi.activate,
+    }),
+
+  deleteSession: () =>
+    createApiMutationOptions<void, number>({
+      mutationKey: [...feeManagementKeys.sessions(), "delete"],
+      mutationFn: academicSessionApi.delete,
     }),
 
   createSemester: () =>

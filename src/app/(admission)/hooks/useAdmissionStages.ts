@@ -15,6 +15,7 @@ import {
   composeFallbackStages,
   readLocalAcknowledgements,
   readLocalMajorProgramChoice,
+  resolveClientSideSteps,
   writeLocalAcknowledgement,
   writeLocalMajorProgramChoice,
 } from "../lib/admission-stages"
@@ -36,14 +37,6 @@ export function useAdmissionStages() {
   const student = useStudentAdmission()
   const backend = useQuery(admissionQueryOptions.stages())
   const config = useQuery(admissionStepsQueryOptions.config())
-  const effective = useQuery({
-    ...admissionStepsQueryOptions.effective(
-      "PROCESS",
-      student.data?.program_id
-    ),
-    enabled: !!student.data?.program_id,
-    retry: false,
-  })
 
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set())
   useEffect(() => {
@@ -54,7 +47,11 @@ export function useAdmissionStages() {
   // (BACKEND_DEVIATIONS A16). `GET /admission/student` never returns it, so
   // the local fallback value (and, for display, the major program's name)
   // is merged on before composing — same local-fallback treatment as
-  // content acknowledgements above.
+  // content acknowledgements above. Computed ahead of `effective` below
+  // since that query needs it as a resolution param the moment it's known —
+  // Major Program Choice happens well before Program Choice, so an
+  // applicant's major-program-scoped steps must be able to resolve before
+  // `program_id` exists at all, not just once it does.
   const [localMajorProgramId, setLocalMajorProgramId] = useState<number | null>(
     null
   )
@@ -65,29 +62,48 @@ export function useAdmissionStages() {
     ...courseStructureQueryOptions.majorPrograms.list(),
     retry: false,
   })
+  const knownMajorProgramId =
+    student.data?.major_program_id ?? localMajorProgramId
+
+  // Major-Program Scoping (BACKEND_DEVIATIONS A22) — `majorProgramId` is
+  // sent ahead of the backend recognizing it on this endpoint (harmless
+  // no-op today, same build-ahead pattern used everywhere else); enabling
+  // on either id, not just `program_id`, is what actually matters here —
+  // see the comment above.
+  const effective = useQuery({
+    ...admissionStepsQueryOptions.effective(
+      "PROCESS",
+      student.data?.program_id,
+      knownMajorProgramId
+    ),
+    enabled: !!student.data?.program_id || knownMajorProgramId != null,
+    retry: false,
+  })
 
   const source: StagesSource = backend.data ? "backend" : "fallback"
 
   const studentWithMajorProgram: AdmissionStudent | undefined = useMemo(() => {
     if (!student.data) return undefined
-    const majorProgramId = student.data.major_program_id ?? localMajorProgramId
     return {
       ...student.data,
-      major_program_id: majorProgramId,
+      major_program_id: knownMajorProgramId,
       major_program_name:
         student.data.major_program_name ??
-        majorPrograms.data?.data.find((mp) => mp.id === majorProgramId)?.name ??
+        majorPrograms.data?.data.find((mp) => mp.id === knownMajorProgramId)
+          ?.name ??
         null,
     }
-  }, [student.data, localMajorProgramId, majorPrograms.data])
+  }, [student.data, knownMajorProgramId, majorPrograms.data])
 
   const payload = useMemo(() => {
     if (backend.data) return backend.data
     if (!studentWithMajorProgram) return null
     const steps = effective.data?.length
       ? effective.data
-      : (config.data?.processSteps ?? []).filter(
-          (s) => (s.enabled || s.required) && !s.programId && !s.programCategory
+      : resolveClientSideSteps(
+          config.data?.processSteps ?? [],
+          student.data?.program_id ?? null,
+          knownMajorProgramId
         )
     return composeFallbackStages(steps, studentWithMajorProgram, acknowledged)
   }, [
@@ -95,6 +111,8 @@ export function useAdmissionStages() {
     studentWithMajorProgram,
     effective.data,
     config.data,
+    student.data?.program_id,
+    knownMajorProgramId,
     acknowledged,
   ])
 
@@ -104,6 +122,9 @@ export function useAdmissionStages() {
 
   const acknowledgeMutation = useMutation(
     admissionMutationOptions.acknowledgeStage()
+  )
+  const majorProgramChoiceMutation = useMutation(
+    admissionMutationOptions.submitMajorProgramChoice()
   )
   const uploadMutation = useMutation(
     admissionMutationOptions.uploadStageDocuments()
@@ -142,15 +163,28 @@ export function useAdmissionStages() {
     [source, acknowledgeMutation, invalidateStages, userId]
   )
 
-  // No live endpoint yet either way (A16) — always the local fallback for
-  // now, same as a CONTENT stage's acknowledgement above. Swaps to a real
-  // mutation call here, gated the same way acknowledge() is, once one ships.
+  // POST /admission/major-program-choice confirmed live 2026-09-15/16 (A16
+  // items 2-3) — gated the same way acknowledge() is: once GET /admission/
+  // me/stages is answering for real (source === "backend"), the backend
+  // has to actually be told about the choice, or its own resolution never
+  // marks MAJOR_PROGRAM_CHOICE complete and the applicant stays stuck on
+  // this stage forever regardless of what's written locally (the real bug
+  // this fixes — found 2026-09-16, screenshot showed exactly this: "Major
+  // program saved" toast, but the page never advanced). refresh() (not
+  // just invalidateStages()) so student.major_program_id — which the next
+  // stage's resolution keys off — is refetched immediately, not on the
+  // next natural refetch.
   const chooseMajorProgram = useCallback(
     async (majorProgramId: number) => {
+      if (source === "backend") {
+        await majorProgramChoiceMutation.mutateAsync({ majorProgramId })
+        await refresh()
+        return
+      }
       writeLocalMajorProgramChoice(userId, majorProgramId)
       setLocalMajorProgramId(majorProgramId)
     },
-    [userId]
+    [source, majorProgramChoiceMutation, refresh, userId]
   )
 
   const uploadDocument = useCallback(
@@ -206,6 +240,7 @@ export function useAdmissionStages() {
     acknowledge,
     isAcknowledging: acknowledgeMutation.isPending,
     chooseMajorProgram,
+    isChoosingMajorProgram: majorProgramChoiceMutation.isPending,
     uploadDocument,
     removeDocument,
     isChangingDocuments: uploadMutation.isPending || removeMutation.isPending,

@@ -84,6 +84,53 @@ export const academicUnitsApi = {
   },
 }
 
+// Real bug, found 2026-09-16: the two `nameCollision` guards below used to
+// compare names with plain `.trim().toLowerCase() === ...` — which silently
+// failed to catch exactly the cases they exist to catch, because Moodle's
+// own category names don't match RUN's display names closely enough for an
+// exact comparison. Confirmed live: "CERTIFICATE PROGRAMS" (Moodle) vs.
+// "Certificate Programmes" (RUN), "PART-TIME PROGRAMS" vs. "Part-Time
+// Programmes", "FOUNDATIONAL/JUPEB PROGRAMS" vs. "Foundational Programmes"
+// — every one of them differs (American "Program(s)" vs. British
+// "Programme(s)", plus extra qualifiers like "/JUPEB"), so the guard never
+// fired and three duplicate root nodes were created for the exact three
+// major programs the design doc's own example names.
+//
+// Fixed by normalizing before comparing (lowercase, collapse whitespace,
+// treat hyphens/slashes as spaces, strip the generic word "program(me)(s)"
+// entirely since it carries no identifying information) and matching on
+// containment, not just equality — "foundational jupeb" now recognizably
+// contains "foundational". This is deliberately biased toward *more*
+// collisions, not fewer: the only effect of a collision is a blocking error
+// asking an admin to resolve it manually (see the two functions below) —
+// never a silent merge or data change — so an occasional false-positive
+// block is the safe direction to err in; a false negative is what actually
+// caused this bug.
+const GENERIC_STRUCTURAL_WORDS = /\b(programmes?|programs?)\b/g
+
+function normalizeStructuralName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[-/]/g, " ")
+    .replace(GENERIC_STRUCTURAL_WORDS, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** True if two structural/entity names plausibly refer to the same real
+ *  thing once generic words and formatting differences are stripped out —
+ *  e.g. "CERTIFICATE PROGRAMS" and "Certificate Programmes". Never used to
+ *  auto-merge anything; only to decide whether to surface a manual-
+ *  resolution error instead of silently creating a duplicate root. */
+function namesLikelyMatch(a: string, b: string): boolean {
+  const normA = normalizeStructuralName(a)
+  const normB = normalizeStructuralName(b)
+  if (!normA || !normB) return false
+  return normA === normB || normA.includes(normB) || normB.includes(normA)
+}
+
 /**
  * Finds the AcademicUnit mirror node for a Faculty, creating one if it
  * doesn't exist yet. `Program` has no `facultyId` of its own — attaching a
@@ -101,6 +148,24 @@ export async function resolveFacultyAcademicUnit(
     (u) => u.linkedEntity?.type === "faculty" && u.linkedEntity.id === facultyId
   )
   if (existing) return existing
+
+  // A category pulled from Moodle and left unresolved gets a bare,
+  // unlinked placeholder root with the Moodle category's own name (see
+  // BACKEND_DEVIATIONS A18's investigation) — that placeholder is invisible
+  // to the lookup above (it has no `linkedEntity` at all), so without this
+  // check, calling this twice for the same Faculty would create a second,
+  // duplicate root. `linkedEntity` can't be changed after creation, so the
+  // fix isn't to silently merge into it — surface the conflict so an admin
+  // resolves it deliberately (delete/rename the placeholder, or re-parent
+  // its children first) instead of ending up with two same-named roots.
+  const nameCollision = roots.find(
+    (u) => u.linkedEntity == null && namesLikelyMatch(u.name, facultyName)
+  )
+  if (nameCollision) {
+    throw new Error(
+      `A structural node named "${nameCollision.name}" already exists at the root level of Academic Structure (likely pulled in from Moodle and never resolved) and looks like it's meant to be this Faculty. Since a node's link can't be changed after creation, delete that node — moving any of its children out first — then try again.`
+    )
+  }
 
   const { data: created } = await academicUnitsApi.create({
     typeCode: "FACULTY",
@@ -132,6 +197,22 @@ export async function resolveMajorProgramAcademicUnit(
       u.linkedEntity.id === majorProgramId
   )
   if (existing) return existing
+
+  // Same guard as resolveFacultyAcademicUnit above — a pulled-but-unresolved
+  // Moodle category (e.g. "PART-TIME PROGRAMS") already occupies a root
+  // node under this exact name with no `linkedEntity`, which this
+  // function's lookup can't see. Without this check, resolving/linking a
+  // Major Program whose Moodle root category was never manually resolved
+  // creates a second, duplicate root instead of reusing or flagging the
+  // existing one.
+  const nameCollision = roots.find(
+    (u) => u.linkedEntity == null && namesLikelyMatch(u.name, majorProgramName)
+  )
+  if (nameCollision) {
+    throw new Error(
+      `A structural node named "${nameCollision.name}" already exists at the root level of Academic Structure (likely pulled in from Moodle and never resolved) and looks like it's meant to be this Major Program. Since a node's link can't be changed after creation, delete that node — moving any of its children out first — then try again.`
+    )
+  }
 
   const { data: unitTypes } = await unitTypesApi.list()
   const hasMajorProgramType = unitTypes.some((t) => t.code === "MAJOR_PROGRAM")

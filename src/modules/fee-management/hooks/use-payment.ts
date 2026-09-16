@@ -24,6 +24,10 @@ export function useVerifyPayment() {
       qc.invalidateQueries({
         queryKey: feeKeys.paymentHistory(data.invoice.id),
       })
+      // The admin Invoices list (filtered — invoiceAdminTable.tsx) needs
+      // this too, so a newly-paid invoice's status/amount updates there
+      // without a manual refresh.
+      qc.invalidateQueries({ queryKey: feeKeys.invoicesAll() })
     },
   })
 }

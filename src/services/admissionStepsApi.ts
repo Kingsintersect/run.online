@@ -26,6 +26,7 @@ import apiClient, {
 } from "@/lib/clients/apiClient"
 import {
   SYSTEM_FIELD_CATALOG,
+  type PrecedenceRuleCode,
   type SystemFieldDefinition,
 } from "@/lib/admission-catalog"
 import type {
@@ -43,6 +44,16 @@ import type { ProgramCategory } from "@/types/school"
 
 const AUTH = { access_token: true } as const
 
+/** GET .../sequence-rules row — sandbox/dynamic-sequence-rules/API_CONTRACTS.md §1.
+ *  `id` is this exact scope's own override row id, present only when
+ *  `source === "own"` (needed to DELETE/reset it); null otherwise. */
+export interface ResolvedSequenceRule {
+  id: number | null
+  ruleCode: PrecedenceRuleCode
+  enabled: boolean
+  source: "own" | "default" | "builtin"
+}
+
 /** Actual live shape of one row from GET/POST/PATCH /admissions/config/steps — see the module docblock above.
  *  programCategory/programId/fields: Multi-Program Platform additions — see
  *  sandbox/multi-program-platform/API_CONTRACTS.md §A. Optional/nullable; null = institution-wide.
@@ -59,6 +70,7 @@ interface RawAdmissionStep {
   isActive: boolean
   programCategory?: ProgramCategory | null
   programId?: number | null
+  majorProgramId?: number | null
   fields?: AdmissionFormField[]
   type?: StageType | null
   config?: StageConfig | null
@@ -85,6 +97,7 @@ function fromRaw(raw: RawAdmissionStep): AdmissionStepDefinition {
     enabled: raw.isActive,
     programCategory: raw.programCategory ?? null,
     programId: raw.programId ?? null,
+    majorProgramId: raw.majorProgramId ?? null,
     fields: raw.fields ?? [],
     type: raw.type ?? null,
     config: raw.config ?? null,
@@ -142,7 +155,11 @@ export const admissionStepsApi = {
    *  not for runtime resolution — use getEffective() for that. */
   async list(
     group?: AdmissionStepGroup,
-    filters?: { programId?: number; programCategory?: ProgramCategory }
+    filters?: {
+      programId?: number
+      programCategory?: ProgramCategory
+      majorProgramId?: number
+    }
   ): Promise<AdmissionStepDefinition[]> {
     const res = await apiClient.get<{ data: RawAdmissionStep[] }>(
       "/admissions/config/steps",
@@ -152,6 +169,13 @@ export const admissionStepsApi = {
           group,
           programId: filters?.programId,
           programCategory: filters?.programCategory,
+          // Major-Program Scoping — BACKEND_DEVIATIONS A22. Harmless if the
+          // backend doesn't recognize it yet: the admin page fetches every
+          // row via list() regardless of filters and layers scope
+          // client-side (step-scope.ts), so this param isn't load-bearing
+          // there — it's here for callers that do want server-side
+          // filtering once A22 ships.
+          majorProgramId: filters?.majorProgramId,
         },
       }
     )
@@ -168,18 +192,34 @@ export const admissionStepsApi = {
   },
 
   // GET /admissions/config/steps/effective — Multi-Program Platform
-  // (bruno/admission/Steps - Effective.bru). Server-side resolution:
-  // programId match > programCategory match > institution default. Omit
-  // programId before the applicant has chosen a program — resolves to the
-  // institution-wide default set. On error, callers fall back to the raw
-  // config() (see useAdmissionForm.ts).
+  // (bruno/admission/Steps - Effective.bru). Resolution when
+  // `majorProgramId` is **omitted**: programId match > programCategory
+  // match > institution default (unchanged since before major programs
+  // existed). Resolution when `majorProgramId` is **present**: full
+  // decoupling (BACKEND_DEVIATIONS A23) — only that major program's own
+  // rows (or a programId-scoped row under it) are considered; no fallback
+  // to programCategory or the institution default at all. Until A23's
+  // exact live behavior is independently re-confirmed, useAdmissionStages.ts
+  // /useAdmissionForm.ts's client-side fallback resolution
+  // (resolveClientSideSteps, admission-stages.ts) mirrors this same rule so
+  // the two stay consistent regardless of which one answers first. Omit
+  // both ids before the applicant has made either choice. On error, callers
+  // fall back to the raw config() (see useAdmissionForm.ts).
   async getEffective(
     group: AdmissionStepGroup,
-    programId?: number | null
+    programId?: number | null,
+    majorProgramId?: number | null
   ): Promise<EffectiveAdmissionStep[]> {
     const res = await apiClient.get<{ data: RawEffectiveStep[] }>(
       "/admissions/config/steps/effective",
-      { ...AUTH, params: { group, programId: programId ?? undefined } }
+      {
+        ...AUTH,
+        params: {
+          group,
+          programId: programId ?? undefined,
+          majorProgramId: majorProgramId ?? undefined,
+        },
+      }
     )
     return res.data.map(fromRawEffective)
   },
@@ -244,6 +284,54 @@ export const admissionStepsApi = {
       return SYSTEM_FIELD_CATALOG
     }
   },
+
+  // GET /admissions/config/sequence-rules — sandbox/dynamic-sequence-rules/
+  // (A24). Confirmed live 2026-09-16 (bruno/admission/Sequence Rules -
+  // List.bru) — no fallback needed anymore; a real failure surfaces as a
+  // normal query error, same as every other live endpoint in this file.
+  // `majorProgramId: null`/omitted reads the institution-default scope.
+  // Always returns all 6 fixed rule codes, each already resolved for the
+  // requested scope (source: "own" | "default" | "builtin" — the last one
+  // is a legitimate live state, "nothing configured for this rule
+  // anywhere," not a sign the endpoint is missing).
+  async sequenceRules(
+    majorProgramId?: number | null
+  ): Promise<ResolvedSequenceRule[]> {
+    const res = await apiClient.get<{ data: ResolvedSequenceRule[] }>(
+      "/admissions/config/sequence-rules",
+      { ...AUTH, params: { majorProgramId: majorProgramId ?? undefined } }
+    )
+    return res.data
+  },
+
+  // PATCH /admissions/config/sequence-rules — upserts one scope's override.
+  // Not live yet; a caller reaching this before the backend ships it gets a
+  // real error (no silent success), which the mutation's onError/toast
+  // already surfaces — no fallback here since there's nothing useful to
+  // pretend happened for a write.
+  async setSequenceRule(payload: {
+    majorProgramId: number | null
+    ruleCode: PrecedenceRuleCode
+    enabled: boolean
+  }): Promise<ResolvedSequenceRule> {
+    const res = await apiClient.patch<{ data: ResolvedSequenceRule }>(
+      "/admissions/config/sequence-rules",
+      payload,
+      AUTH
+    )
+    return res.data
+  },
+
+  // DELETE /admissions/config/sequence-rules/{id} — clears one scope's own
+  // override, falling back to whatever's next in the resolution chain.
+  // Confirmed live 2026-09-16 (bruno/admission/Sequence Rules - Clear.bru):
+  // 204 No Content, not a { message } body like most other deletes here.
+  async clearSequenceRule(id: number): Promise<void> {
+    await apiClient.delete<void>(
+      `/admissions/config/sequence-rules/${id}`,
+      AUTH
+    )
+  },
 }
 
 /* ------------------------------------------------------------------ */
@@ -258,9 +346,25 @@ export const admissionStepsKeys = {
   ) =>
     [...admissionStepsKeys.all, "list", group ?? "all", filters ?? {}] as const,
   config: () => [...admissionStepsKeys.all, "config"] as const,
-  effective: (group: AdmissionStepGroup, programId?: number | null) =>
-    [...admissionStepsKeys.all, "effective", group, programId ?? null] as const,
+  effective: (
+    group: AdmissionStepGroup,
+    programId?: number | null,
+    majorProgramId?: number | null
+  ) =>
+    [
+      ...admissionStepsKeys.all,
+      "effective",
+      group,
+      programId ?? null,
+      majorProgramId ?? null,
+    ] as const,
   systemFields: () => [...admissionStepsKeys.all, "system-fields"] as const,
+  sequenceRules: (majorProgramId?: number | null) =>
+    [
+      ...admissionStepsKeys.all,
+      "sequence-rules",
+      majorProgramId ?? null,
+    ] as const,
 }
 
 export const admissionStepsQueryOptions = {
@@ -277,10 +381,15 @@ export const admissionStepsQueryOptions = {
       staleTime: 1000 * 60 * 5,
     }),
 
-  effective: (group: AdmissionStepGroup, programId?: number | null) =>
+  effective: (
+    group: AdmissionStepGroup,
+    programId?: number | null,
+    majorProgramId?: number | null
+  ) =>
     createApiQueryOptions({
-      queryKey: admissionStepsKeys.effective(group, programId),
-      queryFn: () => admissionStepsApi.getEffective(group, programId),
+      queryKey: admissionStepsKeys.effective(group, programId, majorProgramId),
+      queryFn: () =>
+        admissionStepsApi.getEffective(group, programId, majorProgramId),
       staleTime: 1000 * 60 * 5,
     }),
 
@@ -289,6 +398,13 @@ export const admissionStepsQueryOptions = {
       queryKey: admissionStepsKeys.systemFields(),
       queryFn: () => admissionStepsApi.systemFields(),
       staleTime: Infinity,
+    }),
+
+  sequenceRules: (majorProgramId?: number | null) =>
+    createApiQueryOptions({
+      queryKey: admissionStepsKeys.sequenceRules(majorProgramId),
+      queryFn: () => admissionStepsApi.sequenceRules(majorProgramId),
+      staleTime: 1000 * 60,
     }),
 }
 
@@ -325,5 +441,24 @@ export const admissionStepsMutationOptions = {
       mutationKey: [...admissionStepsKeys.all, "reorder"],
       mutationFn: ({ group, orderedIds }) =>
         admissionStepsApi.reorder(group, orderedIds),
+    }),
+
+  setSequenceRule: () =>
+    createApiMutationOptions<
+      ResolvedSequenceRule,
+      {
+        majorProgramId: number | null
+        ruleCode: PrecedenceRuleCode
+        enabled: boolean
+      }
+    >({
+      mutationKey: [...admissionStepsKeys.all, "set-sequence-rule"],
+      mutationFn: (payload) => admissionStepsApi.setSequenceRule(payload),
+    }),
+
+  clearSequenceRule: () =>
+    createApiMutationOptions<void, number>({
+      mutationKey: [...admissionStepsKeys.all, "clear-sequence-rule"],
+      mutationFn: (id) => admissionStepsApi.clearSequenceRule(id),
     }),
 }

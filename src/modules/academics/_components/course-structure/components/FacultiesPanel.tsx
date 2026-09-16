@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import {
@@ -20,6 +21,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import { cn } from "@/lib/utils"
@@ -35,6 +37,7 @@ import {
   useUpdateProgram,
 } from "@/hooks/useCourseStructure"
 import { useAcademicUnits } from "@/hooks/useAcademicStructure"
+import { courseStructureKeys } from "@/services/courseStructureApi"
 import { EmptyState } from "./EmptyState"
 import { FacultyFormDialog } from "./FacultyFormDialog"
 import { DepartmentFormDialog } from "./DepartmentFormDialog"
@@ -95,16 +98,21 @@ function FacultiesList({
 }) {
   const { data, isLoading } = useFaculties()
   const updateFaculty = useUpdateFaculty()
+  const queryClient = useQueryClient()
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [editing, setEditing] = useState<Faculty | null | undefined>(undefined)
 
   const allFaculties = data?.data ?? []
 
-  // Major-Program Scoping — a Faculty has no majorProgramId of its own; it
-  // "belongs" to a major program only through the programs its departments
-  // contain (Faculty -> Department -> Program.majorProgramId). Resolve that
-  // bottom-up from the already-fetched flat lists rather than adding a new
-  // column — same derived-scope pattern as Fee Types and Admission Cycles.
+  // Major-Program Scoping — Faculty.majorProgramId (BACKEND_DEVIATIONS A17)
+  // lets a faculty be tagged with its own major program directly, but the
+  // real backend doesn't return that field yet, so it's always null/
+  // undefined today. Fall back to deriving membership bottom-up from the
+  // already-fetched flat lists (Faculty -> Department -> Program.
+  // majorProgramId) — same derived-scope pattern as Fee Types and Admission
+  // Cycles used before their own direct fields shipped. The day A17 ships
+  // and a faculty actually carries a real majorProgramId, the direct value
+  // below takes over automatically — no rewrite needed.
   const { data: majorProgramsRes } = useMajorPrograms()
   const { data: departmentsRes } = useAllDepartments()
   const { data: programsRes } = useAllPrograms()
@@ -131,9 +139,17 @@ function FacultiesList({
     }
     return map
   }, [departmentsRes, programsRes])
+  const facultyMatchesMajorProgram = (
+    faculty: Faculty,
+    majorProgramId: number
+  ) =>
+    faculty.majorProgramId != null
+      ? faculty.majorProgramId === majorProgramId
+      : (facultyIdsByMajorProgram.get(majorProgramId)?.has(faculty.id) ?? false)
+
   const faculties = majorProgramFilter
     ? allFaculties.filter((f) =>
-        facultyIdsByMajorProgram.get(majorProgramFilter)?.has(f.id)
+        facultyMatchesMajorProgram(f, majorProgramFilter)
       )
     : allFaculties
 
@@ -143,10 +159,25 @@ function FacultiesList({
     const nextActive = !faculty.isActive
     setTogglingId(faculty.id)
     try {
-      await updateFaculty.mutateAsync({
+      const res = await updateFaculty.mutateAsync({
         id: faculty.id,
         payload: { isActive: nextActive },
       })
+      // Patch the list cache with the mutation's own response immediately
+      // — the badge must reflect what the server just confirmed without
+      // waiting on a second round-trip (invalidateQueries below still runs,
+      // as a safety net for any other screen reading this same faculty).
+      queryClient.setQueryData<{ data: Faculty[] } | undefined>(
+        courseStructureKeys.faculties.list(),
+        (old) =>
+          old
+            ? {
+                data: old.data.map((f) =>
+                  f.id === faculty.id ? { ...f, ...res.data } : f
+                ),
+              }
+            : old
+      )
       toast.success(
         `${faculty.name} ${nextActive ? "activated" : "deactivated"}`
       )
@@ -226,7 +257,7 @@ function FacultiesList({
               <Card>
                 <CardContent className="pt-6">
                   <div className="mb-3 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <Building2 size={16} />
                       </div>
@@ -243,8 +274,27 @@ function FacultiesList({
                       label={faculty.isActive ? "Active" : "Inactive"}
                       variant={faculty.isActive ? "success" : "destructive"}
                       dot
+                      className="shrink-0"
                     />
                   </div>
+                  {/* Only shown for a directly-tagged faculty (A17) — a
+                      derived-only faculty can straddle several major
+                      programs at once via different departments, which
+                      doesn't reduce to one badge. */}
+                  {majorPrograms.length > 1 &&
+                    faculty.majorProgramId != null && (
+                      <Badge
+                        variant="outline"
+                        className="mb-2 gap-1.5 text-[11px] font-normal text-muted-foreground"
+                      >
+                        <Building2 className="size-3" />
+                        {faculty.majorProgram?.name ??
+                          majorPrograms.find(
+                            (mp) => mp.id === faculty.majorProgramId
+                          )?.name ??
+                          "Major program"}
+                      </Badge>
+                    )}
                   <div className="flex items-center gap-2">
                     <Button
                       className="flex-1"
@@ -329,6 +379,7 @@ function FacultyDetail({
   const { data, isLoading } = useFaculty(facultyId)
   const updateDept = useUpdateDepartment()
   const updateProgram = useUpdateProgram()
+  const queryClient = useQueryClient()
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [editingFaculty, setEditingFaculty] = useState(false)
   const [editingDept, setEditingDept] = useState<Department | null | undefined>(
@@ -365,10 +416,28 @@ function FacultyDetail({
     const nextActive = !dept.isActive
     setTogglingKey(`dept-${dept.id}`)
     try {
-      await updateDept.mutateAsync({
+      const res = await updateDept.mutateAsync({
         id: dept.id,
         payload: { isActive: nextActive },
       })
+      // Patch this faculty's cached nested departments directly with the
+      // mutation's own response — this screen reads a department's
+      // isActive only from here, so it must reflect what the server just
+      // confirmed without waiting on a second round-trip.
+      queryClient.setQueryData<{ data: Faculty } | undefined>(
+        courseStructureKeys.faculties.detail(facultyId),
+        (old) =>
+          old
+            ? {
+                data: {
+                  ...old.data,
+                  departments: (old.data.departments ?? []).map((d) =>
+                    d.id === dept.id ? { ...d, ...res.data } : d
+                  ),
+                },
+              }
+            : old
+      )
       toast.success(`${dept.name} ${nextActive ? "activated" : "deactivated"}`)
     } catch (err) {
       toast.error(
@@ -385,10 +454,21 @@ function FacultyDetail({
     const nextActive = !program.isActive
     setTogglingKey(`program-${program.id}`)
     try {
-      await updateProgram.mutateAsync({
+      const res = await updateProgram.mutateAsync({
         id: program.id,
         payload: { isActive: nextActive },
       })
+      queryClient.setQueryData<{ data: Program[] } | undefined>(
+        courseStructureKeys.programs.list(),
+        (old) =>
+          old
+            ? {
+                data: old.data.map((p) =>
+                  p.id === program.id ? { ...p, ...res.data } : p
+                ),
+              }
+            : old
+      )
       toast.success(
         `${program.name} ${nextActive ? "activated" : "deactivated"}`
       )
@@ -510,7 +590,7 @@ function FacultyDetail({
               <Card>
                 <CardContent className="pt-6">
                   <div className="mb-3 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <GitBranch size={16} />
                       </div>
@@ -527,6 +607,7 @@ function FacultyDetail({
                       label={dept.isActive ? "Active" : "Inactive"}
                       variant={dept.isActive ? "success" : "destructive"}
                       dot
+                      className="shrink-0"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -738,6 +819,7 @@ function DepartmentDetail({
 }) {
   const { data, isLoading } = useDepartment(departmentId)
   const updateProgram = useUpdateProgram()
+  const queryClient = useQueryClient()
   const [togglingProgramId, setTogglingProgramId] = useState<number | null>(
     null
   )
@@ -758,10 +840,27 @@ function DepartmentDetail({
     const nextActive = !program.isActive
     setTogglingProgramId(program.id)
     try {
-      await updateProgram.mutateAsync({
+      const res = await updateProgram.mutateAsync({
         id: program.id,
         payload: { isActive: nextActive },
       })
+      // Patch this department's cached nested programs directly with the
+      // mutation's own response — see the same note on handleToggleDept
+      // above.
+      queryClient.setQueryData<{ data: Department } | undefined>(
+        courseStructureKeys.departments.detail(departmentId),
+        (old) =>
+          old
+            ? {
+                data: {
+                  ...old.data,
+                  programs: (old.data.programs ?? []).map((p) =>
+                    p.id === program.id ? { ...p, ...res.data } : p
+                  ),
+                },
+              }
+            : old
+      )
       toast.success(
         `${program.name} ${nextActive ? "activated" : "deactivated"}`
       )

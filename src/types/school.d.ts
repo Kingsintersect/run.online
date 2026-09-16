@@ -69,6 +69,17 @@ export interface Faculty {
   createdAt: string
   updatedAt: string
   departments?: Department[]
+  // Major-Program Scoping — sandbox/major-program-scoping/SCHEMA_CHANGES.md
+  // §2b (new capability, BACKEND_DEVIATIONS A17). Not derived — set directly
+  // at Faculty creation, so a Faculty is grouped under its major program
+  // immediately, without needing a Program underneath it first. Nullable:
+  // null/undefined = institution-wide, shared by every major program.
+  // Optional (not just nullable) because the real backend doesn't return
+  // this field yet — until A17 ships, always treat a missing key the same
+  // as null, and fall back to deriving membership from the faculty's own
+  // departments/programs (Faculty -> Department -> Program.majorProgramId).
+  majorProgramId?: number | null
+  majorProgram?: { id: number; name: string } | null
 }
 
 export interface DepartmentLecturer {
@@ -317,6 +328,9 @@ export interface CreateFacultyPayload {
   deanUserId?: number
   email?: string
   phoneNumber?: string
+  // See Faculty.majorProgramId above — sent ahead of the backend field
+  // existing (A17); harmless no-op today, takes effect the day it ships.
+  majorProgramId?: number | null
 }
 
 // `isActive` reactivates/deactivates through the same PATCH

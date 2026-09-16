@@ -70,6 +70,15 @@ interface StepFormModalProps {
   stageTypesInUse: StageType[]
   /** The scope this step belongs to, e.g. "Certificate programs". Set by the page tab. */
   scopeName: string
+  /**
+   * True only for the "All major programs" tab. MAJOR_PROGRAM_CHOICE can
+   * only ever make sense there — it's the stage that decides which major
+   * program's own steps apply, so scoping one to a specific major program
+   * (or category/program) would mean it can never actually be reached.
+   * Unlike a `pendingBackend` type, this is a real structural impossibility
+   * the frontend's own design enforces, not a guess about the backend.
+   */
+  isDefaultScope: boolean
   editing: AdmissionStepDefinition | null
   /** `stage` is null for FORM steps. */
   onSubmit: (
@@ -106,6 +115,7 @@ export default function StepFormModal({
   existingKeys,
   stageTypesInUse,
   scopeName,
+  isDefaultScope,
   editing,
   onSubmit,
   isSubmitting,
@@ -302,18 +312,30 @@ export default function StepFormModal({
                       const def = STAGE_TYPE_CATALOG[type]
                       const taken =
                         !def.multiple && stageTypesInUse.includes(type)
+                      const wrongScope =
+                        type === "MAJOR_PROGRAM_CHOICE" && !isDefaultScope
+                      // Only "already in use" and "wrong scope" actually
+                      // block selection — both are real structural
+                      // impossibilities this form itself knows about, not a
+                      // guess about the backend. A pending-backend type is
+                      // still the admin's call to make: surface the risk,
+                      // don't decide for them — try it, and the backend's
+                      // own 422 (if it's still not recognized) shows up as a
+                      // normal error on save.
                       return (
                         <SelectItem
                           key={type}
                           value={type}
-                          disabled={taken || def.pendingBackend}
+                          disabled={taken || wrongScope}
                         >
                           {def.label}
                           {taken
                             ? " (already in use)"
-                            : def.pendingBackend
-                              ? " (pending backend support)"
-                              : ""}
+                            : wrongScope
+                              ? " (only allowed in the Catalog)"
+                              : def.pendingBackend
+                                ? " (may 422 — pending backend support)"
+                                : ""}
                         </SelectItem>
                       )
                     })}

@@ -172,8 +172,10 @@ export const admissionService = {
   },
 
   /* ---------- Admission stages (sandbox/dynamic-admission/ §4) ---------- */
-  // GET /admission/me/stages — the applicant's resolved, typed stages with
-  // status. Not live yet; useAdmissionStages composes the same shape until it is.
+  // GET /admission/me/stages — confirmed live (bruno/admission/My Stages -
+  // List.bru) — the applicant's resolved, typed stages with status.
+  // useAdmissionStages still composes the same shape client-side as a
+  // fallback for whenever this 404s/errors, per CLAUDE.md §14.
   async fetchMyStages(): Promise<AdmissionStagesPayload> {
     const { data } = await apiClient.get<{ data: AdmissionStagesPayload }>(
       "/admission/me/stages",
@@ -243,6 +245,27 @@ export const admissionService = {
     // contract in sandbox/REFACTOR_BACKEND_APIS.md (MISSING_BACKEND_APIS.md §2.17).
     const { data } = await apiClient.post<{ data: AdmissionStudent }>(
       "/admission/program-choice",
+      payload,
+      AUTH
+    )
+    return data
+  },
+
+  /* ---------- Submit major program choice (one tier above program choice) ---------- */
+  async submitMajorProgramChoice(payload: {
+    majorProgramId: number
+  }): Promise<AdmissionStudent> {
+    // POST /admission/major-program-choice — confirmed live 2026-09-15/16,
+    // bruno/admission/Admission - Submit Major Program Choice.bru
+    // (BACKEND_DEVIATIONS_2026-09-14.md A16). Upserts on (userId, active
+    // session); re-submitting the same id is a no-op success. 409
+    // MAJOR_PROGRAM_CHOICE_LOCKED if a program has already been chosen
+    // under a different major program this session; 422
+    // INVALID_MAJOR_PROGRAM for an unknown/inactive id — both surface via
+    // apiClient's normal error message extraction, same as every other
+    // mutation here.
+    const { data } = await apiClient.post<{ data: AdmissionStudent }>(
+      "/admission/major-program-choice",
       payload,
       AUTH
     )
@@ -571,6 +594,13 @@ export const admissionMutationOptions = {
     >({
       mutationKey: [...admissionKeys.all, "program-choice"],
       mutationFn: (payload) => admissionService.submitProgramChoice(payload),
+    }),
+
+  submitMajorProgramChoice: () =>
+    createApiMutationOptions<AdmissionStudent, { majorProgramId: number }>({
+      mutationKey: [...admissionKeys.all, "major-program-choice"],
+      mutationFn: (payload) =>
+        admissionService.submitMajorProgramChoice(payload),
     }),
 
   initiateApplicationPayment: () =>

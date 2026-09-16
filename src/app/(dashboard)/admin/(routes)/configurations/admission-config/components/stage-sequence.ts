@@ -3,6 +3,7 @@ import {
   STAGE_TYPE_CATALOG,
   STAGE_TYPES,
   resolveStageType,
+  type PrecedenceRuleCode,
 } from "@/lib/admission-catalog"
 import { stageConfigSchemas } from "@/schemas/admission-dynamic.schema"
 import type { StageType } from "@/types/admissionConfig"
@@ -13,11 +14,30 @@ export interface StageSequenceIssue {
   message: string
 }
 
+/** Resolved rule state for one scope (sandbox/dynamic-sequence-rules/) —
+ *  `undefined` for a code, or the whole map itself, means "enabled", so
+ *  passing nothing at all reproduces today's exact all-on behavior. */
+export type ResolvedSequenceRuleSettings = Partial<
+  Record<PrecedenceRuleCode, boolean>
+>
+
+const isRuleEnabled = (
+  settings: ResolvedSequenceRuleSettings | undefined,
+  code: PrecedenceRuleCode
+): boolean => settings?.[code] !== false
+
 // Mirrors the backend's INVALID_STAGE_SEQUENCE rules
 // (sandbox/dynamic-admission/API_CONTRACTS.md §2.3) for one resolved scope,
-// so the admin sees a problem before saving rather than as a 422.
+// so the admin sees a problem before saving rather than as a 422. The 3
+// Integrity checks below (MISSING_TYPE, MULTIPLE_{TYPE}, MISSING_COMPLETE)
+// always run — sandbox/dynamic-sequence-rules/README.md §4 keeps them
+// permanently locked. The 6 Precedence checks each respect `ruleSettings`
+// (sandbox/dynamic-sequence-rules/) once the caller resolves it for this
+// scope; omitting it (or the backend not shipping the setting yet) means
+// every rule stays exactly as strict as it's always been.
 export function validateStageSequence(
-  rows: ScopedStepRow[]
+  rows: ScopedStepRow[],
+  ruleSettings?: ResolvedSequenceRuleSettings
 ): StageSequenceIssue[] {
   const active = rows
     .filter(({ step }) => step.enabled || step.required)
@@ -53,7 +73,10 @@ export function validateStageSequence(
       code: "MISSING_COMPLETE",
       message: "Add a Complete stage so applicants get a finish screen.",
     })
-  } else if (completes.some((i) => i !== active.length - 1)) {
+  } else if (
+    completes.some((i) => i !== active.length - 1) &&
+    isRuleEnabled(ruleSettings, "COMPLETE_MUST_BE_LAST")
+  ) {
     issues.push({
       code: "COMPLETE_NOT_LAST",
       message: "The Complete stage must be the last stage.",
@@ -65,7 +88,8 @@ export function validateStageSequence(
   if (
     firstForm !== undefined &&
     firstChoice !== undefined &&
-    firstForm < firstChoice
+    firstForm < firstChoice &&
+    isRuleEnabled(ruleSettings, "FORM_AFTER_PROGRAM_CHOICE")
   ) {
     issues.push({
       code: "FORM_BEFORE_PROGRAM_CHOICE",
@@ -77,12 +101,28 @@ export function validateStageSequence(
   if (
     firstMajorChoice !== undefined &&
     firstChoice !== undefined &&
-    firstChoice < firstMajorChoice
+    firstChoice < firstMajorChoice &&
+    isRuleEnabled(ruleSettings, "PROGRAM_CHOICE_AFTER_MAJOR_PROGRAM_CHOICE")
   ) {
     issues.push({
       code: "PROGRAM_CHOICE_BEFORE_MAJOR_PROGRAM_CHOICE",
       message:
         "The program choice must come after the major program choice, so its own picker can narrow to that major program's programs.",
+    })
+  }
+  // The whole point of Major Program Choice is deciding which major
+  // program's own steps apply — nothing can meaningfully come before it,
+  // including a CONTENT/DOCUMENT_UPLOAD stage that happens to be scoped
+  // to "all major programs" too.
+  if (
+    firstMajorChoice !== undefined &&
+    firstMajorChoice !== 0 &&
+    isRuleEnabled(ruleSettings, "MAJOR_PROGRAM_CHOICE_MUST_BE_FIRST")
+  ) {
+    issues.push({
+      code: "MAJOR_PROGRAM_CHOICE_NOT_FIRST",
+      message:
+        "The Major Program Choice stage must be the very first stage — every later stage depends on knowing which major program applies.",
     })
   }
 
@@ -94,9 +134,16 @@ export function validateStageSequence(
     )
     if (!parsed.success) return
     const { feeCategory } = parsed.data
+    const precedenceCode: PrecedenceRuleCode | null =
+      feeCategory === "ACCEPTANCE"
+        ? "ACCEPTANCE_PAYMENT_AFTER_DECISION"
+        : feeCategory === "TUITION"
+          ? "TUITION_PAYMENT_AFTER_DECISION"
+          : null
     if (
       (feeCategory === "ACCEPTANCE" || feeCategory === "TUITION") &&
-      (firstDecision === undefined || i < firstDecision)
+      (firstDecision === undefined || i < firstDecision) &&
+      (precedenceCode === null || isRuleEnabled(ruleSettings, precedenceCode))
     ) {
       issues.push({
         code: `${feeCategory}_PAYMENT_BEFORE_DECISION`,

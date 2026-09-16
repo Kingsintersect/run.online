@@ -82,13 +82,23 @@ export const ActivateFeeTypeResponseSchema = z.object({
   status: z.literal("QUEUED"),
 })
 
+// Confirmed live 2026-09-15: a QUEUED job's status response doesn't carry
+// processed/total/failures yet (the same shape ActivateFeeTypeResponseSchema
+// documents — feeTypeId/jobId/status(/eligibleStudentCount) only) — they
+// only start appearing once the job is actually RUNNING. No bruno example
+// response exists for this endpoint to confirm the exact RUNNING/DONE/
+// FAILED shape either, so these stay optional rather than asserting a
+// runtime guarantee this schema was never actually validated against (see
+// generation-status-panel.tsx, which now renders them defensively either
+// way).
 export const GenerationStatusResponseSchema = z.object({
   feeTypeId: z.number(),
   jobId: z.string(),
   status: z.enum(["QUEUED", "RUNNING", "DONE", "FAILED"]),
-  processed: z.number(),
-  total: z.number(),
-  failures: z.number(),
+  eligibleStudentCount: z.number().optional(),
+  processed: z.number().optional(),
+  total: z.number().optional(),
+  failures: z.number().optional(),
 })
 
 export const EligibleCountResponseSchema = z.object({

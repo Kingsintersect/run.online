@@ -12,6 +12,7 @@ import { admissionStepsQueryOptions } from "@/services/admissionStepsApi"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { resolveActiveSession } from "@/lib/academic/resolve-active-session"
+import { readLocalMajorProgramChoice } from "@/app/(admission)/lib/admission-stages"
 import {
   admissionKeys,
   admissionQueryOptions,
@@ -84,6 +85,10 @@ export interface UseAdmissionFormReturn {
   /** Every dynamic field across the form, by key. */
   fieldIndex: Map<string, FieldIndexEntry>
   isLoading: boolean
+  /** Genuinely nothing configured for this major program yet (not a
+   *  loading state) — BACKEND_DEVIATIONS A23. `steps` is empty in this
+   *  case, so `currentStep` isn't meaningful either. */
+  isEmpty: boolean
   isSubmitting: boolean
   isSubmitted: boolean
   /** Stage of the in-flight submission, for driving <UploadProgress />. */
@@ -155,23 +160,38 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
   // steps and its values are pre-filled instead of asked again.
   const { data: admissionStudent } = useQuery(admissionQueryOptions.student())
   const { data: allProgramsData } = useAllPrograms()
-  const selectedMajorProgramId = admissionStudent?.program_id
-    ? (allProgramsData?.data ?? []).find(
-        (p) => p.id === admissionStudent.program_id
-      )?.majorProgramId
-    : undefined
+  // Major-Program Scoping (BACKEND_DEVIATIONS A22) — the applicant's own
+  // chosen major program (from the student record once the backend echoes
+  // it, else the same local-fallback storage useAdmissionStages.ts reads)
+  // is now the primary way this resolves, since Major Program Choice
+  // happens well before Program Choice. Deriving it from the chosen
+  // program's own majorProgramId stays as a last-resort fallback for a
+  // student record that predates the direct field.
+  const knownMajorProgramId =
+    admissionStudent?.major_program_id ??
+    readLocalMajorProgramChoice(userId) ??
+    (admissionStudent?.program_id
+      ? ((allProgramsData?.data ?? []).find(
+          (p) => p.id === admissionStudent.program_id
+        )?.majorProgramId ?? null)
+      : null)
   const activeSessionId = useMemo(
-    () => resolveActiveSession(sessions, selectedMajorProgramId)?.id ?? null,
-    [sessions, selectedMajorProgramId]
+    () => resolveActiveSession(sessions, knownMajorProgramId)?.id ?? null,
+    [sessions, knownMajorProgramId]
   )
 
-  // The applicant's program's resolved FORM steps, with their field
-  // definitions (sandbox/dynamic-admission/API_CONTRACTS.md §3.3). Before a
-  // program is chosen this resolves the institution defaults.
+  // The applicant's resolved FORM steps, with their field definitions
+  // (sandbox/dynamic-admission/API_CONTRACTS.md §3.3). Before a major
+  // program (or, failing that, a program) is chosen this resolves the
+  // institution defaults. `majorProgramId` is sent ahead of the backend
+  // recognizing it (A22) — resolveClientSideSteps below is what actually
+  // makes a major-program-scoped FORM step (and its own fields) show up
+  // today.
   const { data: effectiveFormSteps } = useQuery({
     ...admissionStepsQueryOptions.effective(
       "FORM",
-      admissionStudent?.program_id ?? null
+      admissionStudent?.program_id ?? null,
+      knownMajorProgramId
     ),
     retry: false,
   })
@@ -182,13 +202,21 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
         configSteps: admissionConfig?.formSteps ?? [],
         effectiveSteps: effectiveFormSteps,
         programAlreadyChosen: !!admissionStudent?.has_selected_program,
+        programId: admissionStudent?.program_id ?? null,
+        majorProgramId: knownMajorProgramId,
       }),
     [
       admissionConfig,
       effectiveFormSteps,
       admissionStudent?.has_selected_program,
+      admissionStudent?.program_id,
+      knownMajorProgramId,
     ]
   )
+  // Genuinely nothing configured for this major program yet (not loading —
+  // see buildWizardSteps' own guard) — BACKEND_DEVIATIONS A23. The page
+  // should show an honest empty state instead of the wizard.
+  const isEmpty = !isLoading && steps.length === 0
   const fieldIndex = useMemo(() => buildFieldIndex(steps), [steps])
   const currentStep = steps.find((s) => s.id === currentStepId) ?? steps[0]
   const totalSteps = steps.length
@@ -684,6 +712,7 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
     completedSteps,
     fieldIndex,
     isLoading,
+    isEmpty,
     isSubmitting,
     submitStage: submitProgress.stage,
     submitPercent: submitProgress.percent,

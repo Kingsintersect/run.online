@@ -41,8 +41,14 @@ export function GenerationStatusPanel({
     )
   }
 
-  const percent =
-    data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0
+  // A QUEUED job's status response doesn't carry processed/total/failures
+  // yet (confirmed live 2026-09-15) — they only appear once it's actually
+  // RUNNING. Never assume they're there.
+  const processed = data.processed ?? 0
+  const total = data.total ?? 0
+  const failures = data.failures ?? 0
+  const hasCounts = data.processed !== undefined && data.total !== undefined
+  const percent = total > 0 ? Math.round((processed / total) * 100) : 0
 
   const statusIcon = {
     QUEUED: <Clock size={15} className="text-slate-500" />,
@@ -110,19 +116,27 @@ export function GenerationStatusPanel({
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          {data.processed.toLocaleString("en-NG")} /{" "}
-          {data.total.toLocaleString("en-NG")} invoices
-          {data.total > 0 && ` (${percent}%)`}
+          {hasCounts ? (
+            <>
+              {processed.toLocaleString("en-NG")} /{" "}
+              {total.toLocaleString("en-NG")} invoices
+              {total > 0 && ` (${percent}%)`}
+            </>
+          ) : data.eligibleStudentCount !== undefined ? (
+            `Waiting to start — ${data.eligibleStudentCount.toLocaleString("en-NG")} eligible`
+          ) : (
+            "Waiting to start…"
+          )}
         </p>
       </div>
 
       {/* Failure count */}
-      {data.failures > 0 && (
+      {failures > 0 && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
           <AlertTriangle size={13} className="mt-0.5 shrink-0" />
           <span>
-            <strong>{data.failures.toLocaleString("en-NG")}</strong> invoice
-            {data.failures !== 1 ? "s" : ""} failed to generate. Re-running
+            <strong>{failures.toLocaleString("en-NG")}</strong> invoice
+            {failures !== 1 ? "s" : ""} failed to generate. Re-running
             activation is safe — already-created invoices will be skipped.
           </span>
         </div>

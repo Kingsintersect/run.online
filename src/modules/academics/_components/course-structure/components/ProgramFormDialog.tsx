@@ -26,6 +26,7 @@ import {
 } from "@/hooks/useCourseStructure"
 import {
   resolveFacultyAcademicUnit,
+  resolveMajorProgramAcademicUnit,
   academicStructureKeys,
 } from "@/services/academicStructureApi"
 import { programSchema, type ProgramFormValues } from "@/schemas/school.schema"
@@ -38,6 +39,8 @@ interface ProgramFormDialogProps {
   departmentId?: number
   /** Attach the new program directly under this faculty (no department) — pass instead of departmentId. Ignored when editing. */
   faculty?: { id: number; name: string }
+  /** Attach the new program directly under this major program (no faculty, no department) — pass instead of departmentId/faculty. Ignored when editing. Mirrors the faculty-direct option above, one tier up — see academicStructureApi.ts's resolveMajorProgramAcademicUnit. */
+  majorProgram?: { id: number; name: string }
   program?: Program | null
 }
 
@@ -46,6 +49,7 @@ export function ProgramFormDialog({
   onClose,
   departmentId,
   faculty,
+  majorProgram,
   program,
 }: ProgramFormDialogProps) {
   const isEditing = !!program
@@ -95,10 +99,14 @@ export function ProgramFormDialog({
       admissionRequirements: program?.admissionRequirements ?? "",
       minCreditUnits: program?.minCreditUnits ?? 120,
       programCategory: program?.programCategory ?? "DEGREE",
-      majorProgramId: program?.majorProgramId ?? null,
+      // Creating directly under a major program defaults the administrative
+      // scope to match — a program placed there but scoped elsewhere would
+      // be a confusing contradiction — but it stays a normal, editable field
+      // (no lock), same as every other default in this form.
+      majorProgramId: program?.majorProgramId ?? majorProgram?.id ?? null,
       entryLevelId: program?.entryLevelId ?? null,
     })
-  }, [open, program, reset])
+  }, [open, program, majorProgram, reset])
 
   const onSubmit = async (values: ProgramFormValues) => {
     try {
@@ -112,6 +120,28 @@ export function ProgramFormDialog({
         // (not via useCreateAcademicUnit()), so it never triggers that hook's
         // own cache invalidation — do it here, otherwise a lazily-created
         // unit is invisible to useAcademicUnits() until a manual refetch.
+        await queryClient.invalidateQueries({
+          queryKey: academicStructureKeys.units.all,
+        })
+        setIsResolving(false)
+        await createProgram.mutateAsync({
+          ...values,
+          departmentId: null,
+          parentAcademicUnitId: unit.id,
+        })
+        toast.success("Program created")
+      } else if (majorProgram) {
+        // Same escape hatch as the faculty-direct branch above, one tier up
+        // — a program that belongs directly to a major program's own root
+        // node, with no faculty or department in between (matches how the
+        // real Moodle category tree already nests some programs directly
+        // under a major-program category, e.g. Natural Sciences under
+        // Part-Time Programmes).
+        setIsResolving(true)
+        const unit = await resolveMajorProgramAcademicUnit(
+          majorProgram.id,
+          majorProgram.name
+        )
         await queryClient.invalidateQueries({
           queryKey: academicStructureKeys.units.all,
         })
@@ -141,7 +171,9 @@ export function ProgramFormDialog({
       subtitle={
         !isEditing && faculty
           ? `e.g., B.Sc. Computer Science — attaches directly to ${faculty.name}, no department`
-          : "e.g., B.Sc. Computer Science (code: CSC-BSC)"
+          : !isEditing && majorProgram
+            ? `e.g., B.Sc. Computer Science — attaches directly to ${majorProgram.name}, no faculty or department`
+            : "e.g., B.Sc. Computer Science (code: CSC-BSC)"
       }
       size="md"
       footer={

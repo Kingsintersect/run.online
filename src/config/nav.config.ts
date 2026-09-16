@@ -634,65 +634,6 @@ const superAdminNav: NavGroup[] = [
     ],
   },
   {
-    label: "Synchronize LMS",
-    items: [
-      {
-        title: "Moodle Syncronizer",
-        icon: WifiSyncIcon,
-        children: [
-          {
-            title: "Overview",
-            href: "/admin/moodle-sync",
-            matchExactOnly: true,
-            icon: WifiSyncIcon,
-          },
-          {
-            title: "Categories",
-            href: "/admin/moodle-sync/categories",
-            matchExactOnly: true,
-            icon: Building2,
-          },
-          {
-            title: "Users",
-            href: "/admin/moodle-sync/users",
-            matchExactOnly: true,
-            icon: Users,
-          },
-          {
-            title: "Courses",
-            href: "/admin/moodle-sync/courses",
-            matchExactOnly: true,
-            icon: BookOpen,
-          },
-          {
-            title: "Enrollments",
-            href: "/admin/moodle-sync/enrollments",
-            matchExactOnly: true,
-            icon: Link2,
-          },
-          {
-            title: "Assessments",
-            href: "/admin/moodle-sync/assessments",
-            matchExactOnly: true,
-            icon: ClipboardList,
-          },
-          {
-            title: "Grades",
-            href: "/admin/moodle-sync/grades",
-            matchExactOnly: true,
-            icon: Award,
-          },
-          {
-            title: "Calendar & Zoom",
-            href: "/admin/moodle-sync/calendar",
-            matchExactOnly: true,
-            icon: CalendarDays,
-          },
-        ],
-      },
-    ],
-  },
-  {
     label: "Academics",
     items: [
       {
@@ -766,6 +707,65 @@ const superAdminNav: NavGroup[] = [
         href: "/admin/enrollment",
         matchExactOnly: true,
         icon: UserCheck,
+      },
+    ],
+  },
+  {
+    label: "Synchronize LMS",
+    items: [
+      {
+        title: "Moodle Syncronizer",
+        icon: WifiSyncIcon,
+        children: [
+          {
+            title: "Overview",
+            href: "/admin/moodle-sync",
+            matchExactOnly: true,
+            icon: WifiSyncIcon,
+          },
+          {
+            title: "Categories",
+            href: "/admin/moodle-sync/categories",
+            matchExactOnly: true,
+            icon: Building2,
+          },
+          {
+            title: "Users",
+            href: "/admin/moodle-sync/users",
+            matchExactOnly: true,
+            icon: Users,
+          },
+          {
+            title: "Courses",
+            href: "/admin/moodle-sync/courses",
+            matchExactOnly: true,
+            icon: BookOpen,
+          },
+          {
+            title: "Enrollments",
+            href: "/admin/moodle-sync/enrollments",
+            matchExactOnly: true,
+            icon: Link2,
+          },
+          {
+            title: "Assessments",
+            href: "/admin/moodle-sync/assessments",
+            matchExactOnly: true,
+            icon: ClipboardList,
+          },
+          {
+            title: "Grades",
+            href: "/admin/moodle-sync/grades",
+            matchExactOnly: true,
+            icon: Award,
+          },
+          {
+            title: "Calendar & Zoom",
+            href: "/admin/moodle-sync/calendar",
+            matchExactOnly: true,
+            icon: CalendarDays,
+          },
+        ],
       },
     ],
   },

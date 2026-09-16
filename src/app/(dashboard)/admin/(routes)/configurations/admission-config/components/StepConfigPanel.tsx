@@ -4,9 +4,11 @@ import { motion } from "framer-motion"
 import type { LucideIcon } from "lucide-react"
 import {
   AlertTriangle,
+  ArrowRightLeft,
   ChevronDown,
   ChevronUp,
   CopyPlus,
+  FolderInput,
   ListTree,
   Lock,
   Pencil,
@@ -42,6 +44,15 @@ interface StepConfigPanelProps {
   onReorder?: (step: AdmissionStepDefinition, direction: "up" | "down") => void
   /** Copies an inherited step into the scope being edited. */
   onCustomise: (step: AdmissionStepDefinition) => void
+  /** Major-Program Scoping — moves an own step to a different major program.
+   *  Only passed when this panel is showing a major-program tab. */
+  onMove?: (step: AdmissionStepDefinition) => void
+  /** Major-Program Scoping — opens the "Add from Catalog" picker (multi-
+   *  select import from the institution-default catalog). Only passed when
+   *  this panel is showing a major-program tab — see BACKEND_DEVIATIONS
+   *  A23. Major-program tabs never show "Customise here" (nothing is
+   *  inherited there anymore), so this is how steps get into one. */
+  onAddFromCatalog?: () => void
   disabled?: boolean
   /** FORM-group panel only — opens the field composer for a step. See
    *  sandbox/multi-program-platform/ §B. */
@@ -76,6 +87,8 @@ export default function StepConfigPanel({
   onAdd,
   onReorder,
   onCustomise,
+  onMove,
+  onAddFromCatalog,
   onManageFields,
   disabled,
 }: StepConfigPanelProps) {
@@ -99,14 +112,26 @@ export default function StepConfigPanel({
           <Badge variant="outline" className="border-success/30 text-success">
             {enabledCount}/{rows.length} on
           </Badge>
+          {onAddFromCatalog && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={onAddFromCatalog}
+              disabled={disabled}
+            >
+              <FolderInput className="size-3.5" />
+              Add from Catalog
+            </Button>
+          )}
           {canAdd && (
             <Button
               size="icon-sm"
               variant="outline"
               onClick={onAdd}
               disabled={disabled}
-              title="Add step"
-              aria-label={`Add a step to ${title}`}
+              title="Create a brand-new step"
+              aria-label={`Create a brand-new step for ${title}`}
             >
               <Plus className="size-3.5" />
             </Button>
@@ -114,13 +139,32 @@ export default function StepConfigPanel({
         </div>
       </div>
 
+      {rows.length === 0 && onAddFromCatalog && (
+        <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
+          <FolderInput className="size-6 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Nothing here yet — this major program starts empty.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-1 gap-1.5 text-xs"
+            onClick={onAddFromCatalog}
+            disabled={disabled}
+          >
+            <FolderInput className="size-3.5" />
+            Add from Catalog
+          </Button>
+        </div>
+      )}
+
       <motion.ul
         variants={listVariants}
         initial="hidden"
         animate="show"
         className="divide-y divide-border"
       >
-        {rows.map(({ step, origin, own, overrides, offButStillShown }, idx) => {
+        {rows.map(({ step, origin, own, overrides }, idx) => {
           const Icon = getStepIcon(step.icon)
           const isOn = step.enabled || step.required
           const isCustom = !knownKeys.has(step.key)
@@ -205,11 +249,11 @@ export default function StepConfigPanel({
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {step.description}
                 </p>
-                {own && offButStillShown && (
-                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                {own && !isOn && overrides && (
+                  <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
                     <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-                    Off here, but applicants still see the inherited version —
-                    the backend doesn&apos;t hide inherited steps yet.
+                    Off here — applicants in this scope won&apos;t see this
+                    step, even though the institution default still uses it.
                   </p>
                 )}
               </div>
@@ -250,6 +294,18 @@ export default function StepConfigPanel({
                         aria-label={`Manage fields for ${step.label}`}
                       >
                         <ListTree className="size-3.5" />
+                      </Button>
+                    )}
+                    {onMove && (
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => onMove(step)}
+                        disabled={disabled}
+                        title="Move to another major program"
+                        aria-label={`Move ${step.label} to another major program`}
+                      >
+                        <ArrowRightLeft className="size-3.5" />
                       </Button>
                     )}
                     <Button

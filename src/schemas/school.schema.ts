@@ -228,6 +228,7 @@ export const facultySchema = z.object({
   deanUserId: z.number().int().positive().optional(),
   email: z.string().email("Must be a valid email").or(z.literal("")).optional(),
   phoneNumber: z.string().optional(),
+  majorProgramId: z.number().int().positive().nullable().optional(),
 })
 
 export type FacultyFormValues = z.infer<typeof facultySchema>

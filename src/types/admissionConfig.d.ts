@@ -122,11 +122,22 @@ export interface AdmissionStepDefinition {
   /** Display/navigation order within its group, ascending. */
   order: number
   // ── Multi-Program Platform scoping ──────────────────────────────────
-  // null on both = institution-wide default. Only meaningful on the raw
+  // null on all three = institution-wide default. Only meaningful on the raw
   // admin-management list (GET /admissions/config/steps); the resolved
   // `effective` endpoint's rows omit these — see EffectiveAdmissionStep.
   programCategory?: ProgramCategory | null
   programId?: number | null
+  // Major-Program Scoping (sandbox/major-program-scoping/,
+  // sandbox/dynamic-admission/ addendum) — BACKEND_DEVIATIONS A22, new
+  // 2026-09-15. The primary scoping axis for admission configuration going
+  // forward: an admin picks one major program and configures its own
+  // process/form steps (and, via each FORM step, its own fields), applying
+  // to every applicant who chose that major program via the
+  // MAJOR_PROGRAM_CHOICE stage. Resolution priority, most specific first:
+  // programId > majorProgramId > programCategory > default (unchanged —
+  // additive, not a replacement for the other two, which stay real for any
+  // deployment that already uses them).
+  majorProgramId?: number | null
   // FORM-group steps only — the field registry that replaced fixed Zod
   // schemas per step. Absent/empty on the raw admin list unless expanded;
   // always present (possibly []) on the `effective` resolution.
@@ -179,6 +190,7 @@ export interface CreateAdmissionStepPayload {
   /** Omit/null = institution-wide default — see AdmissionStepDefinition above. */
   programCategory?: ProgramCategory | null
   programId?: number | null
+  majorProgramId?: number | null
   /** PROCESS only; immutable after creation. */
   type?: StageType | null
   config?: StageConfig | null

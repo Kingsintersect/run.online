@@ -9,7 +9,9 @@ import {
   useCreateSession,
   useUpdateSession,
   useActivateSession,
+  useDeleteSession,
 } from "@/hooks/useAcademicSessions"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useSessionDetail } from "@/modules/timetable/hooks/useAcademicCalendar"
 import Modal from "@/components/custom/Modal"
@@ -51,6 +53,7 @@ import {
   Loader2,
   Layers,
   Building2,
+  Trash2,
 } from "lucide-react"
 
 // A "date" input needs exactly YYYY-MM-DD; the API returns a full ISO
@@ -77,6 +80,7 @@ export function AcademicSessionManager({
   const createSession = useCreateSession()
   const updateSession = useUpdateSession()
   const activateSession = useActivateSession()
+  const deleteSession = useDeleteSession()
 
   const { setSelectedSession, setCurrentStep } = useAcademicSessionSetupStore()
 
@@ -87,6 +91,8 @@ export function AcademicSessionManager({
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [detailSessionId, setDetailSessionId] = useState<number | null>(null)
   const [sessionFilter, setSessionFilter] = useState<number | null>(null)
+  const [deletingSession, setDeletingSession] =
+    useState<AcademicSession | null>(null)
   const {
     register,
     handleSubmit,
@@ -117,23 +123,34 @@ export function AcademicSessionManager({
   }
 
   const onSubmit = async (data: AcademicSessionFormValues) => {
-    if (editingSession) {
-      await updateSession.mutateAsync({ id: editingSession.id, payload: data })
-      toast.success("Session updated")
+    try {
+      if (editingSession) {
+        await updateSession.mutateAsync({
+          id: editingSession.id,
+          payload: data,
+        })
+        toast.success("Session updated")
+        closeForm()
+        return
+      }
+      await createSession.mutateAsync(data)
+      toast.success("Session created")
       closeForm()
-      return
+      // Land back on "All" so the session just created is visible alongside
+      // every other one, not hidden behind whichever tab happened to be
+      // active — it was easy to read that as "the new session displaced the
+      // others" when really the (still-engaged) filter was just narrower than
+      // expected. A reload used to "fix" this only because the filter is
+      // local state that resets on remount; now creating does the same thing
+      // without needing one.
+      setSessionFilter(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : `Couldn't ${editingSession ? "update" : "create"} this session`
+      )
     }
-    await createSession.mutateAsync(data)
-    toast.success("Session created")
-    closeForm()
-    // Land back on "All" so the session just created is visible alongside
-    // every other one, not hidden behind whichever tab happened to be
-    // active — it was easy to read that as "the new session displaced the
-    // others" when really the (still-engaged) filter was just narrower than
-    // expected. A reload used to "fix" this only because the filter is
-    // local state that resets on remount; now creating does the same thing
-    // without needing one.
-    setSessionFilter(null)
   }
 
   const openCreateForm = () => {
@@ -177,11 +194,30 @@ export function AcademicSessionManager({
         toast.success(`${session.name} activated`)
       }
     } catch (err) {
+      const action = session.isActive ? "deactivate" : "activate"
       toast.error(
-        err instanceof Error ? err.message : "Couldn't update this session"
+        `Couldn't ${action} "${session.name}"${err instanceof Error ? `: ${err.message}` : ""}`
       )
     } finally {
       setTogglingId(null)
+    }
+  }
+
+  // Safe delete only (BACKEND_DEVIATIONS A11) — the backend 409s with
+  // SESSION_IN_USE and names every blocking table if anything still
+  // references this session, so the error is shown as-is rather than
+  // re-worded.
+  const handleDeleteSession = async () => {
+    if (!deletingSession) return
+    const session = deletingSession
+    try {
+      await deleteSession.mutateAsync(session.id)
+      toast.success(`${session.name} deleted`)
+      setDeletingSession(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : `Couldn't delete "${session.name}"`
+      )
     }
   }
 
@@ -469,6 +505,16 @@ export function AcademicSessionManager({
                       )}
                     </Button>
                   )}
+                  {canManage && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDeletingSession(session)}
+                      title="Delete session"
+                    >
+                      <Trash2 className="size-4 text-destructive" />
+                    </Button>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
@@ -488,6 +534,20 @@ export function AcademicSessionManager({
       <SessionSemestersModal
         sessionId={detailSessionId}
         onClose={() => setDetailSessionId(null)}
+      />
+
+      <ConfirmDialog
+        open={deletingSession !== null}
+        onOpenChange={(open) => !open && setDeletingSession(null)}
+        onConfirm={handleDeleteSession}
+        title="Delete academic session?"
+        description={
+          deletingSession
+            ? `This permanently deletes "${deletingSession.name}". It only succeeds if nothing else references it yet (semesters, offerings, admissions, fees, enrollments, etc.) — otherwise the server will refuse and name what's still attached.`
+            : ""
+        }
+        confirmLabel={deleteSession.isPending ? "Deleting…" : "Delete"}
+        variant="destructive"
       />
     </div>
   )

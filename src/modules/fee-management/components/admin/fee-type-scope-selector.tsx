@@ -26,6 +26,17 @@ import type { CreateFeeTypeInputValues, FeeCategory } from "../../types"
 // application fee vs. an Undergraduate one) is a completely normal case, so
 // Eligibility Scope applies to every category, not a subset of them.
 const COHORT_CATEGORIES: FeeCategory[] = ["TUITION", "HOSTEL", "CLEARANCE"]
+// Every field here stays a real, live choice for every category — the
+// super admin decides the scope, not the frontend. The backend currently
+// 422s a majorProgramId/programId on APPLICATION/ACCEPTANCE (bruno/fee/
+// Fee Types - Create.bru, confirmed 2026-09-15) and this has been flagged
+// to backend as a policy-change request (BACKEND_DEVIATIONS Part E1) — but
+// that's a live backend constraint to surface honestly if it's hit, not a
+// reason to pre-emptively disable the choice here.
+const MAJOR_PROGRAM_ADVISORY_CATEGORIES: FeeCategory[] = [
+  "APPLICATION",
+  "ACCEPTANCE",
+]
 
 // Sentinel value for "no selection" in optional selects
 const NONE = "_NONE_" as const
@@ -49,6 +60,10 @@ export function FeeTypeScopeSelector() {
   const isCohortCategory = !!category && COHORT_CATEGORIES.includes(category)
   const showScopeFields = !!category
   const sessionRequired = isCohortCategory
+  const showMajorProgramAdvisory =
+    !!category &&
+    MAJOR_PROGRAM_ADVISORY_CATEGORIES.includes(category) &&
+    (majorProgramId != null || programId != null)
 
   const { data: sessions, isLoading: loadingSessions } = useAcademicSessions()
   const { data: programsData, isLoading: loadingPrograms } = useQuery(
@@ -197,12 +212,14 @@ export function FeeTypeScopeSelector() {
                   ))}
                 </SelectContent>
               </Select>
-              {majorProgramId && !programId && (
+              {showMajorProgramAdvisory && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Backend support for scoping a fee to a whole major program is
-                  pending (sandbox/major-program-scoping A12) — until it ships,
-                  this fee will apply to every student unless you also pick a
-                  specific Program below.
+                  Heads up: the backend currently rejects a Major Program or
+                  Program on{" "}
+                  {category === "APPLICATION" ? "Application" : "Acceptance"}{" "}
+                  fees (confirmed 2026-09-15) — this has been raised with the
+                  backend team to change. Try saving; if it 422s, that request
+                  hasn&apos;t shipped yet.
                 </p>
               )}
             </div>

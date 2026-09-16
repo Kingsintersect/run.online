@@ -61,3 +61,16 @@ export function useActivateSession() {
     },
   })
 }
+
+export function useDeleteSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...feeManagementMutationOptions.deleteSession(),
+    onSuccess: async (_data, id) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: feeManagementKeys.sessions() }),
+        qc.invalidateQueries({ queryKey: feeManagementKeys.sessionDetail(id) }),
+      ])
+    },
+  })
+}

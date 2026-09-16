@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select"
 import Combobox, { type ComboboxOption } from "@/components/custom/Combobox"
 import {
+  useAcademicUnits,
   useCreateAcademicUnit,
   useUnitTypes,
   useUpdateAcademicUnit,
@@ -29,6 +30,10 @@ import {
 } from "@/hooks/useCourseStructure"
 import { semesterApi } from "@/services/feeManagementApi"
 import type { AcademicUnit, AcademicUnitLinkKind } from "@/types/school"
+
+// Sentinel for "no parent (root node)" in the re-parent Combobox, which
+// only deals in string | number values, never null.
+const ROOT_SENTINEL = "_ROOT_"
 
 interface AcademicUnitFormDialogProps {
   open: boolean
@@ -109,8 +114,52 @@ function FormBody({
   const [linkEntityId, setLinkEntityId] = useState<number | null>(
     unit?.linkedEntity?.id ?? null
   )
+  // Re-parenting — editing only. Moving a node was previously impossible
+  // once created (this form only ever sent name/sortOrder), which is a big
+  // part of why the tree pulled in from Moodle ends up scattered: a
+  // "resolve" that lands a category at the root has no way to be fixed
+  // afterward except deleting and recreating it.
+  const [parentId, setParentId] = useState<number | null>(
+    unit?.parentId ?? parent?.id ?? null
+  )
+  const parentComboboxValue = parentId ?? ROOT_SENTINEL
+  const { data: allUnitsData } = useAcademicUnits(undefined, {
+    enabled: isEditing,
+  })
 
   const entityKind = LINKABLE_TYPE_CODES[typeCode]
+
+  // A node can't become its own parent, nor a descendant of itself (that
+  // would create a cycle) — walk the flat list to exclude the unit and
+  // everything under it from the picker.
+  const parentOptions: ComboboxOption[] = useMemo(() => {
+    if (!isEditing || !unit) return []
+    const all = allUnitsData?.data ?? []
+    const excluded = new Set<number>([unit.id])
+    let added = true
+    while (added) {
+      added = false
+      for (const u of all) {
+        if (
+          u.parentId != null &&
+          excluded.has(u.parentId) &&
+          !excluded.has(u.id)
+        ) {
+          excluded.add(u.id)
+          added = true
+        }
+      }
+    }
+    return [
+      {
+        value: ROOT_SENTINEL,
+        label: "— No parent (root node) —",
+      },
+      ...all
+        .filter((u) => !excluded.has(u.id))
+        .map((u) => ({ value: u.id, label: u.name, description: u.typeCode })),
+    ]
+  }, [isEditing, unit, allUnitsData])
 
   const { data: facultiesData } = useFaculties()
   const { data: departmentsData } = useAllDepartments()
@@ -177,7 +226,7 @@ function FormBody({
       if (isEditing && unit) {
         await updateUnit.mutateAsync({
           id: unit.id,
-          payload: { name: name.trim(), sortOrder },
+          payload: { name: name.trim(), sortOrder, parentId },
         })
         toast.success("Node updated")
       } else {
@@ -235,6 +284,24 @@ function FormBody({
           placeholder="Senior Secondary"
         />
       </div>
+
+      {isEditing && (
+        <div className="space-y-1.5">
+          <Label>Parent Node</Label>
+          <Combobox
+            options={parentOptions}
+            value={parentComboboxValue}
+            onChange={(v) =>
+              setParentId(v === ROOT_SENTINEL ? null : Number(v))
+            }
+            placeholder="Select a parent…"
+          />
+          <p className="text-xs text-muted-foreground">
+            Move this node under a different parent, or clear it to make it a
+            root node.
+          </p>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="unit-sort">Sort Order</Label>

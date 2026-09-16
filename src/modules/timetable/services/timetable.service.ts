@@ -353,11 +353,19 @@ export const timetableService = {
     return { message: "Schedule deleted." }
   },
 
+  // Moved 2026-09-14 (Exam Timetable) — /timetable/venues is now the
+  // capacity-aware Venue entity's own CRUD (see exam-timetable.service.ts);
+  // this free-text ClassSchedule.venue name autocomplete moved to
+  // /timetable/venues/names to make room for it (bruno/timetable/
+  // Venues - List.bru).
   async getVenues(semesterId?: number): Promise<string[]> {
-    const res = await apiClient.get<{ data: string[] }>("/timetable/venues", {
-      ...AUTH,
-      params: { semesterId },
-    })
+    const res = await apiClient.get<{ data: string[] }>(
+      "/timetable/venues/names",
+      {
+        ...AUTH,
+        params: { semesterId },
+      }
+    )
     return res.data
   },
 

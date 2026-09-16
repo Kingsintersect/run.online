@@ -38,6 +38,7 @@ export default function ProcessAdmissionPage() {
     acknowledge,
     isAcknowledging,
     chooseMajorProgram,
+    isChoosingMajorProgram,
     uploadDocument,
     removeDocument,
     isChangingDocuments,
@@ -71,7 +72,7 @@ export default function ProcessAdmissionPage() {
             {...sectionProps}
             majorProgramOptions={majorProgramOptions}
             onChoose={chooseMajorProgram}
-            isSubmitting={false}
+            isSubmitting={isChoosingMajorProgram}
           />
         )
       case "PROGRAM_CHOICE":

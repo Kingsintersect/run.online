@@ -15,6 +15,7 @@ import {
   type FormDefaultValues,
 } from "../types/form-types"
 import { isEmptyValue, validateFieldValue } from "./dynamic-field-schema"
+import { resolveClientSideSteps } from "@/app/(admission)/lib/admission-stages"
 
 /* ------------------------------------------------------------------ */
 /*  Dynamic application form — sandbox/dynamic-admission/              */
@@ -139,6 +140,8 @@ export function buildWizardSteps({
   configSteps,
   effectiveSteps,
   programAlreadyChosen,
+  programId = null,
+  majorProgramId = null,
 }: {
   /** Raw registry rows (all scopes). Used only when the effective list isn't available. */
   configSteps: AdmissionStepDefinition[]
@@ -146,16 +149,23 @@ export function buildWizardSteps({
   effectiveSteps: EffectiveAdmissionStep[] | undefined
   /** PROGRAM_SELECTION is skipped once the "Choice Program" stage recorded a choice. */
   programAlreadyChosen: boolean
+  /**
+   * Only used for the `configSteps` fallback branch, to resolve the same
+   * way the server's `/effective` endpoint would (programId > majorProgramId
+   * > default — see resolveClientSideSteps). Major-Program Scoping
+   * (BACKEND_DEVIATIONS A22) — this is what makes a major-program-scoped
+   * FORM step's own fields show up before the backend recognizes
+   * `majorProgramId` as a resolution param.
+   */
+  programId?: number | null
+  majorProgramId?: number | null
 }): WizardStep[] {
   const source: SourceStep[] =
     effectiveSteps && effectiveSteps.length > 0
       ? effectiveSteps.map((s) => ({ ...s, fields: s.fields ?? [] }))
-      : configSteps
-          .filter(
-            (s) =>
-              !s.programId && !s.programCategory && (s.enabled || s.required)
-          )
-          .map((s) => ({ ...s, fields: s.fields ?? [] }))
+      : resolveClientSideSteps(configSteps, programId, majorProgramId).map(
+          (s) => ({ ...s, fields: s.fields ?? [] })
+        )
 
   const reviewRow = source.find((s) => s.key === REVIEW_STEP_ID)
   const reviewDef = FORM_STEPS.find((s) => s.id === FormStep.REVIEW)
@@ -170,6 +180,23 @@ export function buildWizardSteps({
     icon: reviewRow
       ? getStepIcon(reviewRow.icon)
       : (reviewDef?.icon ?? CheckCircle),
+  }
+
+  // Genuinely nothing for this major program — not a loading state, a real
+  // resolution that came back empty (BACKEND_DEVIATIONS A23: a major
+  // program with nothing adopted via "Add from Catalog" has no fallback to
+  // fall through to anymore). Distinguished from "registry not loaded /
+  // unreachable" below by whether majorProgramId is actually known — an
+  // empty result before that choice is still ambiguous (could be a slow
+  // fetch), so it keeps the legacy fallback for now. An empty array (no
+  // steps, not even Review) is the caller's signal to show an honest empty
+  // state instead of silently rendering the shared default form — found in
+  // review 2026-09-15: this branch used to serve the old hardcoded
+  // multi-step form to every applicant whose major program hadn't been
+  // populated yet, which is exactly the shared-default behavior A23 was
+  // written to eliminate.
+  if (source.length === 0 && majorProgramId != null) {
+    return []
   }
 
   // No registry at all (not loaded / unreachable) — today's fixed flow.
@@ -214,6 +241,13 @@ export function buildWizardSteps({
   ) {
     steps.push(legacyStep(FormStep.PROGRAM_SELECTION))
   }
+
+  // A resolved-but-fully-filtered-away list (e.g. every adopted step was a
+  // custom one with no fields yet) would otherwise return a lone "Review &
+  // Submit" with nothing behind it — a dead end with nothing to review and
+  // no step to route validation errors to. Same empty-state signal as the
+  // genuinely-nothing-adopted case above.
+  if (steps.length === 0) return []
 
   return [...steps, review]
 }

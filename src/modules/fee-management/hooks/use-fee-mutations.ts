@@ -12,7 +12,7 @@ export function useCreateFeeType() {
     mutationFn: (dto: CreateFeeTypeDto) =>
       feeManagementService.createFeeType(dto),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: feeKeys.feeTypes() })
+      qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
       toast.success("Fee type created")
     },
     onError: (err) => {
@@ -30,7 +30,7 @@ export function useUpdateFeeType() {
       feeManagementService.updateFeeType(id, dto),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: feeKeys.feeType(id) })
-      qc.invalidateQueries({ queryKey: feeKeys.feeTypes() })
+      qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
       toast.success("Fee type updated")
     },
     onError: (err) => {
@@ -46,7 +46,7 @@ export function useDeleteFeeType() {
   return useMutation({
     mutationFn: (id: number) => feeManagementService.deleteFeeType(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: feeKeys.feeTypes() })
+      qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
       toast.success("Fee type deleted")
     },
     onError: (err) => {
@@ -64,7 +64,7 @@ export function useActivateFeeType() {
     onSuccess: (_data, id) => {
       // Invalidate the fee type record — polling in useGenerationStatus handles progress
       qc.invalidateQueries({ queryKey: feeKeys.feeType(id) })
-      qc.invalidateQueries({ queryKey: feeKeys.feeTypes() })
+      qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
       toast.success("Fee type activated — invoice generation queued")
     },
     onError: (err) => {
@@ -81,7 +81,7 @@ export function useDeactivateFeeType() {
     mutationFn: (id: number) => feeManagementService.deactivateFeeType(id),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: feeKeys.feeType(id) })
-      qc.invalidateQueries({ queryKey: feeKeys.feeTypes() })
+      qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
       toast.success("Fee type deactivated")
     },
     onError: (err) => {
@@ -101,7 +101,7 @@ export function useWaiveInvoice() {
       feeManagementService.waiveInvoice(id, reason),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: feeKeys.invoice(id) })
-      qc.invalidateQueries({ queryKey: feeKeys.invoices() })
+      qc.invalidateQueries({ queryKey: feeKeys.invoicesAll() })
       toast.success("Invoice waived")
     },
     onError: (err) => {
@@ -118,7 +118,7 @@ export function useCancelInvoice() {
     mutationFn: (id: number) => feeManagementService.cancelInvoice(id),
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: feeKeys.invoice(id) })
-      qc.invalidateQueries({ queryKey: feeKeys.invoices() })
+      qc.invalidateQueries({ queryKey: feeKeys.invoicesAll() })
       toast.success("Invoice cancelled")
     },
     onError: (err) => {

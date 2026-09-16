@@ -4,7 +4,15 @@ import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
-import { Building, Link2, Loader2, Pencil, Plus, Power } from "lucide-react"
+import {
+  Building,
+  GraduationCap,
+  Link2,
+  Loader2,
+  Pencil,
+  Plus,
+  Power,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import StatusBadge from "@/components/custom/StatusBadge"
@@ -17,9 +25,11 @@ import {
   academicStructureKeys,
   resolveMajorProgramAcademicUnit,
 } from "@/services/academicStructureApi"
+import { courseStructureKeys } from "@/services/courseStructureApi"
 import { EmptyState } from "./EmptyState"
 import { MajorProgramFormDialog } from "./MajorProgramFormDialog"
-import type { MajorProgram } from "@/types/school"
+import { ProgramFormDialog } from "./ProgramFormDialog"
+import type { MajorProgram, Program } from "@/types/school"
 
 // Major Programs — sandbox/major-program-scoping/. Management of
 // this entity is an institution-level decision (per README.md §4.A — only
@@ -40,6 +50,16 @@ export function MajorProgramsPanel({
   )
   const queryClient = useQueryClient()
   const [linkingId, setLinkingId] = useState<number | null>(null)
+  // Add a program directly under a major program — no faculty, no
+  // department (mirrors FacultiesPanel's "direct program" option one tier
+  // up). `target` carries which major program the dialog is currently
+  // scoped to; `editingDirectProgram` follows FacultiesPanel's own
+  // open/create convention (undefined = closed, null = create).
+  const [directProgramTarget, setDirectProgramTarget] =
+    useState<MajorProgram | null>(null)
+  const [editingDirectProgram, setEditingDirectProgram] = useState<
+    Program | null | undefined
+  >(undefined)
 
   // Which major programs already have a root node in the Moodle-sync
   // structure tree — see resolveMajorProgramAcademicUnit's note.
@@ -59,10 +79,23 @@ export function MajorProgramsPanel({
     const nextActive = !mp.isActive
     setTogglingId(mp.id)
     try {
-      await updateMajorProgram.mutateAsync({
+      const res = await updateMajorProgram.mutateAsync({
         id: mp.id,
         payload: { isActive: nextActive },
       })
+      // Patch the list cache with the mutation's own response immediately
+      // — same reasoning as the Faculty/Department/Program toggles.
+      queryClient.setQueryData<{ data: MajorProgram[] } | undefined>(
+        courseStructureKeys.majorPrograms.list(),
+        (old) =>
+          old
+            ? {
+                data: old.data.map((m) =>
+                  m.id === mp.id ? { ...m, ...res.data } : m
+                ),
+              }
+            : old
+      )
       toast.success(`${mp.name} ${nextActive ? "activated" : "deactivated"}`)
     } catch (err) {
       toast.error(
@@ -151,7 +184,7 @@ export function MajorProgramsPanel({
               <Card>
                 <CardContent className="pt-6">
                   <div className="mb-3 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <Building size={16} />
                       </div>
@@ -168,6 +201,7 @@ export function MajorProgramsPanel({
                       label={mp.isActive ? "Active" : "Inactive"}
                       variant={mp.isActive ? "success" : "destructive"}
                       dot
+                      className="shrink-0"
                     />
                   </div>
                   {mp.description && (
@@ -206,6 +240,23 @@ export function MajorProgramsPanel({
                         Link to Moodle structure
                       </Button>
                     )
+                  )}
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mb-1 h-auto px-0 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setDirectProgramTarget(mp)
+                        setEditingDirectProgram(null)
+                      }}
+                    >
+                      <GraduationCap
+                        className="size-3"
+                        data-icon="inline-start"
+                      />
+                      Add program directly here
+                    </Button>
                   )}
                   {canManage && (
                     <div className="mt-2 flex items-center gap-2">
@@ -260,6 +311,16 @@ export function MajorProgramsPanel({
         open={editing !== undefined}
         onClose={() => setEditing(undefined)}
         majorProgram={editing}
+      />
+      <ProgramFormDialog
+        open={editingDirectProgram !== undefined}
+        onClose={() => setEditingDirectProgram(undefined)}
+        majorProgram={
+          directProgramTarget
+            ? { id: directProgramTarget.id, name: directProgramTarget.name }
+            : undefined
+        }
+        program={editingDirectProgram}
       />
     </div>
   )

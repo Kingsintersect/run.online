@@ -34,8 +34,10 @@ export interface StageTypeDefinition<T extends StageType = StageType> {
    * config-only addition like FeeType.majorProgramId, an unrecognized stage
    * type is rejected outright — POST /admissions/config/steps 422s with
    * "The selected type is invalid.") — see BACKEND_DEVIATIONS_2026-09-14.md
-   * A16. Disabled in the type picker until the backend ships it, rather than
-   * letting an admin hit that error.
+   * A16. Per the no-institutional-locks policy, this only labels the type
+   * picker option "(may 422 — pending backend support)" — it does not
+   * disable it (StepFormModal.tsx); the real error surfaces on save if it's
+   * still not recognized.
    */
   pendingBackend?: boolean
 }
@@ -50,7 +52,10 @@ export const STAGE_TYPE_CATALOG: { [K in StageType]: StageTypeDefinition<K> } =
       icon: "Building2",
       multiple: false,
       defaultConfig: {},
-      pendingBackend: true,
+      // Confirmed live 2026-09-15 — the backend now recognizes this type
+      // (BACKEND_DEVIATIONS A16) and validates its own sequence rules
+      // (MAJOR_PROGRAM_CHOICE_NOT_FIRST, PROGRAM_CHOICE_BEFORE_MAJOR_
+      // PROGRAM_CHOICE), confirmed via a live 422 that named them by code.
     },
     PROGRAM_CHOICE: {
       type: "PROGRAM_CHOICE",
@@ -196,6 +201,76 @@ export function defaultStageConfig<T extends StageType>(
 ): StageConfigByType[T] {
   return structuredClone(STAGE_TYPE_CATALOG[type].defaultConfig)
 }
+
+// ── Sequence rules — sandbox/dynamic-sequence-rules/ ───────────────────
+//
+// The 6 Precedence rules INVALID_STAGE_SEQUENCE enforces (mirrored in
+// stage-sequence.ts's validateStageSequence) can be toggled per scope once
+// the backend ships GET/PATCH /admissions/config/sequence-rules (approved
+// design, not live yet — admissionStepsApi.ts's sequenceRules() falls back
+// to every rule enabled, matching today's hardcoded behavior, until then).
+// The 3 Integrity rules (MISSING_TYPE, MULTIPLE_{TYPE}, MISSING_COMPLETE)
+// are deliberately NOT here — approved to stay permanently enforced, never
+// toggleable, so there's nothing to catalog for them.
+
+export type PrecedenceRuleCode =
+  | "COMPLETE_MUST_BE_LAST"
+  | "FORM_AFTER_PROGRAM_CHOICE"
+  | "PROGRAM_CHOICE_AFTER_MAJOR_PROGRAM_CHOICE"
+  | "MAJOR_PROGRAM_CHOICE_MUST_BE_FIRST"
+  | "ACCEPTANCE_PAYMENT_AFTER_DECISION"
+  | "TUITION_PAYMENT_AFTER_DECISION"
+
+export interface SequenceRuleDefinition {
+  code: PrecedenceRuleCode
+  label: string
+  description: string
+}
+
+export const SEQUENCE_RULE_CATALOG: Record<
+  PrecedenceRuleCode,
+  SequenceRuleDefinition
+> = {
+  MAJOR_PROGRAM_CHOICE_MUST_BE_FIRST: {
+    code: "MAJOR_PROGRAM_CHOICE_MUST_BE_FIRST",
+    label: "Major Program Choice must be the first stage",
+    description:
+      "Every later stage depends on knowing which major program applies.",
+  },
+  PROGRAM_CHOICE_AFTER_MAJOR_PROGRAM_CHOICE: {
+    code: "PROGRAM_CHOICE_AFTER_MAJOR_PROGRAM_CHOICE",
+    label: "Program choice must come after the major program choice",
+    description:
+      "The program picker needs to know which major program applies before it can narrow to that major program's programs.",
+  },
+  FORM_AFTER_PROGRAM_CHOICE: {
+    code: "FORM_AFTER_PROGRAM_CHOICE",
+    label: "Application form must come after the program choice",
+    description:
+      "Applicants shouldn't fill in the form before they've chosen a program.",
+  },
+  ACCEPTANCE_PAYMENT_AFTER_DECISION: {
+    code: "ACCEPTANCE_PAYMENT_AFTER_DECISION",
+    label: "Acceptance payment must come after the admission decision",
+    description:
+      "An applicant can't be asked to pay the acceptance fee before they've received a decision.",
+  },
+  TUITION_PAYMENT_AFTER_DECISION: {
+    code: "TUITION_PAYMENT_AFTER_DECISION",
+    label: "Tuition payment must come after the admission decision",
+    description:
+      "An applicant can't be asked to pay tuition before they've received a decision.",
+  },
+  COMPLETE_MUST_BE_LAST: {
+    code: "COMPLETE_MUST_BE_LAST",
+    label: "Complete must be the last stage",
+    description: "The finish screen can't have anything scheduled after it.",
+  },
+}
+
+export const SEQUENCE_RULE_CODES: PrecedenceRuleCode[] = Object.keys(
+  SEQUENCE_RULE_CATALOG
+) as PrecedenceRuleCode[]
 
 export const FEE_CATEGORY_LABELS: Record<
   StageConfigByType["PAYMENT"]["feeCategory"],

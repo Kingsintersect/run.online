@@ -62,6 +62,69 @@ const BLOCKED_BY_OFFER_STATUS: Partial<
   expired: "OFFER_EXPIRED",
 }
 
+/**
+ * Client-side stand-in for the server's `GET /admissions/config/steps/
+ * effective` resolution, used only when that endpoint hasn't returned
+ * anything yet (still loading, erroring, or neither id is known yet).
+ *
+ * Major-Program Scoping is fully decoupled (BACKEND_DEVIATIONS A23,
+ * sandbox/dynamic-admission/SCHEMA_CHANGES.md §2c) — once `majorProgramId`
+ * is known, resolution considers *only* that major program's own rows (a
+ * `programId`-scoped row under it, else its own `majorProgramId`-scoped
+ * rows) — no fallback to the institution default at all. A major program
+ * that hasn't adopted a given `key` simply doesn't show that step; nothing
+ * substitutes for it.
+ *
+ * Before `majorProgramId` is known, "All major programs" is a pure catalog
+ * (never served directly, per A23) — the *only* thing that can resolve is
+ * the one step that decides which major program applies in the first
+ * place, `MAJOR_PROGRAM_CHOICE` itself (found in review 2026-09-15: the
+ * old code fell back to every default-scoped row here, which — besides
+ * being template leakage — could route the applicant's `currentStageKey`
+ * straight into a catalog template and skip Major Program Choice
+ * entirely if a template happened to sort before it). A deployment that
+ * doesn't use major programs at all has no `MAJOR_PROGRAM_CHOICE` row in
+ * its registry to begin with, so this degrades to the original pre-A22
+ * behavior automatically — every default-scoped row, same as always
+ * (`major-program-scoping/README.md` §0's governing rule).
+ */
+export function resolveClientSideSteps<
+  T extends {
+    key: string
+    order: number
+    enabled: boolean
+    required: boolean
+    programId?: number | null
+    majorProgramId?: number | null
+  },
+>(steps: T[], programId: number | null, majorProgramId: number | null): T[] {
+  const active = steps.filter((s) => s.enabled || s.required)
+  const byKey = new Map<string, T>()
+  const layer = (matches: (s: T) => boolean) => {
+    for (const step of active) if (matches(step)) byKey.set(step.key, step)
+  }
+  if (majorProgramId != null) {
+    // Fully decoupled — no institution-default fallback once a major
+    // program is known, matching the live A23 resolution rule.
+    layer((s) => !s.programId && s.majorProgramId === majorProgramId)
+    if (programId != null) layer((s) => s.programId === programId)
+  } else {
+    const usesMajorPrograms = active.some(
+      (s) => s.key === "MAJOR_PROGRAM_CHOICE"
+    )
+    if (usesMajorPrograms) {
+      layer(
+        (s) =>
+          !s.programId && !s.majorProgramId && s.key === "MAJOR_PROGRAM_CHOICE"
+      )
+    } else {
+      layer((s) => !s.programId && !s.majorProgramId)
+    }
+    if (programId != null) layer((s) => s.programId === programId)
+  }
+  return [...byKey.values()].sort((a, b) => a.order - b.order)
+}
+
 export function composeFallbackStages(
   steps: StageSourceStep[],
   student: AdmissionStudent,

@@ -204,6 +204,17 @@ export function useCreateProgram() {
               }),
             ]
           : []),
+        // majorProgramId (independent of departmentId/parentAcademicUnitId)
+        // drives MajorProgramsPanel's "X programs assigned" count — without
+        // this, creating a program directly under (or otherwise assigned to)
+        // a major program leaves that count stale until an unrelated refetch.
+        ...(variables.majorProgramId != null
+          ? [
+              qc.invalidateQueries({
+                queryKey: courseStructureKeys.majorPrograms.all,
+              }),
+            ]
+          : []),
       ])
     },
   })
@@ -231,6 +242,19 @@ export function useUpdateProgram() {
         // field edit re-invalidates the same trees too, which is harmless.
         qc.invalidateQueries({ queryKey: courseStructureKeys.departments.all }),
         qc.invalidateQueries({ queryKey: courseStructureKeys.faculties.all }),
+        // Same reasoning as useCreateProgram above — a majorProgramId change
+        // (assigned, reassigned, or cleared) needs the Major Programs
+        // panel's counts refreshed too. Unconditional here (unlike create)
+        // since we don't know the *previous* value to compare against —
+        // harmless to invalidate on every update, same tradeoff already
+        // accepted for departments/faculties above.
+        ...("majorProgramId" in variables.payload
+          ? [
+              qc.invalidateQueries({
+                queryKey: courseStructureKeys.majorPrograms.all,
+              }),
+            ]
+          : []),
       ])
     },
   })

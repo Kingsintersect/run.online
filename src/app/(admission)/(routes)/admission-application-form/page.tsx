@@ -2,10 +2,11 @@
 
 import { FormProvider } from "react-hook-form"
 import { AnimatePresence, motion } from "framer-motion"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, AlertTriangle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UploadProgress } from "@/components/upload-progress"
+import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { useAdmissionForm } from "./hooks/useAdmissionForm"
 import FormStepIndicator from "./components/FormStepIndicator"
@@ -137,6 +138,7 @@ export default function AdmissionApplicationFormPage() {
     completedSteps,
     fieldIndex,
     isLoading,
+    isEmpty,
     isSubmitting,
     submitStage,
     submitPercent,
@@ -177,12 +179,31 @@ export default function AdmissionApplicationFormPage() {
     })
   )
 
-  if (isLoading || !currentStep) {
+  if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8">
         <Card>
           <FormLoadingSkeleton />
         </Card>
+      </div>
+    )
+  }
+
+  // Genuinely nothing configured for this major program yet — not a
+  // loading state (BACKEND_DEVIATIONS A23: a major program with nothing
+  // adopted via "Add from Catalog" has no shared default to fall back to
+  // anymore). Distinct from the loading skeleton above — this used to be
+  // indistinguishable from "still loading" (both fell through to
+  // `!currentStep`), leaving the applicant on a skeleton forever instead
+  // of an honest explanation.
+  if (isEmpty || !currentStep) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Application form isn't configured yet"
+          description="No application form steps have been set up for your major program yet. Please contact the admissions office to have the form configured."
+        />
       </div>
     )
   }
