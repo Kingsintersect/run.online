@@ -79,6 +79,7 @@ export function AdmissionStatusSection({
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false)
   const isPending = student.admission_status === "pending"
   const isOffered = student.admission_status === "offered"
+  const isAccepted = student.admission_status === "accepted"
   const isRejected = student.admission_status === "rejected"
   const isDeclined = student.admission_status === "declined"
   const isExpired = student.admission_status === "expired"
@@ -134,8 +135,20 @@ export function AdmissionStatusSection({
             <div>
               <CardTitle className="text-lg">Admission Status</CardTitle>
               <CardDescription>
-                Step 3 — Your application is being reviewed by the admissions
-                officer
+                Step 3 —{" "}
+                {isPending
+                  ? "Your application is being reviewed by the admissions officer"
+                  : isOffered
+                    ? "You've received an admission decision"
+                    : isAccepted
+                      ? "You've accepted your offer"
+                      : isDeclined
+                        ? "You declined your offer"
+                        : isExpired
+                          ? "Your offer expired before a response was given"
+                          : isRejected
+                            ? "Your application decision is final"
+                            : "Your application's admission decision"}
               </CardDescription>
             </div>
           </div>
@@ -151,18 +164,20 @@ export function AdmissionStatusSection({
                   ? "Under Review"
                   : isOffered
                     ? "Admission Offered!"
-                    : isRejected
-                      ? "Application Rejected"
-                      : isDeclined
-                        ? "Offer Declined"
-                        : isExpired
-                          ? "Offer Expired"
-                          : student.admission_status
+                    : isAccepted
+                      ? "Offer Accepted"
+                      : isRejected
+                        ? "Application Rejected"
+                        : isDeclined
+                          ? "Offer Declined"
+                          : isExpired
+                            ? "Offer Expired"
+                            : student.admission_status
               }
               status={
                 isPending
                   ? "pending"
-                  : isOffered
+                  : isOffered || isAccepted
                     ? "success"
                     : isRejected || isDeclined || isExpired
                       ? "failed"
@@ -327,6 +342,42 @@ export function AdmissionStatusSection({
                   </div>
                 </motion.div>
               )}
+            </motion.div>
+          )}
+
+          {/* Accepted state — real gap, found 2026-09-16: this branch never
+              existed, so a student who'd just accepted their offer saw only
+              the header and badge above with nothing else on the card at
+              all (blank-feeling, no next-step guidance). `onRefresh` picks
+              up whatever the next stage actually is once the backend
+              advances `currentStageKey` past this one, rather than naming a
+              specific fee here — that next stage's own name is whatever
+              this major program is actually configured with. */}
+          {isAccepted && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-8 dark:bg-emerald-500/10"
+            >
+              <CheckCircle className="size-12 text-emerald-500" />
+              <div className="space-y-1 text-center">
+                <p className="text-sm font-semibold text-foreground">
+                  Offer Accepted
+                </p>
+                <p className="max-w-sm text-xs text-muted-foreground">
+                  You&apos;ve accepted your admission offer. Continue to the
+                  next step to carry on with your enrollment.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefresh}
+                className="gap-2"
+              >
+                <RefreshCw className="size-3.5" />
+                Continue
+              </Button>
             </motion.div>
           )}
 

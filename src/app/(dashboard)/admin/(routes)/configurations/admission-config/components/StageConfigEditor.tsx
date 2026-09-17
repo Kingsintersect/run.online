@@ -347,12 +347,22 @@ function PaymentConfigEditor({
               <SelectItem value={ANY_FEE_TYPE}>
                 The applicant&apos;s fee in this category
               </SelectItem>
-              {(feeTypes ?? []).map((fee) => (
-                <SelectItem key={fee.id} value={String(fee.id)}>
-                  {fee.name}
-                  {fee.session ? ` · ${fee.session.name}` : ""}
-                </SelectItem>
-              ))}
+              {(feeTypes ?? []).map((fee) => {
+                // Mirror the "Scope" column in fee-type-table.tsx: prefer the
+                // most specific scope (major program, else program) so
+                // same-named fee types (e.g. three "Tuition Fee" rows, one
+                // per major program) are distinguishable in this dropdown.
+                const scope = fee.program
+                  ? fee.program.name
+                  : (fee.majorProgram?.name ?? null)
+                return (
+                  <SelectItem key={fee.id} value={String(fee.id)}>
+                    {fee.name}
+                    {scope ? ` · ${scope}` : ""}
+                    {fee.session ? ` · ${fee.session.name}` : ""}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </div>

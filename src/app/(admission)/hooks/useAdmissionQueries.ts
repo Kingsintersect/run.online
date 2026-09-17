@@ -19,6 +19,17 @@ import {
 import { useAdmissionStore } from "../store/admissionStore"
 import type { AdmissionStudent } from "../types/admission"
 
+// Real bug, found 2026-09-16: every mutation below that changes admission
+// progress (program choice, any payment, accept/decline, every dev-simulate
+// action) called this to resync the legacy `admission/student` aggregate —
+// but GET /admission/me/stages (the source `/process-admission` actually
+// runs on, once it's live) was never invalidated alongside it, anywhere.
+// Confirmed live: accepting an offer updated `admission_status` correctly,
+// but the step indicator stayed stuck on "Admission Status" as the current
+// stage — `currentStageKey` only comes from the stages cache, which nothing
+// had told to refetch. Centralized here once, rather than patching each of
+// the 15+ call sites (and missing a 16th later) — every one of them needs
+// this, not just accept/decline.
 async function syncAdmissionStudent(
   queryClient: QueryClient,
   setStudent: (student: AdmissionStudent) => void,
@@ -28,6 +39,7 @@ async function syncAdmissionStudent(
     nextStudent ?? (await admissionService.fetchStudentAdmission())
   setStudent(student)
   queryClient.setQueryData(admissionKeys.student(), student)
+  await queryClient.invalidateQueries({ queryKey: admissionKeys.stages() })
   return student
 }
 
@@ -168,6 +180,30 @@ export function useVerifyTuitionPayment(reference: string) {
     ...admissionQueryOptions.verifyTuitionPayment(reference),
     queryFn: async () => {
       const result = await admissionService.verifyTuitionPayment(reference)
+      await syncAdmissionStudent(queryClient, setStudent)
+      return result
+    },
+    enabled: !!reference,
+    retry: 2,
+    staleTime: Infinity,
+  })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Verify a dynamic/custom PAYMENT stage (any fee type outside the      */
+/*  three legacy fixed ones — e.g. Certificate's "Access Fee")           */
+/* ------------------------------------------------------------------ */
+
+export function useVerifyGenericPayment(reference: string) {
+  const setStudent = useAdmissionStore((s) => s.setStudent)
+  const queryClient = useQueryClient()
+
+  return useQuery({
+    ...admissionQueryOptions.verifyGenericPayment(reference),
+    queryFn: async () => {
+      const result = await admissionService.verifyGenericPayment(reference)
+      // syncAdmissionStudent now invalidates the stages cache too (see its
+      // own comment) — was a one-off fix here before that centralization.
       await syncAdmissionStudent(queryClient, setStudent)
       return result
     },

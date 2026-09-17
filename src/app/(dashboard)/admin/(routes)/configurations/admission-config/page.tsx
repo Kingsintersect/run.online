@@ -63,7 +63,6 @@ import type { StageDraft } from "./components/stage-draft"
 import {
   CATEGORY_LABELS,
   catalogStepsNotAdopted,
-  categoriesInUse,
   describeScope,
   majorProgramIdFromTabValue,
   majorProgramTabValue,
@@ -510,7 +509,6 @@ export default function AdmissionConfigPage() {
   const allForm = (formQuery.data ?? []).filter(
     (s) => s.key !== HIDDEN_FORM_KEY
   )
-  const categories = categoriesInUse(programs, [...allProcess, ...allForm])
 
   const majorProgramIdFromTab = majorProgramIdFromTabValue(tab)
   const selectedMajorProgram =
@@ -620,13 +618,12 @@ export default function AdmissionConfigPage() {
     setView("programs")
     const stillValid =
       tab !== DEFAULT_TAB &&
-      (categories.includes(tab as ProgramCategory) ||
-        majorPrograms.some((mp) => majorProgramTabValue(mp.id) === tab))
+      majorPrograms.some((mp) => majorProgramTabValue(mp.id) === tab)
     if (!stillValid) {
       const firstTab =
         majorPrograms[0] != null
           ? majorProgramTabValue(majorPrograms[0].id)
-          : (categories[0] ?? null)
+          : null
       if (firstTab) handleTabChange(firstTab)
     }
   }
@@ -1112,33 +1109,38 @@ export default function AdmissionConfigPage() {
         )}
       </motion.div>
 
-      {/* Scope tabs — only shown in "Program Configurations". Major Program
-          is the primary scoping axis: an admin picks one major program and
-          configures its own process/form steps (and, via each FORM step's
-          fields, its own form) for every applicant who chooses it at the
-          Major Program Choice stage. Category tabs stay for any deployment
-          still using them; "Specific program" is gone — Major Program
-          replaced it. The catalog itself has no tab here anymore — it's its
-          own view (see `view` state above), reached via "Back to Catalog". */}
-      {view === "programs" &&
-        (categories.length > 0 || majorPrograms.length > 0) && (
-          <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
-            <div className="overflow-x-auto pb-1">
-              <TabsList>
-                {categories.map((category) => (
-                  <TabsTrigger key={category} value={category}>
-                    {CATEGORY_LABELS[category]}
-                  </TabsTrigger>
-                ))}
-                {majorPrograms.map((mp) => (
-                  <TabsTrigger key={mp.id} value={majorProgramTabValue(mp.id)}>
-                    {mp.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </Tabs>
-        )}
+      {/* Scope tabs — only shown in "Program Configurations", and only for
+          Major Program, the sole scoping axis reachable from this page's own
+          tabs: an admin picks one major program and configures its own
+          process/form steps (and, via each FORM step's fields, its own form)
+          for every applicant who chooses it at the Major Program Choice
+          stage. Category tabs used to render here too, alongside Major
+          Program tabs in the same row — since Major Program replaced
+          Category as the scoping axis (see the file-level comment on
+          step-scope.ts), that duplicated the same concept side by side and
+          was removed here per product direction, reacting to a live
+          screenshot of the confusion (2026-09-16): "only the major program
+          should appear in that screen." Category's own resolution machinery
+          is untouched — any pre-existing category-scoped step still resolves
+          correctly wherever it's read (step-scope.ts's resolveScope /
+          describeScope) — it's just not reachable from a tab on this page
+          anymore. "Specific program" is gone the same way, for the same
+          reason, predating this change. The catalog itself has no tab here
+          anymore — it's its own view (see `view` state above), reached via
+          "Back to Catalog". */}
+      {view === "programs" && majorPrograms.length > 0 && (
+        <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
+          <div className="overflow-x-auto pb-1">
+            <TabsList>
+              {majorPrograms.map((mp) => (
+                <TabsTrigger key={mp.id} value={majorProgramTabValue(mp.id)}>
+                  {mp.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </Tabs>
+      )}
 
       {scopeInfo && (
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
@@ -1312,10 +1314,7 @@ export default function AdmissionConfigPage() {
       )}
 
       {/* Panels */}
-      {scope === null &&
-      view === "programs" &&
-      majorPrograms.length === 0 &&
-      categories.length === 0 ? (
+      {scope === null && view === "programs" && majorPrograms.length === 0 ? (
         <EmptyState
           icon={GraduationCap}
           title="No major programs yet"

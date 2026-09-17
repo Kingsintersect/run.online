@@ -354,6 +354,20 @@ export const admissionService = {
     return verifyGatewayPayment(reference)
   },
 
+  /* ---------- Verify a dynamic/custom PAYMENT stage ---------- */
+  // Same endpoint as the three verify*Payment() methods above — it was
+  // already generic and reference-only (no fee-type-specific variant
+  // exists), confirmed 2026-09-16 tracing a real "Unable to determine
+  // payment type" failure back to verify-payments/page.tsx's own routing
+  // logic, not this call. Exists only so a custom PAYMENT stage (e.g.
+  // Certificate's "Access Fee") gets its own query cache key instead of
+  // having no verify path at all.
+  async verifyGenericPayment(
+    reference: string
+  ): Promise<PaymentVerificationResponse> {
+    return verifyGatewayPayment(reference)
+  },
+
   /* ---------- Dev-only: Simulate status changes ---------- */
   async devSimulateAppPaymentPaid(): Promise<AdmissionStudent> {
     await delay(500)
@@ -506,6 +520,12 @@ export const admissionKeys = {
     [...admissionKeys.all, "verify-acc", reference] as const,
   verifyTuiPayment: (reference: string) =>
     [...admissionKeys.all, "verify-tui", reference] as const,
+  // Any PAYMENT stage that isn't one of the three legacy fixed fee types
+  // (a custom step an admin created, e.g. "Access Fee" — Dynamic Admission)
+  // — same underlying call as the three above (verifyGatewayPayment is
+  // already generic, reference-only), just its own cache key.
+  verifyGenericPayment: (reference: string) =>
+    [...admissionKeys.all, "verify-generic", reference] as const,
 }
 
 export const admissionQueryOptions = {
@@ -545,6 +565,12 @@ export const admissionQueryOptions = {
     createApiQueryOptions({
       queryKey: admissionKeys.verifyTuiPayment(reference),
       queryFn: () => admissionService.verifyTuitionPayment(reference),
+    }),
+
+  verifyGenericPayment: (reference: string) =>
+    createApiQueryOptions({
+      queryKey: admissionKeys.verifyGenericPayment(reference),
+      queryFn: () => admissionService.verifyGenericPayment(reference),
     }),
 }
 

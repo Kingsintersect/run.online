@@ -204,7 +204,19 @@ export async function submitApplication(
   const response = await apiClient.post<SubmitApplicationApiResponse>(
     "/admissions/applications",
     payload,
-    { ...AUTH, contentType: "multipart", onUploadProgress }
+    {
+      ...AUTH,
+      contentType: "multipart",
+      onUploadProgress,
+      // This is a multipart body carrying every uploaded document at once —
+      // confirmed live 2026-09-16 hitting apiClient's global 30s default
+      // ("timeout of 30000ms exceeded") on a real submission with a real
+      // file, a slow connection and/or backend processing (virus scan,
+      // storage write) away from being an actual failure. `timeout: 0` is
+      // axios's own convention for "no timeout" — scoped to this one
+      // request only; every other call in the app keeps the 30s default.
+      timeout: 0,
+    }
   )
   return response.data
 }

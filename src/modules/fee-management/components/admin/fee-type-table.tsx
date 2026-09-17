@@ -9,6 +9,7 @@ import {
   ZapOff,
   Trash2,
   MoreHorizontal,
+  Pencil,
   RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -342,6 +343,18 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
                   >
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Edit — the name button already does this; this is
+                            the discoverable Actions-column affordance for it. */}
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => onEdit?.(ft)}
+                          title="Edit fee type"
+                          aria-label={`Edit ${ft.name}`}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+
                         {/* Activate / Deactivate */}
                         {ft.isActive ? (
                           <Button

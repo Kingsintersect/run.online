@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { CreditCard, ExternalLink, Loader2 } from "lucide-react"
+import { CheckCircle, CreditCard, ExternalLink, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
   Card,
@@ -12,9 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { FEE_CATEGORY_LABELS } from "@/lib/admission-catalog"
+import { cn } from "@/lib/utils"
 import type { PaymentInitiationResponse } from "../../types/admission"
 import type {
   ResolvedStageOf,
@@ -27,6 +26,8 @@ interface PaymentStageSectionProps {
   onPay: (amount?: number) => Promise<PaymentInitiationResponse>
   isPaying: boolean
 }
+
+type PaymentPlan = "full" | "half" | "custom"
 
 const formatMoney = (amount: number | null | undefined, currency: string) =>
   amount == null
@@ -46,21 +47,82 @@ export function PaymentStageSection({
 }: PaymentStageSectionProps) {
   const { state, config } = stage
   const currency = state.currency ?? "NGN"
-  const balance = state.balance ?? state.amount ?? null
-  const minimum = state.minimumPayable ?? balance ?? undefined
-  const [amount, setAmount] = useState<string>(
-    balance != null ? String(balance) : ""
-  )
+  const amountPaid = state.amountPaid ?? 0
+  const balance = state.balance ?? state.amount ?? 0
+  const minimum = state.minimumPayable ?? balance
   const isPaid = stage.status === "COMPLETED"
+  const isPartiallyPaid =
+    config.allowInstallments && amountPaid > 0 && balance > 0
   const feeLabel = state.feeName ?? FEE_CATEGORY_LABELS[config.feeCategory]
 
+  const [selectedPlan, setSelectedPlan] = useState<PaymentPlan>("half")
+  const [customAmount, setCustomAmount] = useState<string>("")
+
+  const paymentPlans = [
+    {
+      id: "full" as const,
+      label: "Full Payment",
+      description: "Pay the entire balance at once",
+      amount: balance,
+    },
+    {
+      id: "half" as const,
+      label: "Half Payment",
+      description: "Pay the minimum now, complete later",
+      amount: minimum,
+    },
+    {
+      id: "custom" as const,
+      label: "Custom Amount",
+      description: `Min ${formatMoney(minimum, currency)}`,
+      amount: null,
+    },
+  ]
+
+  const getInstallmentAmount = (): number => {
+    switch (selectedPlan) {
+      case "full":
+        return balance
+      case "half":
+        return minimum
+      case "custom": {
+        const parsed = parseInt(customAmount.replace(/,/g, ""), 10)
+        return isNaN(parsed) ? 0 : parsed
+      }
+    }
+  }
+
+  const installmentAmount = getInstallmentAmount()
+  const isValidInstallment =
+    installmentAmount >= minimum && installmentAmount <= balance
+
   const handlePay = async () => {
-    const value = config.allowInstallments ? Number(amount) : undefined
-    if (
-      config.allowInstallments &&
-      (!value || (minimum !== undefined && value < minimum))
-    ) {
-      toast.error(`Enter at least ${formatMoney(minimum, currency)}.`)
+    // Not an installment-eligible fee — always pay the full amount.
+    if (!config.allowInstallments) {
+      try {
+        const result = await onPay(undefined)
+        if (result.gateway_url) {
+          toast.success("Redirecting to payment gateway…")
+          setTimeout(() => {
+            window.location.href = result.gateway_url
+          }, 800)
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to initiate payment. Please try again."
+        )
+      }
+      return
+    }
+
+    // Already made a partial payment — only the remaining balance is offered.
+    const value = isPartiallyPaid ? balance : installmentAmount
+    if (!value || value < minimum || value > balance) {
+      toast.error(
+        `Amount must be between ${formatMoney(minimum, currency)} and ${formatMoney(balance, currency)}.`
+      )
       return
     }
     try {
@@ -133,31 +195,109 @@ export function PaymentStageSection({
                 </p>
               ) : (
                 <>
-                  {config.allowInstallments && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor={`pay-${stage.key}`}>
-                        Amount to pay now
-                      </Label>
-                      <Input
-                        id={`pay-${stage.key}`}
-                        type="number"
-                        min={minimum}
-                        max={balance ?? undefined}
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        At least {formatMoney(minimum, currency)}
-                        {balance != null
-                          ? `, up to ${formatMoney(balance, currency)}`
-                          : ""}
-                        .
+                  {config.allowInstallments && !isPartiallyPaid && (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-foreground">
+                        Choose a payment plan
                       </p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {paymentPlans.map((plan) => (
+                          <button
+                            key={plan.id}
+                            type="button"
+                            onClick={() => setSelectedPlan(plan.id)}
+                            className={cn(
+                              "relative flex flex-col items-start rounded-xl border p-3 text-left transition-all",
+                              selectedPlan === plan.id
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/30 dark:bg-primary/10"
+                                : "border-border hover:border-primary/30 hover:bg-muted/30"
+                            )}
+                          >
+                            <div className="mb-2 flex w-full items-center justify-between">
+                              <span className="text-xs font-semibold text-foreground">
+                                {plan.label}
+                              </span>
+                              <div
+                                className={cn(
+                                  "flex size-4 items-center justify-center rounded-full border-2 transition-colors",
+                                  selectedPlan === plan.id
+                                    ? "border-primary bg-primary"
+                                    : "border-muted-foreground/40"
+                                )}
+                              >
+                                {selectedPlan === plan.id && (
+                                  <CheckCircle className="size-3 text-primary-foreground" />
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-[10px] leading-relaxed text-muted-foreground">
+                              {plan.description}
+                            </p>
+                            {plan.amount !== null && (
+                              <p className="mt-1 text-sm font-bold text-foreground tabular-nums">
+                                {formatMoney(plan.amount, currency)}
+                              </p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {selectedPlan === "custom" && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">
+                            Enter amount (min {formatMoney(minimum, currency)})
+                          </label>
+                          <div className="relative">
+                            <span className="absolute top-1/2 left-3 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                              ₦
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={customAmount}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(
+                                  /[^0-9]/g,
+                                  ""
+                                )
+                                setCustomAmount(
+                                  raw ? parseInt(raw, 10).toLocaleString() : ""
+                                )
+                              }}
+                              placeholder={minimum.toLocaleString()}
+                              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 pl-7 text-sm font-medium text-foreground tabular-nums ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            />
+                          </div>
+                          {customAmount && !isValidInstallment && (
+                            <p className="text-[10px] text-destructive">
+                              Amount must be between{" "}
+                              {formatMoney(minimum, currency)} and{" "}
+                              {formatMoney(balance, currency)}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  {isPartiallyPaid && (
+                    <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-foreground dark:bg-amber-500/10">
+                      You have a remaining balance of{" "}
+                      <span className="font-semibold">
+                        {formatMoney(balance, currency)}
+                      </span>
+                      . Complete this payment to continue.
+                    </p>
+                  )}
+
                   <Button
                     onClick={handlePay}
-                    disabled={isPaying}
+                    disabled={
+                      isPaying ||
+                      (config.allowInstallments &&
+                        !isPartiallyPaid &&
+                        !isValidInstallment)
+                    }
                     className="btn-glow w-full gap-2"
                     size="lg"
                   >
@@ -168,7 +308,9 @@ export function PaymentStageSection({
                       </>
                     ) : (
                       <>
-                        Pay now
+                        {config.allowInstallments
+                          ? `Pay ${formatMoney(isPartiallyPaid ? balance : installmentAmount, currency)} Now`
+                          : "Pay now"}
                         <ExternalLink className="size-4" />
                       </>
                     )}
