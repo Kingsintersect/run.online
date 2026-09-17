@@ -541,19 +541,26 @@ export const usersApi = {
     return res.data
   },
 
+  // Built ahead of the backend (TUTOR_FORM_FIX_HANDOFF.txt, 2026-09-17): the
+  // request now identifies the existing user by `email` (was `userId`) and
+  // adds `facultyId`/`majorProgramId`. If the backend hasn't shipped this
+  // contract yet, the request will 422/fail honestly — no client-side
+  // fallback to the old `userId` shape.
   async createTutor(
     payload: CreateTutorPayload
   ): Promise<ApiSingleResponse<Tutor>> {
     const res = await apiClient.post<{ data: WireLecturer }>(
       "/users/lecturers",
       {
-        userId: payload.user_id,
+        email: payload.email,
         firstName: payload.first_name,
         middleName: payload.middle_name,
         lastName: payload.last_name,
         phoneNumber: payload.phone_number,
         staffNumber: payload.staff_number,
+        facultyId: payload.faculty_id,
         departmentId: payload.department_id,
+        majorProgramId: payload.major_program_id,
         designation: payload.designation,
         specialization: payload.specialization,
         officeLocation: payload.office_location,
@@ -562,9 +569,6 @@ export const usersApi = {
         gender: payload.gender,
         nationality: payload.nationality,
         stateOfOrigin: payload.state_of_origin,
-        qualifications: payload.qualifications,
-        researchAreas: payload.research_areas,
-        bio: payload.bio,
       },
       AUTH
     )

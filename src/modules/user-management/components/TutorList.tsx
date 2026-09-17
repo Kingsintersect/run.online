@@ -25,7 +25,12 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { BulkImportTutorsModal } from "./BulkImportTutorsModal"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import {
+  useMajorPrograms,
+  useFaculties,
+  useDepartments,
+} from "@/hooks/useCourseStructure"
+import { toast } from "sonner"
 import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
 import {
   formatOfferingCategory,
@@ -466,19 +471,45 @@ function CreateTutorForm({
   isSubmitting: boolean
 }) {
   const [form, setForm] = useState<CreateTutorPayload>({
-    user_id: 0,
+    email: "",
     first_name: "",
     last_name: "",
     staff_number: "",
-    department_id: 1,
+    faculty_id: 0,
+    department_id: 0,
+    major_program_id: 0,
     designation: "",
   })
+
+  const { data: facultiesRes } = useFaculties()
+  const { data: departmentsRes } = useDepartments(form.faculty_id || null)
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const faculties = (facultiesRes?.data ?? []).filter((f) => f.isActive)
+  const departments = (departmentsRes?.data ?? []).filter((d) => d.isActive)
+  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
+    (mp) => mp.isActive
+  )
 
   const update = (key: keyof CreateTutorPayload, value: string | number) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  const handleFacultyChange = (value: number) =>
+    setForm((prev) => ({ ...prev, faculty_id: value, department_id: 0 }))
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.faculty_id) {
+      toast.error("Please select a faculty.")
+      return
+    }
+    if (!form.department_id) {
+      toast.error("Please select a department.")
+      return
+    }
+    if (!form.major_program_id) {
+      toast.error("Please select a major program.")
+      return
+    }
     onSubmit(form)
   }
 
@@ -488,22 +519,81 @@ function CreateTutorForm({
       className="max-h-[60vh] space-y-4 overflow-y-auto pr-1"
     >
       <p className="text-xs text-muted-foreground">
-        Enter the existing User ID of the person you want to assign as a tutor.
+        Enter the email of the existing user you want to assign as a tutor.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
-            User ID *
+            Email *
           </label>
           <input
-            type="number"
+            type="email"
             className={inputCls}
-            placeholder="e.g. 8"
+            placeholder="tutor@example.com"
             required
-            value={form.user_id || ""}
-            onChange={(e) => update("user_id", parseInt(e.target.value) || 0)}
+            value={form.email}
+            onChange={(e) => update("email", e.target.value)}
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">
+            Faculty *
+          </label>
+          <select
+            className={selectCls}
+            required
+            value={form.faculty_id || ""}
+            onChange={(e) => handleFacultyChange(Number(e.target.value))}
+          >
+            <option value="">Select a faculty…</option>
+            {faculties.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">
+            Department *
+          </label>
+          <select
+            className={selectCls}
+            required
+            disabled={!form.faculty_id}
+            value={form.department_id || ""}
+            onChange={(e) => update("department_id", Number(e.target.value))}
+          >
+            <option value="">
+              {form.faculty_id
+                ? "Select a department…"
+                : "Select a faculty first"}
+            </option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">
+            Major Program *
+          </label>
+          <select
+            className={selectCls}
+            required
+            value={form.major_program_id || ""}
+            onChange={(e) => update("major_program_id", Number(e.target.value))}
+          >
+            <option value="">Select a major program…</option>
+            {majorPrograms.map((mp) => (
+              <option key={mp.id} value={mp.id}>
+                {mp.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
@@ -601,40 +691,6 @@ function CreateTutorForm({
             onChange={(e) => update("office_phone", e.target.value)}
           />
         </div>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium text-foreground">
-          Qualifications
-        </label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          value={form.qualifications ?? ""}
-          onChange={(e) => update("qualifications", e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-foreground">
-          Research Areas
-        </label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          value={form.research_areas ?? ""}
-          onChange={(e) => update("research_areas", e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-foreground">
-          Bio
-        </label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          value={form.bio ?? ""}
-          onChange={(e) => update("bio", e.target.value)}
-        />
       </div>
 
       <div className="flex justify-end pt-2">

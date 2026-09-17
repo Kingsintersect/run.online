@@ -167,13 +167,15 @@ export interface Staff {
 // ── Payload types ───────────────────────────
 
 export interface CreateTutorPayload {
-  user_id: number
+  email: string
   first_name: string
   middle_name?: string
   last_name: string
   phone_number?: string
   staff_number: string
+  faculty_id: number
   department_id: number
+  major_program_id: number
   designation: string
   specialization?: string
   office_location?: string
@@ -182,9 +184,6 @@ export interface CreateTutorPayload {
   gender?: Gender
   nationality?: string
   state_of_origin?: string
-  qualifications?: string
-  research_areas?: string
-  bio?: string
 }
 
 export interface CreateStaffPayload {
