@@ -10,11 +10,16 @@ import Modal from "@/components/custom/Modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createUserSchema, type CreateUserFormValues } from "../schemas"
+import {
+  createUserSchema,
+  type CreateUserFormValues,
+  type CreateUserDto,
+} from "../schemas"
 import { adminCreateUser } from "@/lib/auth/backendAuth"
 import { rolesQueryOptions } from "@/services/rolesApi"
 import { usersKeys } from "@/services/usersApi"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { getErrorMessage, getMajorProgramRequiredMessage } from "@/lib/errors"
 
 interface CreateUserModalProps {
   onClose: () => void
@@ -38,19 +43,23 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
     (mp) => mp.isActive
   )
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
-  const [selectedMajorProgramIds, setSelectedMajorProgramIds] = useState<
-    number[]
-  >([])
+  const [selectedMajorProgramId, setSelectedMajorProgramId] = useState<
+    number | null
+  >(null)
   const qc = useQueryClient()
 
   const selectedRoles = (roles ?? []).filter((r) =>
     selectedRoleIds.includes(r.id)
   )
-  // Hidden entirely (not just empty) until at least one MajorProgram exists —
-  // a single-major-program deployment must render identically to today, per
-  // sandbox/major-program-scoping/README.md §0's governing rule.
-  const showMajorProgramPicker =
-    majorPrograms.length > 0 &&
+  // Rendered (and required) only once a role is selected that isn't
+  // Student/Applicant/Super Admin — those three never take a major-program
+  // scope at all, per sandbox/major-program-scoping/API_CONTRACTS.md §5
+  // (revised 2026-09-16). Unlike the old optional array design, this no
+  // longer hides on an empty major-program catalog: the field being required
+  // for a scoped role is a real backend constraint, not a frontend
+  // convenience, so an empty catalog surfaces as an honest "none configured
+  // yet" state below rather than silently disappearing.
+  const requiresMajorProgram =
     selectedRoles.length > 0 &&
     selectedRoles.some((r) => !UNSCOPABLE_ROLE_NAME_PATTERN.test(r.name))
 
@@ -58,8 +67,9 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
     register,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
-  } = useForm<CreateUserFormValues>({
+  } = useForm<CreateUserFormValues, unknown, CreateUserDto>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
       email: "",
@@ -70,7 +80,8 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
       last_name: "",
       phone_number: "",
       role_ids: [],
-      major_program_ids: [],
+      requires_major_program: false,
+      major_program_id: undefined,
     },
   })
 
@@ -81,26 +92,52 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
       toast.success("User created successfully")
       onClose()
     },
-    onError: () => toast.error("Failed to create user"),
+    onError: (err) => {
+      const scopedMessage = getMajorProgramRequiredMessage(err)
+      if (scopedMessage) {
+        setError("major_program_id", {
+          type: "server",
+          message: scopedMessage,
+        })
+        toast.error(scopedMessage)
+        return
+      }
+      toast.error(getErrorMessage(err, "Failed to create user"))
+    },
   })
 
+  // Recomputes `requiresMajorProgram` for the next role selection right here
+  // (rather than syncing it from an effect, which would call setState
+  // synchronously during render's commit phase) and keeps the schema's
+  // `requires_major_program` flag — and any stale major-program selection —
+  // in sync with it in the same handler that changes role_ids.
   const toggleRole = (roleId: number) => {
     const next = selectedRoleIds.includes(roleId)
       ? selectedRoleIds.filter((id) => id !== roleId)
       : [...selectedRoleIds, roleId]
     setSelectedRoleIds(next)
     setValue("role_ids", next, { shouldValidate: true })
+
+    const nextSelectedRoles = (roles ?? []).filter((r) => next.includes(r.id))
+    const nextRequiresMajorProgram =
+      nextSelectedRoles.length > 0 &&
+      nextSelectedRoles.some((r) => !UNSCOPABLE_ROLE_NAME_PATTERN.test(r.name))
+    setValue("requires_major_program", nextRequiresMajorProgram, {
+      shouldValidate: true,
+    })
+    if (!nextRequiresMajorProgram) {
+      setSelectedMajorProgramId(null)
+      setValue("major_program_id", undefined, { shouldValidate: true })
+    }
   }
 
-  const toggleMajorProgram = (id: number) => {
-    const next = selectedMajorProgramIds.includes(id)
-      ? selectedMajorProgramIds.filter((mpId) => mpId !== id)
-      : [...selectedMajorProgramIds, id]
-    setSelectedMajorProgramIds(next)
-    setValue("major_program_ids", next, { shouldValidate: true })
+  const selectMajorProgram = (id: number) => {
+    const next = selectedMajorProgramId === id ? null : id
+    setSelectedMajorProgramId(next)
+    setValue("major_program_id", next ?? undefined, { shouldValidate: true })
   }
 
-  const onSubmit = (values: CreateUserFormValues) => {
+  const onSubmit = (values: CreateUserDto) => {
     createMut.mutate({
       email: values.email,
       username: values.username,
@@ -110,10 +147,9 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
       lastName: values.last_name || undefined,
       phoneNumber: values.phone_number || undefined,
       roleIds: values.role_ids,
-      majorProgramIds:
-        showMajorProgramPicker && values.major_program_ids?.length
-          ? values.major_program_ids
-          : undefined,
+      majorProgramId: values.requires_major_program
+        ? values.major_program_id
+        : undefined,
     })
   }
 
@@ -232,37 +268,44 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
           )}
         </div>
 
-        {showMajorProgramPicker && (
+        {requiresMajorProgram && (
           <div className="space-y-1.5">
-            <Label>
-              Major Program Scope
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              {majorPrograms.map((mp) => {
-                const selected = selectedMajorProgramIds.includes(mp.id)
-                return (
-                  <button
-                    type="button"
-                    key={mp.id}
-                    onClick={() => toggleMajorProgram(mp.id)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                      selected
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-muted text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {mp.name}
-                  </button>
-                )
-              })}
-            </div>
+            <Label>Major Program *</Label>
+            {majorPrograms.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {majorPrograms.map((mp) => {
+                  const selected = selectedMajorProgramId === mp.id
+                  return (
+                    <button
+                      type="button"
+                      key={mp.id}
+                      onClick={() => selectMajorProgram(mp.id)}
+                      aria-pressed={selected}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-muted text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {mp.name}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No major programs configured yet. Create one under Academic
+                Structure before assigning this role.
+              </p>
+            )}
+            {errors.major_program_id && (
+              <p className="text-sm text-destructive">
+                {errors.major_program_id.message}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
-              Leave unselected for an institution-wide (unscoped) grant. Each
-              selected role above will be granted scoped to each major program
-              selected here.
+              The selected role(s) above will be granted scoped to this major
+              program.
             </p>
           </div>
         )}

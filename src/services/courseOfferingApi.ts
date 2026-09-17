@@ -99,6 +99,10 @@ const mapSchedule = (s: WireSchedule): ClassSchedule => ({
 export interface OfferingListFilters {
   semesterId?: number
   sessionId?: number
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // §3. Convenience narrower for a multi-scoped caller; server-enforced
+  // scope (§2) applies regardless of whether this is passed.
+  majorProgramId?: number
 }
 
 // ── Offerings ────────────────────────────────

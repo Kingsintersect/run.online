@@ -39,6 +39,7 @@ import type {
 import Combobox from "@/components/custom/Combobox"
 import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { EmptyState } from "./EmptyState"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -89,9 +90,20 @@ export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const { data: semesters } = useSemesters(sessionId)
   const [semesterId, setSemesterId] = useState<number | null>(null)
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
 
   const { data: offeringsData, isLoading } = useCourseOfferings(
-    sessionId && semesterId ? { sessionId, semesterId } : undefined
+    sessionId && semesterId
+      ? {
+          sessionId,
+          semesterId,
+          ...(majorProgramFilter !== null
+            ? { majorProgramId: majorProgramFilter }
+            : {}),
+        }
+      : undefined
   )
   const { data: coursesData } = useCourses()
 
@@ -240,6 +252,13 @@ export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
           )}
         </CardContent>
       </Card>
+
+      {sessionId && semesterId && (
+        <MajorProgramFilterTabs
+          value={majorProgramFilter}
+          onChange={setMajorProgramFilter}
+        />
+      )}
 
       {!sessionId || !semesterId ? (
         <EmptyState

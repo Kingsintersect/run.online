@@ -19,8 +19,8 @@ import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import { useLevels, useMajorPrograms } from "@/hooks/useCourseStructure"
-import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
+import { useLevels } from "@/hooks/useCourseStructure"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import {
   useStudents,
   useStudentLookupByMatric,
@@ -138,10 +138,6 @@ export default function StudentsPage({
   const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
     null
   )
-  const { data: majorProgramsRes } = useMajorPrograms()
-  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
-    (mp) => mp.isActive
-  )
   const { data, isLoading } = useStudents({
     major_program_id: majorProgramFilter ?? undefined,
   })
@@ -229,8 +225,7 @@ export default function StudentsPage({
         </div>
       </motion.div>
 
-      <MajorProgramTabs
-        programs={majorPrograms}
+      <MajorProgramFilterTabs
         value={majorProgramFilter}
         onChange={setMajorProgramFilter}
       />

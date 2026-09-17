@@ -29,3 +29,37 @@ export function getErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error) return friendlyMessage(err.message)
   return fallback
 }
+
+// Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md §5.
+// Unlike OUT_OF_SCOPE above (a raw string prefix), this is a structured 422
+// body: `{ statusCode: 422, error: "MAJOR_PROGRAM_REQUIRED", message, details:
+// { roleId, roleName } }`, returned when POST /auth/users is asked to create
+// one of the seven scoped roles (Tutor/Admin/Dean/Director/HOD/Bursary/Staff)
+// without a `majorProgramId`. Read off `ApiClientError.data`, not `.message`,
+// so it needs its own check rather than reusing `friendlyMessage`'s
+// string-prefix substitution.
+const MAJOR_PROGRAM_REQUIRED_ERROR = "MAJOR_PROGRAM_REQUIRED"
+
+type MajorProgramRequiredErrorBody = {
+  error?: string
+  message?: string
+  details?: { roleId?: number; roleName?: string }
+}
+
+/**
+ * Returns a specific, readable message when `err` is the backend's
+ * `MAJOR_PROGRAM_REQUIRED` 422 (see above), or `null` for any other error so
+ * callers fall back to their own generic message the same way
+ * `getErrorMessage` already does.
+ */
+export function getMajorProgramRequiredMessage(err: unknown): string | null {
+  const data = (err as { data?: unknown } | undefined)?.data as
+    | MajorProgramRequiredErrorBody
+    | undefined
+  if (data?.error !== MAJOR_PROGRAM_REQUIRED_ERROR) return null
+
+  const roleName = data.details?.roleName
+  return roleName
+    ? `A major program is required to create a ${roleName} account.`
+    : (data.message ?? "A major program is required for this role.")
+}

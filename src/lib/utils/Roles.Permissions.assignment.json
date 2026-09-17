@@ -341,10 +341,6 @@
       "action": "manage"
     },
     {
-      "resource": "users",
-      "action": "view"
-    },
-    {
       "resource": "students",
       "action": "view"
     },

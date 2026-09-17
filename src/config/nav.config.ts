@@ -931,7 +931,36 @@ const superAdminNav: NavGroup[] = [
 /*  Dean navigation                                                    */
 /* ------------------------------------------------------------------ */
 
-const deanNav: NavGroup[] = adminNav
+// DEAN otherwise mirrors ADMIN's nav exactly (deliberately — both are
+// platform-wide operational roles), except for one entry point: adminNav's
+// "User Management" > "Summary" link is the page that exposes "Add User"
+// (any role, including SUPER_ADMIN) and "Manage roles" (assign/revoke any
+// role) — see StatisticsManagementShell in
+// src/modules/user-management/components/UserManagementShell.tsx. Per
+// sandbox/BACKEND_DEVIATIONS_2026-09-14.md A27 and
+// sandbox/major-program-scoping/README.md §F (both confirmed live,
+// 2026-09-16), DEAN currently gets Admin-equivalent access to that
+// create/manage-any-account-any-role capability, which should be
+// Admin/Super-Admin-only. Every other "User Management" entry (Students,
+// Tutors, Staff, Documents, Hostels, Clearance) stays — DEAN's real
+// permissions already cover those correctly (students/tutors/staff
+// view+manage). See UserManagementShell.tsx's matching role check for the
+// page-level guard (nav removal alone doesn't stop direct navigation).
+const deanNav: NavGroup[] = adminNav.map((group) =>
+  group.label !== "User Management"
+    ? group
+    : {
+        ...group,
+        items: group.items.map((item) =>
+          item.title !== "User Management" || !item.children
+            ? item
+            : {
+                ...item,
+                children: item.children.filter((c) => c.title !== "Summary"),
+              }
+        ),
+      }
+)
 
 /* ------------------------------------------------------------------ */
 /*  Bursary navigation                                                 */

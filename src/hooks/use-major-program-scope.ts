@@ -19,6 +19,19 @@ export function useMajorProgramScope() {
     const scopedPrograms: MajorProgramScopeEntry[] = isUnscoped ? [] : scope
     const isMultiScoped = !isUnscoped && scopedPrograms.length > 1
 
+    // API_CONTRACTS.md §7: a per-record UI convenience check — never a
+    // substitute for the server's own scope enforcement (§2). Unscoped
+    // callers (incl. SUPER_ADMIN) are within scope of everything; a scoped
+    // caller is within scope only when `majorProgramId` is non-null and
+    // matches one of their granted programs. `null` (record's major program
+    // unknown/unresolved) is treated as out of scope for a scoped caller,
+    // never assumed in-scope.
+    const withinScope = (majorProgramId: number | null): boolean => {
+      if (isUnscoped) return true
+      if (majorProgramId === null) return false
+      return scopedPrograms.some((mp) => mp.id === majorProgramId)
+    }
+
     return {
       /** true for SUPER_ADMIN and for any account with no scoped grants. */
       isUnscoped,
@@ -26,6 +39,8 @@ export function useMajorProgramScope() {
       scopedPrograms,
       /** Whether a "switch program" selector should render at all — see the governing rule in README.md §0. */
       isMultiScoped,
+      /** Whether `majorProgramId` falls within this caller's scope — UI convenience only (see above). */
+      withinScope,
     }
   }, [scope])
 }

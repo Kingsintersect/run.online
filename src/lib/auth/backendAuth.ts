@@ -422,9 +422,10 @@ export type AdminCreateUserPayload = {
   phoneNumber?: string
   roleIds: number[]
   // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
-  // §5 / bruno/auth/Users - Create (Admin).bru: each role is granted scoped
-  // to each listed major program. Omit for an unscoped grant.
-  majorProgramIds?: number[]
+  // §5, revised 2026-09-16: singular and required when roleIds includes any
+  // of Tutor/Admin/Dean/Director/HOD/Bursary/Staff (422 MAJOR_PROGRAM_REQUIRED
+  // otherwise); omitted (or must be null) for Student/Applicant/Super Admin.
+  majorProgramId?: number
 }
 
 // Real API: POST /auth/users — Bruno: auth/Users - Create (Admin).bru.

@@ -14,7 +14,7 @@ import {
 import { TimetableGrid } from "@/modules/timetable/components/TimetableGrid"
 import { TimetableList } from "@/modules/timetable/components/TimetableList"
 import { useMyTimetable } from "@/modules/timetable/hooks/useTimetable"
-import { useAcademicCalendar } from "@/modules/timetable/hooks/useAcademicCalendar"
+import { useMyActiveSession } from "@/hooks/use-my-active-session"
 import { useTimetableUIStore } from "@/modules/timetable/store/useTimetableUIStore"
 import type {
   DayOfWeek,
@@ -52,8 +52,12 @@ export default function MyTimetablePage() {
 
   const [searchTerm, setSearchTerm] = useState("")
 
-  const { data: calendarMeta } = useAcademicCalendar()
-  const activeSemester = calendarMeta?.currentSemester
+  // Major-Program Scoping — resolves the active session/semester through
+  // THIS student's own program's major program, not a single
+  // institution-wide row (sandbox/major-program-scoping/
+  // FRONTEND_IMPLEMENTATION_PLAN.md §3). See use-my-active-session.ts for
+  // why this replaced the old, non-scoped `useAcademicCalendar()`.
+  const { currentSemester: activeSemester } = useMyActiveSession()
   const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id
 
   const { data, isLoading } = useMyTimetable({
