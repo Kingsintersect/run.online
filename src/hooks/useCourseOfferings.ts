@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 import {
   courseOfferingKeys,
   courseOfferingMutationOptions,
   courseOfferingQueryOptions,
   type OfferingListFilters,
 } from "@/services/courseOfferingApi"
+import { getErrorMessage } from "@/lib/errors"
 
 // ── Offerings ────────────────────────────────
 
@@ -30,6 +32,8 @@ export function useCreateOffering() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: courseOfferingKeys.all })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to create offering")),
   })
 }
 
@@ -45,6 +49,8 @@ export function useUpdateOffering() {
         }),
       ])
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to update offering")),
   })
 }
 
@@ -55,6 +61,8 @@ export function useCancelOffering() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: courseOfferingKeys.all })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to cancel offering")),
   })
 }
 
@@ -69,6 +77,8 @@ export function useAssignLecturer() {
         queryKey: courseOfferingKeys.detail(variables.offering_id),
       })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to assign lecturer")),
   })
 }
 
@@ -81,6 +91,8 @@ export function useRemoveLecturer() {
         queryKey: courseOfferingKeys.detail(variables.offeringId),
       })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to remove lecturer")),
   })
 }
 
@@ -95,6 +107,8 @@ export function useCreateSchedule() {
         queryKey: courseOfferingKeys.detail(variables.offering_id),
       })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to create schedule")),
   })
 }
 
@@ -107,6 +121,8 @@ export function useUpdateSchedule(offeringId: number) {
         queryKey: courseOfferingKeys.detail(offeringId),
       })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to update schedule")),
   })
 }
 
@@ -119,5 +135,7 @@ export function useRemoveSchedule(offeringId: number) {
         queryKey: courseOfferingKeys.detail(offeringId),
       })
     },
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to remove schedule")),
   })
 }

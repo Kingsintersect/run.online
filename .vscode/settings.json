@@ -1,5 +1,8 @@
 {
-   "github.copilot.chat.codeGeneration.instructions": [{
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
       "file": ".github/copilot-instructions.md"
-   }]
+    }
+  ],
+  "compile-hero.disable-compile-files-on-did-save-code": true
 }

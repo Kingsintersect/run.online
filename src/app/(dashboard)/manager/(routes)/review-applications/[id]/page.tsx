@@ -27,6 +27,7 @@ import Modal from "@/components/custom/Modal"
 import { ZoomableImage } from "@/components/custom/ZoomableImage"
 import { ApplicationAnswers } from "./components/ApplicationAnswers"
 import { getFileKind } from "@/lib/utils"
+import { getErrorMessage } from "@/lib/errors"
 import {
   applicationReviewApi,
   applicationReviewKeys,
@@ -101,7 +102,8 @@ export default function ApplicationDetailPage() {
       setDenyModalOpen(false)
       setConfirmApproveOpen(false)
     },
-    onError: () => toast.error("Failed to submit decision"),
+    onError: (err) =>
+      toast.error(getErrorMessage(err, "Failed to submit decision")),
   })
 
   const { data: programs } = useAllPrograms()

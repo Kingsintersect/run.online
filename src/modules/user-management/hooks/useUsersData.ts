@@ -15,6 +15,7 @@ import type {
   TutorOnboardingStep,
 } from "@/types/users"
 import { useUploadProgress } from "@/hooks/use-upload-progress"
+import { friendlyMessage } from "@/lib/errors"
 
 /** Pull the most descriptive message out of an API error — the backend's
  *  own `message`, then any Laravel-style field validation errors, then a
@@ -28,8 +29,8 @@ function describeApiError(err: unknown, fallback: string): string {
     ? Object.values(data.errors).flat().filter(Boolean)
     : []
   if (fieldErrors.length) return fieldErrors.join(" ")
-  if (data?.message) return data.message
-  if (e?.message) return e.message
+  if (data?.message) return friendlyMessage(data.message)
+  if (e?.message) return friendlyMessage(e.message)
   return fallback
 }
 
@@ -115,7 +116,8 @@ export function useUpdateStudent() {
       await qc.invalidateQueries({ queryKey: usersKeys.students.all })
       toast.success("Student updated")
     },
-    onError: () => toast.error("Failed to update student"),
+    onError: (err) =>
+      toast.error(describeApiError(err, "Failed to update student")),
   })
 }
 

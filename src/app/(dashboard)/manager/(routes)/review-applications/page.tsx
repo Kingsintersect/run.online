@@ -23,6 +23,7 @@ import Modal from "@/components/custom/Modal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { getErrorMessage } from "@/lib/errors"
 import {
   applicationReviewApi,
   applicationReviewKeys,
@@ -120,8 +121,7 @@ export default function ReviewApplicationsPage() {
       setDenyReason("")
       qc.invalidateQueries({ queryKey: applicationReviewKeys.all })
     },
-    onError: (e) =>
-      toast.error(e instanceof Error ? e.message : "Bulk review failed"),
+    onError: (e) => toast.error(getErrorMessage(e, "Bulk review failed")),
   })
 
   const toggle = (id: string) =>

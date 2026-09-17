@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { feeManagementService } from "../services/fee-management.service"
 import { feeKeys } from "./query-keys"
 import type { CreateFeeTypeDto } from "../types"
+import { getErrorMessage } from "@/lib/errors"
 
 export function useCreateFeeType() {
   const qc = useQueryClient()
@@ -105,9 +106,7 @@ export function useWaiveInvoice() {
       toast.success("Invoice waived")
     },
     onError: (err) => {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to waive invoice"
-      )
+      toast.error(getErrorMessage(err, "Failed to waive invoice"))
     },
   })
 }
@@ -122,9 +121,7 @@ export function useCancelInvoice() {
       toast.success("Invoice cancelled")
     },
     onError: (err) => {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to cancel invoice"
-      )
+      toast.error(getErrorMessage(err, "Failed to cancel invoice"))
     },
   })
 }

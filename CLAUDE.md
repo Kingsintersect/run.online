@@ -365,3 +365,8 @@ before generating any code.**
   document for the backend team while the frontend ships anyway.
 - This does not relax §13: still never implement or modify backend code. It only means the
   frontend's own build schedule never blocks on the backend's.
+- **Zip a handoff only when multiple docs changed.** A zip must only ever contain the files
+  actually touched in the current work session, never the whole `sandbox/` directory — and if
+  only a single file was created or updated (e.g. one new entry in
+  `BACKEND_DEVIATIONS_2026-09-14.md`), flagging it there is enough on its own; skip the zip
+  entirely rather than bundling one file for handoff.

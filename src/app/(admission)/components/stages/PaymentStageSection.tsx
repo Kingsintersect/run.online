@@ -1,8 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { motion } from "framer-motion"
-import { CheckCircle, CreditCard, ExternalLink, Loader2 } from "lucide-react"
+import {
+  AlertCircle,
+  CheckCircle,
+  CreditCard,
+  ExternalLink,
+  LayoutDashboard,
+  Loader2,
+} from "lucide-react"
 import { toast } from "sonner"
 import {
   Card,
@@ -14,6 +22,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { FEE_CATEGORY_LABELS } from "@/lib/admission-catalog"
 import { cn } from "@/lib/utils"
+import { roleDashboardPath, UserRole } from "@/config/nav.config"
+import { StatusBadgeWidget } from "../StatusBadgeWidget"
 import type { PaymentInitiationResponse } from "../../types/admission"
 import type {
   ResolvedStageOf,
@@ -47,13 +57,16 @@ export function PaymentStageSection({
 }: PaymentStageSectionProps) {
   const { state, config } = stage
   const currency = state.currency ?? "NGN"
+  const totalAmount = state.amount ?? 0
   const amountPaid = state.amountPaid ?? 0
-  const balance = state.balance ?? state.amount ?? 0
+  const balance = state.balance ?? totalAmount
   const minimum = state.minimumPayable ?? balance
   const isPaid = stage.status === "COMPLETED"
   const isPartiallyPaid =
     config.allowInstallments && amountPaid > 0 && balance > 0
   const feeLabel = state.feeName ?? FEE_CATEGORY_LABELS[config.feeCategory]
+  const progressPercent =
+    totalAmount > 0 ? Math.round((amountPaid / totalAmount) * 100) : 0
 
   const [selectedPlan, setSelectedPlan] = useState<PaymentPlan>("half")
   const [customAmount, setCustomAmount] = useState<string>("")
@@ -171,6 +184,27 @@ export function PaymentStageSection({
             </p>
           ) : (
             <>
+              {isPartiallyPaid && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {config.feeCategory === "TUITION" && (
+                    <>
+                      <StatusBadgeWidget
+                        label="Admission Confirmed"
+                        status="success"
+                      />
+                      <StatusBadgeWidget
+                        label="Acceptance Fee Paid"
+                        status="success"
+                      />
+                    </>
+                  )}
+                  <StatusBadgeWidget
+                    label={`Partial — ${formatMoney(amountPaid, currency)} paid`}
+                    status="warning"
+                  />
+                </div>
+              )}
+
               <dl className="grid gap-3 sm:grid-cols-3">
                 {[
                   ["Fee", formatMoney(state.amount, currency)],
@@ -188,6 +222,29 @@ export function PaymentStageSection({
                   </div>
                 ))}
               </dl>
+
+              {isPartiallyPaid && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 dark:bg-emerald-500/10">
+                  <div className="mb-2 flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground">
+                      Payment Progress
+                    </span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {progressPercent}%
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      style={{ width: `${progressPercent}%` }}
+                      className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                    />
+                  </div>
+                  <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
+                    <span>Paid: {formatMoney(amountPaid, currency)}</span>
+                    <span>Remaining: {formatMoney(balance, currency)}</span>
+                  </div>
+                </div>
+              )}
 
               {isPaid ? (
                 <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
@@ -281,13 +338,21 @@ export function PaymentStageSection({
                   )}
 
                   {isPartiallyPaid && (
-                    <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-foreground dark:bg-amber-500/10">
-                      You have a remaining balance of{" "}
-                      <span className="font-semibold">
-                        {formatMoney(balance, currency)}
-                      </span>
-                      . Complete this payment to continue.
-                    </p>
+                    <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 dark:bg-amber-500/10">
+                      <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">
+                          Balance Payment Required
+                        </p>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          You have a remaining balance of{" "}
+                          <span className="font-semibold text-foreground">
+                            {formatMoney(balance, currency)}
+                          </span>
+                          . Please complete this payment to continue.
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   <Button
@@ -309,12 +374,21 @@ export function PaymentStageSection({
                     ) : (
                       <>
                         {config.allowInstallments
-                          ? `Pay ${formatMoney(isPartiallyPaid ? balance : installmentAmount, currency)} Now`
+                          ? `${isPartiallyPaid ? "Pay Balance" : "Pay"} ${formatMoney(isPartiallyPaid ? balance : installmentAmount, currency)} Now`
                           : "Pay now"}
                         <ExternalLink className="size-4" />
                       </>
                     )}
                   </Button>
+
+                  {isPartiallyPaid && (
+                    <Button asChild variant="outline" className="w-full gap-2">
+                      <Link href={roleDashboardPath[UserRole.STUDENT]}>
+                        <LayoutDashboard className="size-4" />
+                        Go to Dashboard
+                      </Link>
+                    </Button>
+                  )}
                 </>
               )}
             </>
