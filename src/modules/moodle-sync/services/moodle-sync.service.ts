@@ -1,5 +1,6 @@
 import apiClient from "@/lib/clients/apiClient"
 import { academicUnitsApi } from "@/services/academicStructureApi"
+import { offeringsApi } from "@/services/courseOfferingApi"
 import type {
   CategorySyncResponse,
   CoursesBulkPushPayload,
@@ -804,6 +805,50 @@ export const moodleSyncService = {
         page: filters.page ?? 1,
         limit: filters.limit ?? data.length,
       },
+    }
+  },
+
+  // `GET /assessments` has no `lecturerId` filter, and `GET /assessments/my`
+  // is student-only (403s a tutor) — confirmed live 2026-09-23. Worse:
+  // `?offeringId=` itself is documented but a confirmed no-op server-side —
+  // `?offeringId=1` and `?offeringId=2` both returned the identical
+  // unfiltered 17-row list live, so per-offering server calls can't be
+  // trusted to filter anything (flagged for the backend separately, see
+  // sandbox/BACKEND_DEVIATIONS_2026-09-14.md). Each assessment row also
+  // carries no offering/course id at all — only `course.code`/`course.title`
+  // strings — so an exact match isn't possible either way. This derives a
+  // best-effort match instead: fetch the tutor's own assigned offerings
+  // (the same `?lecturerId=` call Course Assignments already uses) and the
+  // full assessment list once, then keep only assessments whose course code
+  // matches one of the tutor's own course codes. Honest, not exact — same
+  // "derived filter" caveat already established elsewhere in this app for
+  // records with no id to match on directly.
+  async getMyTutorAssessments(
+    lecturerId: number,
+    filters: Partial<
+      Pick<AssessmentFilter, "type" | "isVisible" | "page" | "limit">
+    > = {}
+  ): Promise<PaginatedAssessments> {
+    const [{ data: offerings }, allAssessments] = await Promise.all([
+      offeringsApi.list({ lecturerId }),
+      moodleSyncService.listAssessmentsPaginated({
+        type: filters.type,
+        isVisible: filters.isVisible,
+        limit: 500,
+      }),
+    ])
+    const myCourseCodes = new Set(
+      offerings.map((o) => o.course_code.toLowerCase())
+    )
+    const mine = allAssessments.data.filter((a) =>
+      myCourseCodes.has(a.courseCode.toLowerCase())
+    )
+    const page = filters.page ?? 1
+    const limit = filters.limit ?? mine.length
+    const start = (page - 1) * limit
+    return {
+      data: mine.slice(start, start + limit),
+      meta: { total: mine.length, page, limit },
     }
   },
 

@@ -91,11 +91,7 @@ export function StudentResultShell() {
   return (
     <PermissionGate
       require={{ resource: "my-results", action: "view" }}
-      fallback={
-        <div className="flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
-          <p className="text-sm">You do not have permission to view results.</p>
-        </div>
-      }
+      denyBehavior="modal"
     >
       <StudentResultsPage />
     </PermissionGate>
@@ -106,23 +102,29 @@ export function StudentResultShell() {
 // Shows: course-scoped grade book — pick one of your offerings, see every
 // student's grade for that course + semester in one call
 // (GET /results/grades/course/:c/semester/:s).
-// Requires: results:manage (permission 3)
+// Requires: gradebook:view or gradebook:manage — corrected 2026-09-23. Was
+// checking results:manage, which neither the tutor nor the HOD role (the two
+// roles that reach this shell — hodNav = tutorNav) actually hold; both were
+// specifically granted gradebook.view/gradebook.manage instead (confirmed
+// live via GET /auth/roles/:id — this is the real, purpose-built permission
+// pair for this exact screen, not a stand-in). Every real tutor/HOD account
+// was 403ing on this screen until this fix. Mirrors ResultShell's own
+// view-vs-manage pattern: gate on either, pass the granular canManage flag
+// down for the edit controls.
 export function TutorGradeBookShell() {
   const { can } = usePermissions()
 
-  const canManage = can({ resource: "results", action: "manage" })
+  const canManage = can({ resource: "gradebook", action: "manage" })
   const canExport = can({ resource: "results", action: "export" })
 
   return (
     <PermissionGate
-      require={{ resource: "results", action: "manage" }}
-      fallback={
-        <div className="flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
-          <p className="text-sm">
-            You do not have permission to access the grade book.
-          </p>
-        </div>
-      }
+      require={[
+        { resource: "gradebook", action: "view" },
+        { resource: "gradebook", action: "manage" },
+      ]}
+      mode="any"
+      denyBehavior="modal"
     >
       <TutorCourseGradeBook canManage={canManage} canExport={canExport} />
     </PermissionGate>
@@ -141,13 +143,7 @@ export function GradingSchemesShell() {
     <div className="space-y-8">
       <PermissionGate
         require={{ resource: "results", action: "manage" }}
-        fallback={
-          <div className="flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
-            <p className="text-sm">
-              You do not have permission to manage grading schemes.
-            </p>
-          </div>
-        }
+        denyBehavior="modal"
       >
         <GradingSchemesPage canManage={canManage} />
       </PermissionGate>
@@ -157,18 +153,16 @@ export function GradingSchemesShell() {
 
 // ========== TUTOR SUBMIT RESULTS SHELL ==========
 // Shows: Course + semester selector, student score inputs, submit button
-// Requires: results:manage (permission 3)
+// Requires: results:submit — corrected 2026-09-23, was checking
+// results:manage (see TutorGradeBookShell's note above for the same class of
+// bug). The tutor/HOD role was specifically granted results.submit ("Submit
+// course results for approval (tutor-facing)") for exactly this screen —
+// confirmed live, results.manage isn't held by either role.
 export function TutorSubmitShell() {
   return (
     <PermissionGate
-      require={{ resource: "results", action: "manage" }}
-      fallback={
-        <div className="flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
-          <p className="text-sm">
-            You do not have permission to submit grades.
-          </p>
-        </div>
-      }
+      require={{ resource: "results", action: "submit" }}
+      denyBehavior="modal"
     >
       <BulkGradeForm />
     </PermissionGate>

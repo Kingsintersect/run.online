@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
+import { toast } from "sonner"
 import {
   BookOpen,
   ChevronDown,
@@ -17,6 +18,8 @@ import { useBulkCreateGrades } from "../hooks/use-grades-mutations"
 import { courseOfferingQueryOptions } from "@/services/courseOfferingApi"
 import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import { useCaPreview } from "@/modules/moodle-sync/hooks/use-sync-assessments"
+import { enrollmentApi } from "@/modules/enrollment/services/enrollment.service"
+import { getErrorMessage } from "@/lib/errors"
 import type { BulkGradeItemDto } from "../types/grades.types"
 import type { CourseOffering } from "@/types/school"
 
@@ -76,23 +79,47 @@ export function BulkGradeForm() {
     setResult(null)
     setCaPulledCount(null)
     try {
-      const existing = await gradesService.getGradesForPublish({
-        academicYearId: null,
-        semesterId: String(selectedOffering.semester_id),
-        programId: null,
-        courseId: selectedOffering.course_id,
-      })
-      const loadedEntries: ScoreEntry[] = existing.map((g) => ({
-        studentId: g.studentId,
-        studentName: g.studentName,
-        studentMatric: g.studentMatric,
-        existingStatus: g.status,
-        caScore: g.caScore?.toString() ?? "",
-        examScore: g.examScore?.toString() ?? "",
-        locked: g.status === "APPROVED" || g.status === "PUBLISHED",
-      }))
+      // `GET /results/grades` only returns rows that already have a Grade
+      // record — a course nobody has graded yet comes back completely
+      // empty even though real students are enrolled (confirmed live
+      // 2026-09-23: this exact gap, SOC101/SOC102 both had real enrolled
+      // students and zero Grade rows, so this screen showed "No students
+      // found" as if the course had no one in it). Fixed by loading the
+      // real enrollment roster too and merging — every enrolled student
+      // gets a row, pre-filled from their existing grade if one exists,
+      // blank and ready to enter otherwise.
+      const [roster, existingGrades] = await Promise.all([
+        enrollmentApi.getByOffering(selectedOffering.id),
+        gradesService.getGradesForPublish({
+          academicYearId: null,
+          semesterId: String(selectedOffering.semester_id),
+          programId: null,
+          courseId: selectedOffering.course_id,
+        }),
+      ])
+      const gradeByStudentId = new Map(
+        existingGrades.map((g) => [g.studentId, g])
+      )
+      const loadedEntries: ScoreEntry[] = roster
+        .filter((e) => e.status === "ENROLLED")
+        .map((e) => {
+          const g = gradeByStudentId.get(e.studentId)
+          return {
+            studentId: e.studentId,
+            studentName: e.studentName,
+            studentMatric: e.studentMatric,
+            existingStatus: g?.status ?? null,
+            caScore: g?.caScore?.toString() ?? "",
+            examScore: g?.examScore?.toString() ?? "",
+            locked: g?.status === "APPROVED" || g?.status === "PUBLISHED",
+          }
+        })
       setEntries(loadedEntries)
       setLoaded(true)
+    } catch (err) {
+      toast.error(
+        getErrorMessage(err, "Couldn't load students for this course.")
+      )
     } finally {
       setLoadingStudents(false)
     }

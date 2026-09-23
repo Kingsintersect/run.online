@@ -5,12 +5,14 @@ import { motion } from "framer-motion"
 import { BookOpen } from "lucide-react"
 import { AssessmentFilters } from "@/modules/moodle-sync/components/assessments/assessment-filters"
 import { AssessmentBrowseList } from "@/modules/moodle-sync/components/assessments/assessment-browse-list"
-import { useAssessmentsList } from "@/modules/moodle-sync/hooks/use-sync-assessments"
+import { useMyTutorAssessmentsList } from "@/modules/moodle-sync/hooks/use-sync-assessments"
 import { useAssessmentsUiStore } from "@/modules/moodle-sync/store/assessments-ui.store"
+import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 
 export default function TutorAssessmentsPage() {
   const { activeType, visibilityFilter, page, limit } = useAssessmentsUiStore()
+  const { lecturerId } = useMyLecturerId()
 
   const isVisibleFilter =
     visibilityFilter === "visible"
@@ -19,7 +21,11 @@ export default function TutorAssessmentsPage() {
         ? false
         : undefined
 
-  const { data, isLoading } = useAssessmentsList({
+  // Scoped to this tutor's own assigned courses — was previously every
+  // assessment system-wide (confirmed live 2026-09-23, no lecturerId filter
+  // existed on the plain list call). See useMyTutorAssessmentsList's own
+  // comment for why this composes two calls instead of one.
+  const { data, isLoading } = useMyTutorAssessmentsList(lecturerId, {
     type: activeType ?? undefined,
     isVisible: isVisibleFilter,
     page,

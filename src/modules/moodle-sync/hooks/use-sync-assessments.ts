@@ -43,6 +43,28 @@ export function useAssessmentsList(filters?: Partial<AssessmentFilter>) {
   })
 }
 
+// Tutor's own "browse assessments" screen — scoped to their own assigned
+// offerings (see moodleSyncService.getMyTutorAssessments's own comment for
+// why this composes two real endpoints instead of one filtered call).
+export function useMyTutorAssessmentsList(
+  lecturerId: number | null,
+  filters?: Partial<
+    Pick<AssessmentFilter, "type" | "isVisible" | "page" | "limit">
+  >
+) {
+  return useQuery({
+    queryKey: [
+      ...moodleSyncKeys.assessmentsList(filters),
+      "my-tutor",
+      lecturerId,
+    ],
+    queryFn: () =>
+      moodleSyncService.getMyTutorAssessments(lecturerId as number, filters),
+    enabled: lecturerId !== null,
+    staleTime: 3 * 60 * 1000,
+  })
+}
+
 export function useAssessment(id: number | null) {
   return useQuery({
     queryKey: moodleSyncKeys.assessment(id ?? 0),
