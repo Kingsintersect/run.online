@@ -15,8 +15,8 @@ import {
 } from "@/modules/director"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
 import { useSemesters } from "@/hooks/useSemesters"
-import { useAllPrograms, useMajorPrograms } from "@/hooks/useCourseStructure"
-import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
+import { useAllPrograms } from "@/hooks/useCourseStructure"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import {
   useGrades,
   useGradeDistributionData,
@@ -49,10 +49,6 @@ export default function GradeReportsPage() {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const { data: sessions } = useAcademicSessions()
   const { data: semesters = [] } = useSemesters(sessionId)
-  const { data: majorProgramsRes } = useMajorPrograms()
-  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
-    (mp) => mp.isActive
-  )
   // byProgram has no program id, only a display name — the real filter is
   // majorProgramId sent to the endpoint (A15, unconfirmed). Meanwhile,
   // best-effort narrow the already-loaded breakdown by matching its name
@@ -82,12 +78,21 @@ export default function GradeReportsPage() {
   useEffect(() => {
     updateRecordsFilters({
       semesterId: semesterId ? String(semesterId) : "all",
+      // Major-Program Scoping — sandbox/major-program-scoping/
+      // API_CONTRACTS.md A35. Sent ahead of the backend per CLAUDE.md §14;
+      // Grade rows have no program id to filter by client-side either (see
+      // grades.service.ts's getGrades).
+      majorProgramId: majorProgramFilter,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [semesterId])
+  }, [semesterId, majorProgramFilter])
 
+  // Major-Program Scoping — sent ahead of the backend too (A35); this
+  // endpoint has no per-program breakdown at all (grouped by grade letter),
+  // so there's no client-side fallback to pair it with, same as
+  // GradesSummaryPage's identical caveat for this endpoint.
   const { data: distribution = [], isLoading: distributionLoading } =
-    useGradeDistributionData()
+    useGradeDistributionData(majorProgramFilter)
 
   return (
     <PermissionGate
@@ -118,8 +123,16 @@ export default function GradeReportsPage() {
           </div>
         )}
 
-        <MajorProgramTabs
-          programs={majorPrograms}
+        {/* Major-Program Scoping — sandbox/major-program-scoping/
+            FRONTEND_IMPLEMENTATION_PLAN.md §7. Was <MajorProgramTabs>, the
+            SUPER_ADMIN institution-config variant that lists every major
+            program regardless of caller scope — wrong for Director, a
+            scoped role browsing reports. Swapped for the scope-aware
+            <MajorProgramFilterTabs>, matching the same fix already applied
+            to Admin/Dean's Students screen (BACKEND_DEVIATIONS_2026-09-14.md
+            A30). Renders nothing for an unscoped or single-major-program
+            Director, same as before this fix. */}
+        <MajorProgramFilterTabs
           value={majorProgramFilter}
           onChange={setMajorProgramFilter}
         />

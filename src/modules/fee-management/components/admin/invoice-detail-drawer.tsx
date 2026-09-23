@@ -8,6 +8,7 @@ import {
   Ban,
   Calendar,
   Hash,
+  ListChecks,
   Loader2,
   Receipt,
   ShieldOff,
@@ -21,6 +22,7 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
+import { PaymentHistory } from "../shared/payment-history"
 import { WaiveInvoiceDialog } from "./waive-invoice-dialog"
 import { useCancelInvoice } from "../../hooks/use-fee-mutations"
 import type { InvoiceResponse, FeeCategory } from "../../types"
@@ -218,6 +220,26 @@ export function InvoiceDetailDrawer({
                     deadline.
                   </div>
                 )}
+
+                <Separator />
+
+                {/* Payment log — the admin side had no way to see an
+                    invoice's payment/transaction history at all before this;
+                    reuses the same component the student self-service page
+                    already uses (moved to components/shared/ for this). */}
+                <div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <ListChecks size={14} className="text-muted-foreground" />
+                    <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                      Payment Log
+                    </h3>
+                  </div>
+                  <PaymentHistory
+                    invoiceId={invoice.id}
+                    invoiceNumber={invoice.invoiceNumber}
+                    feeTypeName={invoice.feeType.name}
+                  />
+                </div>
               </div>
 
               {/* Footer — admin actions */}

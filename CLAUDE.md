@@ -388,3 +388,23 @@ before generating any code.**
   only a single file was created or updated (e.g. one new entry in
   `BACKEND_DEVIATIONS_2026-09-14.md`), flagging it there is enough on its own; skip the zip
   entirely rather than bundling one file for handoff.
+- **"No filter param to send" is not the same as "nothing to build."** When an endpoint has no
+  scope param because it fetches one record by id (an invoice, a payment, one student's records)
+  rather than filtering a list, don't stop at documenting the gap — check first whether the screen
+  that would even call it exists at all. A missing filter is sometimes really a missing screen
+  (found 2026-09-21: `useStudentInvoices()` had zero consumers anywhere in the app, and the admin
+  invoice drawer had no payment-history section at all — the real fix was building the missing
+  admin capability, not noting there was nothing to scope). Where the record has no scope id of its
+  own to check, derive one via the same best-effort name-matching fallback already used elsewhere
+  (e.g. matching a student's `program_name` against the programs list to find its major program),
+  and use it to proactively hide the action for an out-of-scope record — a UI convenience only,
+  never a substitute for real backend enforcement, exactly like `useMajorProgramScope().withinScope()`
+  is documented to be.
+- **Always explicitly flag a genuinely missing capability, not just a scoping gap on an existing
+  one.** During any audit, if a screen, action, or endpoint simply doesn't exist yet — frontend or
+  backend — say so plainly and propose a contract for it (same trio/format as any other build-ahead
+  proposal) rather than folding it silently into "unscoped" or skipping it because there's nothing
+  to scope. If no backend endpoint exists at all for something worth flagging, don't fake a
+  client-side stand-in that would be dishonest or perform badly (e.g. N+1-fetching a list from a
+  bunch of single-record endpoints) — document the proposed contract and stop there, per this
+  section's own fallback rule.

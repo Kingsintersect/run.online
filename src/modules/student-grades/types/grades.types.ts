@@ -242,6 +242,11 @@ export interface GradeFilters {
   semesterId: string | "all"
   programId: string | "all"
   gradeLetter: string | "all"
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md.
+  // Sent ahead of the backend per CLAUDE.md §14; see grades.service.ts's
+  // getGrades/getGroupedGrades for why there's no client-side fallback filter
+  // to pair it with (Grade rows carry no program identifier at all today).
+  majorProgramId: number | null
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────

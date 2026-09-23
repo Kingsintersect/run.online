@@ -256,6 +256,8 @@ export interface DirectorFilter {
   level?: string
   status?: string
   search?: string
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A33.
+  majorProgramId?: number
 }
 
 export interface PaginationState {

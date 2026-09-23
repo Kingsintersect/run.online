@@ -42,3 +42,9 @@ export interface AssignedCourse {
   registeredStudents: number | null
   schedule: TimetableSlot[]
 }
+
+// One-time-use Moodle SSO redirect, minted fresh per click — mirrors
+// src/modules/enrollment/types/index.ts's student-facing equivalent.
+export interface MoodleLaunchResult {
+  redirectUrl: string
+}

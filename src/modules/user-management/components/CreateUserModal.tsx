@@ -19,7 +19,7 @@ import { adminCreateUser } from "@/lib/auth/backendAuth"
 import { rolesQueryOptions } from "@/services/rolesApi"
 import { usersKeys } from "@/services/usersApi"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
-import { getErrorMessage, getMajorProgramRequiredMessage } from "@/lib/errors"
+import { getErrorMessage, getFieldValidationMessage } from "@/lib/errors"
 
 interface CreateUserModalProps {
   onClose: () => void
@@ -93,7 +93,7 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
       onClose()
     },
     onError: (err) => {
-      const scopedMessage = getMajorProgramRequiredMessage(err)
+      const scopedMessage = getFieldValidationMessage(err, "majorProgramIds")
       if (scopedMessage) {
         setError("major_program_id", {
           type: "server",
@@ -147,9 +147,10 @@ export function CreateUserModal({ onClose }: CreateUserModalProps) {
       lastName: values.last_name || undefined,
       phoneNumber: values.phone_number || undefined,
       roleIds: values.role_ids,
-      majorProgramId: values.requires_major_program
-        ? values.major_program_id
-        : undefined,
+      majorProgramIds:
+        values.requires_major_program && values.major_program_id
+          ? [values.major_program_id]
+          : undefined,
     })
   }
 

@@ -103,6 +103,14 @@ export interface OfferingListFilters {
   // §3. Convenience narrower for a multi-scoped caller; server-enforced
   // scope (§2) applies regardless of whether this is passed.
   majorProgramId?: number
+  // Confirmed live, "built as designed" (BACKEND_DEVIATIONS_2026-09-14.md
+  // Part C — "Offering lecturerId filter"). Not major-program scoping — a
+  // plain lecturer-ownership filter, same one usersApi.getTutorCourses()
+  // already sends for the Course Assignments screen. Added here so every
+  // other unfiltered caller of this endpoint (e.g. the Tutor Grading
+  // screens' offering picker) can scope to "my own offerings" too instead of
+  // pulling every offering system-wide.
+  lecturerId?: number
 }
 
 // ── Offerings ────────────────────────────────

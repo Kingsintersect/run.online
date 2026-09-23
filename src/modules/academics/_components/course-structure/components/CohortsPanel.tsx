@@ -20,6 +20,8 @@ import {
   useRemoveCohort,
   useTransitionCohort,
 } from "@/hooks/useCourseStructure"
+import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { EmptyState } from "./EmptyState"
 import { CohortFormDialog } from "./CohortFormDialog"
 import type { Cohort, CohortStatus } from "@/types/school"
@@ -53,12 +55,33 @@ const NEXT_STATUS: Record<CohortStatus, CohortStatus | null> = {
 // department.
 export function CohortsPanel({ canManage = false }: { canManage?: boolean }) {
   const { data: programsData, isLoading: programsLoading } = useAllPrograms()
-  const certificatePrograms = useMemo(
+  // Major-Program Scoping — sandbox/major-program-scoping/. Program already
+  // carries a real majorProgramId, so this is an exact filter, not a
+  // name/id-derived fallback. `withinScope` is a hard boundary here (unlike
+  // MajorProgramTabs elsewhere in this shell, which lets an unscoped viewer
+  // browse every major program) — a scoped caller should only ever manage
+  // cohorts for certificate programs within their own grant.
+  const { withinScope } = useMajorProgramScope()
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
+  const scopedCertificatePrograms = useMemo(
     () =>
       (programsData?.data ?? []).filter(
-        (p) => p.programCategory === "CERTIFICATE"
+        (p) =>
+          p.programCategory === "CERTIFICATE" &&
+          withinScope(p.majorProgramId ?? null)
       ),
-    [programsData]
+    [programsData, withinScope]
+  )
+  const certificatePrograms = useMemo(
+    () =>
+      majorProgramFilter === null
+        ? scopedCertificatePrograms
+        : scopedCertificatePrograms.filter(
+            (p) => p.majorProgramId === majorProgramFilter
+          ),
+    [scopedCertificatePrograms, majorProgramFilter]
   )
 
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(
@@ -110,7 +133,7 @@ export function CohortsPanel({ canManage = false }: { canManage?: boolean }) {
     )
   }
 
-  if (certificatePrograms.length === 0) {
+  if (scopedCertificatePrograms.length === 0) {
     return (
       <EmptyState
         icon={CalendarRange}
@@ -130,23 +153,37 @@ export function CohortsPanel({ canManage = false }: { canManage?: boolean }) {
             institution&apos;s academic session, so multiple can run
             concurrently (e.g. an ICAN May sitting and a CIB November sitting).
           </p>
+          <MajorProgramFilterTabs
+            value={majorProgramFilter}
+            onChange={(id) => {
+              setMajorProgramFilter(id)
+              setSelectedProgramId(null)
+            }}
+            className="mt-3"
+          />
         </div>
         <div className="flex items-center gap-2">
-          <Select
-            value={activeProgramId ? String(activeProgramId) : undefined}
-            onValueChange={(v) => setSelectedProgramId(Number(v))}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select a Certificate program" />
-            </SelectTrigger>
-            <SelectContent>
-              {certificatePrograms.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {certificatePrograms.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              No Certificate programs under this major program.
+            </p>
+          ) : (
+            <Select
+              value={activeProgramId ? String(activeProgramId) : undefined}
+              onValueChange={(v) => setSelectedProgramId(Number(v))}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select a Certificate program" />
+              </SelectTrigger>
+              <SelectContent>
+                {certificatePrograms.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {canManage && activeProgramId && (
             <Button onClick={() => setEditing(null)}>
               <Plus className="size-4" data-icon="inline-start" />

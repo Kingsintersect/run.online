@@ -18,6 +18,10 @@ interface HostelUiState {
   allocationHostelId: number | undefined
   setAllocationHostelId: (id: number | undefined) => void
 
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  allocationMajorProgramId: number | null
+  setAllocationMajorProgramId: (id: number | null) => void
+
   allocationPage: number
   setAllocationPage: (page: number) => void
 }
@@ -51,6 +55,10 @@ export const useHostelUiStore = create<HostelUiState>((set) => ({
   allocationHostelId: undefined,
   setAllocationHostelId: (id) =>
     set({ allocationHostelId: id, allocationPage: 1 }),
+
+  allocationMajorProgramId: null,
+  setAllocationMajorProgramId: (id) =>
+    set({ allocationMajorProgramId: id, allocationPage: 1 }),
 
   allocationPage: 1,
   setAllocationPage: (page) => set({ allocationPage: page }),

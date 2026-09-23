@@ -25,6 +25,9 @@ import {
   useSetUserActive,
 } from "../hooks/useUsersData"
 import { usePermissions } from "@/lib/permissions/usePermissions"
+import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { toast } from "sonner"
 import type {
   Staff,
   CreateStaffPayload,
@@ -93,7 +96,12 @@ export default function StaffPage() {
 
   const canCreate = can(PERM.manageDepts) // Staff creation is SUPER_ADMIN only
 
-  const { data, isLoading } = useStaffList()
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
+  const { data, isLoading } = useStaffList({
+    major_program_id: majorProgramFilter ?? undefined,
+  })
   const createStaff = useCreateStaff()
   const updateStaff = useUpdateStaff()
   const setActive = useSetUserActive()
@@ -132,6 +140,11 @@ export default function StaffPage() {
           )}
         </div>
       </motion.div>
+
+      <MajorProgramFilterTabs
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
 
       <motion.div
         initial={{ opacity: 0 }}
@@ -226,7 +239,7 @@ export default function StaffPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         title="Add New Staff Member"
-        subtitle="Select an existing user and fill in staff details"
+        subtitle="Enter an email and fill in staff details"
         size="xl"
       >
         <CreateStaffForm
@@ -338,15 +351,20 @@ function CreateStaffForm({
 }) {
   const { data: rolesData } = useStaffEligibleRoles()
   const eligibleRoles = rolesData?.data ?? []
+  const { data: majorProgramsRes } = useMajorPrograms()
+  const majorPrograms = (majorProgramsRes?.data ?? []).filter(
+    (mp) => mp.isActive
+  )
 
   const [form, setForm] = useState<CreateStaffPayload>({
-    user_id: 0,
+    email: "",
     first_name: "",
     last_name: "",
     staff_number: "",
     designation: "",
     job_title: "",
     role_id: 0,
+    major_program_id: 0,
   })
 
   const update = (key: keyof CreateStaffPayload, value: string | number) =>
@@ -354,7 +372,11 @@ function CreateStaffForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(form)
+    if (!form.major_program_id) {
+      toast.error("Please select a major program.")
+      return
+    }
+    void onSubmit(form).catch(() => {})
   }
 
   const inputCls =
@@ -368,21 +390,22 @@ function CreateStaffForm({
       className="max-h-[60vh] space-y-4 overflow-y-auto pr-1"
     >
       <p className="text-xs text-muted-foreground">
-        Enter the existing User ID of the person you want to assign as staff.
+        Enter the staff member&apos;s email. If no account exists yet, one will
+        be created automatically.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
-            User ID *
+            Email *
           </label>
           <input
-            type="number"
+            type="email"
             className={inputCls}
-            placeholder="e.g. 8"
+            placeholder="staff@example.com"
             required
-            value={form.user_id || ""}
-            onChange={(e) => update("user_id", parseInt(e.target.value) || 0)}
+            value={form.email}
+            onChange={(e) => update("email", e.target.value)}
           />
         </div>
         <div>
@@ -407,6 +430,24 @@ function CreateStaffForm({
               {eligibleRoles.find((r) => r.id === form.role_id)?.description}
             </p>
           )}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">
+            Major Program *
+          </label>
+          <select
+            className={selectCls}
+            required
+            value={form.major_program_id || ""}
+            onChange={(e) => update("major_program_id", Number(e.target.value))}
+          >
+            <option value="">Select a major program…</option>
+            {majorPrograms.map((mp) => (
+              <option key={mp.id} value={mp.id}>
+                {mp.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
@@ -543,7 +584,7 @@ function EditStaffForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(form)
+    void onSubmit(form).catch(() => {})
   }
 
   const inputCls =

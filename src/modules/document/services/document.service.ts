@@ -22,6 +22,10 @@ const BASE = "/documents"
 const AUTH = { access_token: true } as const
 
 export const documentService = {
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `majorProgramId` sent regardless; the frontend also filters client-side
+  // in document-review-table.tsx (via use-student-major-program-map.ts) so
+  // results are correct either way.
   async listDocuments(
     filters: DocumentQueryFilters = {}
   ): Promise<DocumentListResponse> {

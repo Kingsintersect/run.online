@@ -23,6 +23,7 @@ import {
   useEligibleDeans,
   useMajorPrograms,
 } from "@/hooks/useCourseStructure"
+import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { facultySchema, type FacultyFormValues } from "@/schemas/school.schema"
 import type { Faculty } from "@/types/school"
 
@@ -50,7 +51,32 @@ export function FacultyFormDialog({
     () => (majorProgramsRes?.data ?? []).filter((mp) => mp.isActive),
     [majorProgramsRes]
   )
-  const hasMultipleMajorPrograms = majorPrograms.length > 1
+  // Major-Program Scoping — sandbox/major-program-scoping/. A scoped caller
+  // (ADMIN etc. holding a role grant tied to one or more specific major
+  // programs) must not be able to tag a new Faculty under a major program
+  // outside their own grant — restrict the option list to their scope, same
+  // as MajorProgramFilterTabs already does for browse/filter screens. An
+  // unscoped caller (SUPER_ADMIN) keeps seeing every active major program.
+  // The faculty's own current value is always kept visible even if outside
+  // scope, so editing an existing out-of-scope faculty never silently blanks
+  // the field.
+  const { isUnscoped, scopedPrograms } = useMajorProgramScope()
+  const majorProgramOptions = useMemo(() => {
+    if (isUnscoped) return majorPrograms
+    const scopedIds = new Set(scopedPrograms.map((sp) => sp.id))
+    const filtered = majorPrograms.filter((mp) => scopedIds.has(mp.id))
+    if (
+      faculty?.majorProgramId != null &&
+      !filtered.some((mp) => mp.id === faculty.majorProgramId)
+    ) {
+      const existing = majorPrograms.find(
+        (mp) => mp.id === faculty.majorProgramId
+      )
+      if (existing) filtered.push(existing)
+    }
+    return filtered
+  }, [majorPrograms, isUnscoped, scopedPrograms, faculty])
+  const hasMultipleMajorPrograms = majorProgramOptions.length > 1
   const isPending = createFaculty.isPending || updateFaculty.isPending
 
   const {
@@ -66,6 +92,14 @@ export function FacultyFormDialog({
 
   useEffect(() => {
     if (!open) return
+    // Default a brand-new Faculty to the scoped caller's own major program
+    // when they only have one — mirrors ProgramFormDialog's "creating
+    // directly under a major program defaults the scope to match" note.
+    // Leaves the field null (institution-wide) for an unscoped caller, and
+    // for a multi-scoped caller who must pick explicitly among their own.
+    const defaultMajorProgramId =
+      faculty?.majorProgramId ??
+      (!isUnscoped && scopedPrograms.length === 1 ? scopedPrograms[0].id : null)
     reset({
       name: faculty?.name ?? "",
       code: faculty?.code ?? "",
@@ -73,9 +107,9 @@ export function FacultyFormDialog({
       deanUserId: faculty?.deanUserId ?? undefined,
       email: faculty?.email ?? "",
       phoneNumber: faculty?.phoneNumber ?? "",
-      majorProgramId: faculty?.majorProgramId ?? null,
+      majorProgramId: defaultMajorProgramId,
     })
-  }, [open, faculty, reset])
+  }, [open, faculty, reset, isUnscoped, scopedPrograms])
 
   const onSubmit = async (values: FacultyFormValues) => {
     try {
@@ -236,7 +270,7 @@ export function FacultyFormDialog({
                         Institution-wide
                       </span>
                     </SelectItem>
-                    {majorPrograms.map((mp) => (
+                    {majorProgramOptions.map((mp) => (
                       <SelectItem key={mp.id} value={String(mp.id)}>
                         {mp.name}
                       </SelectItem>

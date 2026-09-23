@@ -1,17 +1,22 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import { ArrowLeft, BookOpen, Loader2, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { CourseSyncTable } from "@/modules/moodle-sync/components/courses/course-sync-table"
 import { usePullCourses } from "@/modules/moodle-sync/hooks/use-sync-mutations"
 import { ReconcileButton } from "@/modules/moodle-sync/components/shared/reconcile-dialog"
 
 export default function MoodleSyncCoursesPage() {
   const pullCourses = usePullCourses()
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // Send-only — see course-sync-table.tsx's own comment.
+  const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
 
   const handlePullAll = async () => {
     try {
@@ -77,7 +82,12 @@ export default function MoodleSyncCoursesPage() {
           </div>
         </motion.div>
 
-        <CourseSyncTable />
+        <MajorProgramFilterTabs
+          value={majorProgramId}
+          onChange={setMajorProgramId}
+        />
+
+        <CourseSyncTable majorProgramId={majorProgramId} />
       </div>
     </PermissionGate>
   )

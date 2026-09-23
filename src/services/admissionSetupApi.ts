@@ -97,11 +97,28 @@ const mapRequirement = (
 
 export const admissionSetupApi = {
   listCyclesBySession: async (
-    sessionId: number
+    sessionId: number,
+    // Major-Program Scoping — sandbox/major-program-scoping/. sandbox/
+    // BACKEND_DEVIATIONS_2026-09-14.md A35. Cycles have no scope field of
+    // their own today — they inherit it transitively through the session
+    // they're attached to (AdmissionPageContainer.tsx already filters the
+    // session picker itself by session.majorProgramId, an exact filter
+    // since Session carries a real majorProgramId). Sent here too, ahead of
+    // the backend per CLAUDE.md §14, as a defense-in-depth param alongside
+    // sessionId for the day a cycle can be queried without a session
+    // already pinned down — harmless no-op today since sessionId already
+    // fully determines scope.
+    majorProgramId?: number | null
   ): Promise<{ data: AdmissionCycle[] }> => {
     const res = await apiClient.get<{ data: WireAdmissionCycle[] }>(
       "/admissions/cycles",
-      { ...AUTH, params: { sessionId } }
+      {
+        ...AUTH,
+        params: {
+          sessionId,
+          ...(majorProgramId != null ? { majorProgramId } : {}),
+        },
+      }
     )
     return { data: res.data.map(mapCycle) }
   },
@@ -226,8 +243,18 @@ export const admissionSetupApi = {
 
 export const admissionSetupKeys = {
   all: ["admission-setup"] as const,
-  cyclesBySession: (sessionId: number) =>
+  // Prefix (no majorProgramId) — use for invalidation, so a mutation
+  // invalidates every majorProgramId-filtered variant of this session's
+  // cycles list at once, not just the unfiltered ("null") one.
+  cyclesBySessionPrefix: (sessionId: number) =>
     [...admissionSetupKeys.all, "cycles", sessionId] as const,
+  cyclesBySession: (sessionId: number, majorProgramId?: number | null) =>
+    [
+      ...admissionSetupKeys.all,
+      "cycles",
+      sessionId,
+      majorProgramId ?? null,
+    ] as const,
   cycleDetail: (id: number) =>
     [...admissionSetupKeys.all, "cycles", id] as const,
   requirementsByCycle: (cycleId: number) =>
@@ -235,11 +262,12 @@ export const admissionSetupKeys = {
 }
 
 export const admissionSetupQueryOptions = {
-  cyclesBySession: (sessionId: number) =>
+  cyclesBySession: (sessionId: number, majorProgramId?: number | null) =>
     createApiQueryOptions({
-      queryKey: admissionSetupKeys.cyclesBySession(sessionId),
+      queryKey: admissionSetupKeys.cyclesBySession(sessionId, majorProgramId),
       queryFn: async () =>
-        (await admissionSetupApi.listCyclesBySession(sessionId)).data,
+        (await admissionSetupApi.listCyclesBySession(sessionId, majorProgramId))
+          .data,
     }),
 
   cycleDetail: (id: number) =>

@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { AlertTriangle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
@@ -12,8 +14,32 @@ import { useOverdueInvoices } from "../../hooks/use-invoices"
 import type { FeeCategory } from "../../types"
 
 export function OverdueReport() {
-  const { data, isLoading, refetch } = useOverdueInvoices()
-  const invoices = data?.data ?? []
+  // Major-Program Scoping — A33. GET /fees/invoices/overdue doesn't support
+  // majorProgramId server-side yet (sent anyway, ahead of the backend), so
+  // this also filters client-side by matching each invoice's
+  // student.programName against the programs under the selected major
+  // program — the invoice response has no programId/majorProgramId of its
+  // own to filter on directly.
+  const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
+  const { data, isLoading, refetch } = useOverdueInvoices({
+    majorProgramId: majorProgramId ?? undefined,
+  })
+  const { data: programsRes } = useAllPrograms()
+  const programNamesInScope = useMemo(() => {
+    if (majorProgramId == null) return null
+    return new Set(
+      (programsRes?.data ?? [])
+        .filter((p) => p.majorProgramId === majorProgramId)
+        .map((p) => p.name)
+    )
+  }, [programsRes, majorProgramId])
+
+  const invoices = (data?.data ?? []).filter(
+    (inv) =>
+      !programNamesInScope ||
+      !inv.student?.programName ||
+      programNamesInScope.has(inv.student.programName)
+  )
   // "now" captured once on mount so the render stays pure.
   const [now] = useState(() => Date.now())
 
@@ -40,6 +66,11 @@ export function OverdueReport() {
 
   return (
     <div className="space-y-5">
+      <MajorProgramFilterTabs
+        value={majorProgramId}
+        onChange={setMajorProgramId}
+      />
+
       {/* ── Controls ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <Button

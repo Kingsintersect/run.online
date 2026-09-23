@@ -126,6 +126,14 @@ export default function ApplicationDetailPage() {
     application?.program_choice.first_choice_program_id
   )
   const applicationSessionId = Number(application?.admission_cycle_id)
+  // Major-Program Scoping — sandbox/major-program-scoping/
+  // BACKEND_DEVIATIONS_2026-09-14.md A35. Sent ahead of the backend per
+  // CLAUDE.md §14 — a no-op here today since programId already narrows this
+  // query to one exact program, but kept consistent with every other
+  // offers query in this module.
+  const applicationMajorProgramId = (programs?.data ?? []).find(
+    (p) => p.id === applicationProgramId
+  )?.majorProgramId
   const { data: offersForProgramSession } = useQuery({
     queryKey: admissionOfferKeys.list({
       programId: applicationProgramId,
@@ -135,6 +143,7 @@ export default function ApplicationDetailPage() {
       admissionOfferApi.list({
         programId: applicationProgramId,
         sessionId: applicationSessionId,
+        majorProgramId: applicationMajorProgramId ?? undefined,
         limit: 100,
       }),
     enabled: application?.status === "approved" && !!applicationProgramId,
@@ -277,7 +286,14 @@ export default function ApplicationDetailPage() {
 
     setIsGeneratingNumber(true)
     try {
-      const { meta } = await admissionOfferApi.list({ sessionId, limit: 1 })
+      // Major-Program Scoping — sandbox/major-program-scoping/
+      // BACKEND_DEVIATIONS_2026-09-14.md A35. Best-effort, id-derived from
+      // the offer form's currently selected program.
+      const { meta } = await admissionOfferApi.list({
+        sessionId,
+        majorProgramId: selectedOfferProgram?.majorProgramId ?? undefined,
+        limit: 1,
+      })
       const nextSequence = (meta?.total ?? 0) + 1
       createOfferForm.setValue(
         "admissionNumber",
@@ -363,6 +379,17 @@ export default function ApplicationDetailPage() {
 
   const { personal_info, academic_records, program_choice, documents } =
     application
+
+  // Dynamic Admission — sandbox/dynamic-admission/. Once an application was
+  // submitted through the fully dynamic form, `application.form.steps` is a
+  // real, complete snapshot of every step/field as the applicant actually
+  // saw it — rendered generically below by <ApplicationAnswers>. The
+  // hardcoded "Personal Information"/"Program Choice"/"Academic Records"
+  // cards further down are a fixed field set from before that shipped; kept
+  // only as the fallback for older applications with no snapshot, so they
+  // never duplicate (or silently go stale next to) whatever fields the
+  // admin has actually configured for this application's major program.
+  const hasFormSnapshot = !!application.form?.steps?.length
 
   return (
     <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
@@ -471,219 +498,236 @@ export default function ApplicationDetailPage() {
           )}
         </AnimatePresence>
 
-        {/* Personal Information */}
-        <SectionCard title="Personal Information" icon={User}>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="mb-2 flex items-center gap-4 sm:col-span-2 lg:col-span-3">
-              <ZoomableImage
-                src={personal_info.passport_url}
-                alt="Passport photograph"
-                title={`${personal_info.first_name} ${personal_info.last_name} — Passport`}
-                className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border"
-              />
-              <div>
-                <p className="text-lg font-semibold text-foreground">
-                  {personal_info.last_name}, {personal_info.first_name}{" "}
-                  {personal_info.middle_name}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {personal_info.email}
-                </p>
-              </div>
+        {/* Identity summary — always shown, pulls from guaranteed top-level
+            fields regardless of whether a dynamic snapshot exists. */}
+        <SectionCard title="Applicant" icon={User}>
+          <div className="flex items-center gap-4">
+            <ZoomableImage
+              src={personal_info.passport_url}
+              alt="Passport photograph"
+              title={`${personal_info.first_name} ${personal_info.last_name} — Passport`}
+              className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border"
+            />
+            <div>
+              <p className="text-lg font-semibold text-foreground">
+                {personal_info.last_name}, {personal_info.first_name}{" "}
+                {personal_info.middle_name}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {personal_info.email}
+              </p>
             </div>
-            {/* Read-only: admission officers cannot edit application fields — see admission_README.md */}
-            <EditableField
-              label="First Name"
-              value={personal_info.first_name}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Last Name"
-              value={personal_info.last_name}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Middle Name"
-              value={personal_info.middle_name}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Date of Birth"
-              value={personal_info.date_of_birth}
-              type="date"
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Gender"
-              value={personal_info.gender}
-              editable={false}
-              options={[
-                { value: "male", label: "Male" },
-                { value: "female", label: "Female" },
-                { value: "other", label: "Other" },
-              ]}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Nationality"
-              value={personal_info.nationality}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="State of Origin"
-              value={personal_info.state_of_origin}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="LGA"
-              value={personal_info.lga}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Phone"
-              value={personal_info.phone}
-              type="tel"
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Email"
-              value={personal_info.email}
-              type="email"
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Address"
-              value={personal_info.address}
-              type="textarea"
-              editable={false}
-              onSave={() => {}}
-              className="sm:col-span-2 lg:col-span-3"
-            />
           </div>
         </SectionCard>
 
-        {/* Program Choice */}
-        <SectionCard title="Program Choice" icon={GraduationCap}>
-          <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            <EditableField
-              label="First Choice"
-              value={program_choice.first_choice_program_name}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Second Choice"
-              value={program_choice.second_choice_program_name}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="Entry Mode"
-              value={program_choice.entry_mode}
-              editable={false}
-              options={[
-                { value: "utme", label: "UTME" },
-                { value: "direct_entry", label: "Direct Entry" },
-                { value: "transfer", label: "Transfer" },
-              ]}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="JAMB Reg No."
-              value={program_choice.jamb_reg_no}
-              editable={false}
-              onSave={() => {}}
-            />
-            <EditableField
-              label="JAMB Score"
-              value={String(program_choice.jamb_score)}
-              type="number"
-              editable={false}
-              onSave={() => {}}
-            />
-          </div>
-        </SectionCard>
+        {/* Fallback only — no dynamic form snapshot for this application, so
+            fall back to the fixed legacy field set (today's exact behavior
+            before the dynamic form shipped). See hasFormSnapshot above. */}
+        {!hasFormSnapshot && (
+          <>
+            <SectionCard title="Personal Information" icon={User}>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Read-only: admission officers cannot edit application fields — see admission_README.md */}
+                <EditableField
+                  label="First Name"
+                  value={personal_info.first_name}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Last Name"
+                  value={personal_info.last_name}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Middle Name"
+                  value={personal_info.middle_name}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Date of Birth"
+                  value={personal_info.date_of_birth}
+                  type="date"
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Gender"
+                  value={personal_info.gender}
+                  editable={false}
+                  options={[
+                    { value: "male", label: "Male" },
+                    { value: "female", label: "Female" },
+                    { value: "other", label: "Other" },
+                  ]}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Nationality"
+                  value={personal_info.nationality}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="State of Origin"
+                  value={personal_info.state_of_origin}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="LGA"
+                  value={personal_info.lga}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Phone"
+                  value={personal_info.phone}
+                  type="tel"
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Email"
+                  value={personal_info.email}
+                  type="email"
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Address"
+                  value={personal_info.address}
+                  type="textarea"
+                  editable={false}
+                  onSave={() => {}}
+                  className="sm:col-span-2 lg:col-span-3"
+                />
+              </div>
+            </SectionCard>
 
-        {/* Dynamic answers — program-specific questions and the full answer sheet */}
+            <SectionCard title="Program Choice" icon={GraduationCap}>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                <EditableField
+                  label="First Choice"
+                  value={program_choice.first_choice_program_name}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Second Choice"
+                  value={program_choice.second_choice_program_name}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="Entry Mode"
+                  value={program_choice.entry_mode}
+                  editable={false}
+                  options={[
+                    { value: "utme", label: "UTME" },
+                    { value: "direct_entry", label: "Direct Entry" },
+                    { value: "transfer", label: "Transfer" },
+                  ]}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="JAMB Reg No."
+                  value={program_choice.jamb_reg_no}
+                  editable={false}
+                  onSave={() => {}}
+                />
+                <EditableField
+                  label="JAMB Score"
+                  value={String(program_choice.jamb_score)}
+                  type="number"
+                  editable={false}
+                  onSave={() => {}}
+                />
+              </div>
+            </SectionCard>
+          </>
+        )}
+
+        {/* Dynamic answers — every step/field as the applicant actually saw
+            it (personal info, sponsor, next of kin, qualifications, exam
+            sitting, documents, program-specific questions…) when a real
+            snapshot exists; falls back to labeled custom_fields otherwise. */}
         <ApplicationAnswers application={application} />
 
-        {/* Academic Records — view only */}
-        <SectionCard title="Academic Records" icon={BookOpen}>
-          <div className="space-y-6">
-            {academic_records.map((record, idx) => (
-              <div key={idx} className="space-y-4">
-                {idx > 0 && <hr className="border-border" />}
-                <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                  Record {idx + 1}
-                </p>
-                <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                  <EditableField
-                    label="Institution"
-                    value={record.institution}
-                    editable={false}
-                    onSave={() => {}}
-                  />
-                  <EditableField
-                    label="Qualification"
-                    value={record.qualification}
-                    editable={false}
-                    onSave={() => {}}
-                  />
-                  <EditableField
-                    label="Year Obtained"
-                    value={record.year_obtained}
-                    editable={false}
-                    onSave={() => {}}
-                  />
-                  <EditableField
-                    label="Grade"
-                    value={record.grade}
-                    editable={false}
-                    onSave={() => {}}
-                  />
-                </div>
-                {record.certificate_url && (
-                  <div className="mt-2">
-                    <p className="mb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-                      Certificate
-                    </p>
-                    {/* Certificates are uploaded as either an image or a PDF —
-                        rendering everything through <img> silently broke for
-                        PDFs (broken-image icon). Only images get the inline
-                        thumbnail; anything else is a plain link to open it. */}
-                    {getFileKind(record.certificate_url) === "image" ? (
-                      <ZoomableImage
-                        src={record.certificate_url}
-                        alt={`${record.qualification} certificate`}
-                        title={`${record.institution} — ${record.qualification} Certificate`}
-                        className="h-auto w-full max-w-sm overflow-hidden rounded-xl border border-border"
-                      />
-                    ) : (
-                      <a
-                        href={record.certificate_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-primary hover:underline"
-                      >
-                        <FileText size={16} />
-                        View {record.qualification} certificate
-                      </a>
-                    )}
+        {/* Academic Records — fallback only, see hasFormSnapshot above; a
+            real snapshot already covers qualifications/exam-sitting fields
+            via <ApplicationAnswers>. */}
+        {!hasFormSnapshot && (
+          <SectionCard title="Academic Records" icon={BookOpen}>
+            <div className="space-y-6">
+              {academic_records.map((record, idx) => (
+                <div key={idx} className="space-y-4">
+                  {idx > 0 && <hr className="border-border" />}
+                  <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                    Record {idx + 1}
+                  </p>
+                  <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                    <EditableField
+                      label="Institution"
+                      value={record.institution}
+                      editable={false}
+                      onSave={() => {}}
+                    />
+                    <EditableField
+                      label="Qualification"
+                      value={record.qualification}
+                      editable={false}
+                      onSave={() => {}}
+                    />
+                    <EditableField
+                      label="Year Obtained"
+                      value={record.year_obtained}
+                      editable={false}
+                      onSave={() => {}}
+                    />
+                    <EditableField
+                      label="Grade"
+                      value={record.grade}
+                      editable={false}
+                      onSave={() => {}}
+                    />
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </SectionCard>
+                  {record.certificate_url && (
+                    <div className="mt-2">
+                      <p className="mb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                        Certificate
+                      </p>
+                      {/* Certificates are uploaded as either an image or a PDF —
+                          rendering everything through <img> silently broke for
+                          PDFs (broken-image icon). Only images get the inline
+                          thumbnail; anything else is a plain link to open it. */}
+                      {getFileKind(record.certificate_url) === "image" ? (
+                        <ZoomableImage
+                          src={record.certificate_url}
+                          alt={`${record.qualification} certificate`}
+                          title={`${record.institution} — ${record.qualification} Certificate`}
+                          className="h-auto w-full max-w-sm overflow-hidden rounded-xl border border-border"
+                        />
+                      ) : (
+                        <a
+                          href={record.certificate_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 text-sm font-medium text-primary hover:underline"
+                        >
+                          <FileText size={16} />
+                          View {record.qualification} certificate
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
 
         {/* Documents — view + download; edits are applicant-scoped, not admin */}
         <SectionCard title="Uploaded Documents" icon={FileText}>

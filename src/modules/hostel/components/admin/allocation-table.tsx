@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { ChevronLeft, ChevronRight, Loader2, Plus, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -15,6 +15,8 @@ import {
 import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { useStudentMajorProgramMap } from "@/hooks/use-student-major-program-map"
 import { useHostels } from "../../hooks/use-hostels"
 import { useAllocations } from "../../hooks/use-allocations"
 import { useVacateAllocation } from "../../hooks/use-hostel-mutations"
@@ -31,18 +33,37 @@ export function AllocationTable() {
   const setSessionId = useHostelUiStore((s) => s.setAllocationSessionId)
   const hostelId = useHostelUiStore((s) => s.allocationHostelId)
   const setHostelId = useHostelUiStore((s) => s.setAllocationHostelId)
+  const majorProgramId = useHostelUiStore((s) => s.allocationMajorProgramId)
+  const setMajorProgramId = useHostelUiStore(
+    (s) => s.setAllocationMajorProgramId
+  )
   const page = useHostelUiStore((s) => s.allocationPage)
   const setPage = useHostelUiStore((s) => s.setAllocationPage)
 
   const { data, isLoading, isError } = useAllocations({
     sessionId,
     hostelId,
+    majorProgramId: majorProgramId ?? undefined,
     page,
     limit: 15,
   })
   const vacate = useVacateAllocation()
 
-  const allocations = data?.data ?? []
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /hostels/allocations doesn't support majorProgramId server-side
+  // yet, so this cross-references the student roster to resolve each
+  // allocation's student's major program — see
+  // use-student-major-program-map.ts's own doc comment for the "unresolved
+  // students are never filtered out" fail-open rule.
+  const { getMajorProgramId } = useStudentMajorProgramMap()
+  const allocations = useMemo(() => {
+    const all = data?.data ?? []
+    if (majorProgramId == null) return all
+    return all.filter((a) => {
+      const mpId = getMajorProgramId(a.studentId)
+      return mpId === undefined || mpId === majorProgramId
+    })
+  }, [data, majorProgramId, getMajorProgramId])
   const meta = data?.meta
 
   const handleVacate = async (id: number) => {
@@ -56,6 +77,11 @@ export function AllocationTable() {
 
   return (
     <div className="space-y-3">
+      <MajorProgramFilterTabs
+        value={majorProgramId}
+        onChange={setMajorProgramId}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Select

@@ -14,24 +14,11 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
-import { useAppStore } from "@/store"
-import { UserRole } from "@/config/nav.config"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useCollectionsSummary } from "../../hooks/use-fee-reports"
 import { useOverdueInvoices } from "../../hooks/use-invoices"
 import { useFeeTypes } from "../../hooks/use-fee-types"
-
-function UnavailableStat() {
-  return (
-    <span
-      className="text-sm text-muted-foreground"
-      title="Your role currently can't access this report — contact an administrator."
-    >
-      Unavailable
-    </span>
-  )
-}
 
 function navTiles(basePath: string) {
   return [
@@ -79,23 +66,15 @@ export function FeeManagementOverview({
   basePath = "/admin/finance/fees",
 }: FeeManagementOverviewProps = {}) {
   const NAV_TILES = navTiles(basePath)
-  const role = useAppStore((s) => s.user?.role)
-  // BUG (2026-09-12): GET /fees/reports/summary and /fees/invoices/overdue
-  // 403 for DEAN and — surprisingly — BURSARY itself, the role this data
-  // exists for. Confirmed live this isn't permission-driven (ADMIN works
-  // without "financial-summary.view"; DEAN has it and still gets 403'd) —
-  // looks like a hardcoded backend role allow-list, not something a
-  // frontend or permission-grant fix can repair. See
-  // sandbox/fee-management/bursary_403_bug_report.md. Gated here so the
-  // page degrades to "unavailable" instead of erroring; the real fix is a
-  // backend change outside this project's scope (CLAUDE.md §13).
-  const canSeeReports = role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN
-  const { data: summary, isLoading: loadingSummary } = useCollectionsSummary(
-    undefined,
-    canSeeReports
-  )
+  // Confirmed fixed live 2026-09-22 (BACKEND_DEVIATIONS_2026-09-14.md A37):
+  // GET /fees/reports/summary and /fees/invoices/overdue now return 200 for
+  // BURSARY, DIRECTOR, and DEAN — the backend's role allow-list was
+  // replaced with a permission check. The role-based gate this component
+  // used to degrade to an "Unavailable" stat for those roles is removed.
+  const { data: summary, isLoading: loadingSummary } =
+    useCollectionsSummary(undefined)
   const { data: overdueData, isLoading: loadingOverdue } =
-    useOverdueInvoices(canSeeReports)
+    useOverdueInvoices(undefined)
   const { data: activeFeeTypes, isLoading: loadingFeeTypes } = useFeeTypes({
     isActive: true,
   })
@@ -111,7 +90,6 @@ export function FeeManagementOverview({
     : undefined
   const overdueCount = overdueData?.data.length ?? 0
   const activeFeeTypeCount = activeFeeTypes?.length ?? 0
-  const reportsUnavailable = !canSeeReports
 
   const statCards = [
     {
@@ -121,8 +99,6 @@ export function FeeManagementOverview({
           amount={summaryData.totalInvoiced}
           className="text-xl font-bold text-foreground"
         />
-      ) : reportsUnavailable ? (
-        <UnavailableStat />
       ) : null,
       loading: loadingSummary,
       accent: "border-border",
@@ -134,8 +110,6 @@ export function FeeManagementOverview({
           amount={summaryData.totalCollected}
           className="text-xl font-bold text-green-600 dark:text-green-400"
         />
-      ) : reportsUnavailable ? (
-        <UnavailableStat />
       ) : null,
       loading: loadingSummary,
       accent: "border-green-200 dark:border-green-900/40",
@@ -148,17 +122,13 @@ export function FeeManagementOverview({
             amount={totalOutstanding}
             className="text-xl font-bold text-destructive"
           />
-        ) : reportsUnavailable ? (
-          <UnavailableStat />
         ) : null,
       loading: loadingSummary,
       accent: "border-red-200 dark:border-red-900/40",
     },
     {
       label: "Overdue Invoices",
-      value: reportsUnavailable ? (
-        <UnavailableStat />
-      ) : (
+      value: (
         <span
           className={
             "text-xl font-bold " +

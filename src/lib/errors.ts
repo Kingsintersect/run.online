@@ -31,35 +31,36 @@ export function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md §5.
-// Unlike OUT_OF_SCOPE above (a raw string prefix), this is a structured 422
-// body: `{ statusCode: 422, error: "MAJOR_PROGRAM_REQUIRED", message, details:
-// { roleId, roleName } }`, returned when POST /auth/users is asked to create
-// one of the seven scoped roles (Tutor/Admin/Dean/Director/HOD/Bursary/Staff)
-// without a `majorProgramId`. Read off `ApiClientError.data`, not `.message`,
-// so it needs its own check rather than reusing `friendlyMessage`'s
-// string-prefix substitution.
-const MAJOR_PROGRAM_REQUIRED_ERROR = "MAJOR_PROGRAM_REQUIRED"
-
-type MajorProgramRequiredErrorBody = {
-  error?: string
-  message?: string
-  details?: { roleId?: number; roleName?: string }
-}
+// Corrected 2026-09-19 against a real live 422 (`POST /auth/users`, creating
+// an admin scoped to a major program): the actual body is a flat Laravel-style
+// field-validation error —
+//   { "majorProgramIds": ["majorProgramIds is required when assigning any
+//                          role other than student, applicant, or super_admin."] }
+// — not the `{statusCode, error: "MAJOR_PROGRAM_REQUIRED", details}` shape
+// this file originally assumed from the design doc's proposal (that shape has
+// never actually been observed live). Read directly off `ApiClientError.data`,
+// not `.message` (apiClient's generic extraction never finds a `.message` key
+// on this body at all, so `err.message` alone is useless here — this needs
+// its own check).
+type FieldValidationErrorBody = Record<string, string[] | undefined>
 
 /**
- * Returns a specific, readable message when `err` is the backend's
- * `MAJOR_PROGRAM_REQUIRED` 422 (see above), or `null` for any other error so
- * callers fall back to their own generic message the same way
- * `getErrorMessage` already does.
+ * Returns the first message for a given field in the backend's flat
+ * Laravel-style field-validation error body (`{ [field]: ["..."] }`), read
+ * directly off `ApiClientError.data` — same shape `majorProgramIds` below
+ * was corrected against, not specific to that one field. `null` for any
+ * other error shape, so callers fall back to their own generic message the
+ * same way `getErrorMessage` already does.
  */
-export function getMajorProgramRequiredMessage(err: unknown): string | null {
+export function getFieldValidationMessage(
+  err: unknown,
+  field: string
+): string | null {
   const data = (err as { data?: unknown } | undefined)?.data as
-    | MajorProgramRequiredErrorBody
+    | FieldValidationErrorBody
     | undefined
-  if (data?.error !== MAJOR_PROGRAM_REQUIRED_ERROR) return null
-
-  const roleName = data.details?.roleName
-  return roleName
-    ? `A major program is required to create a ${roleName} account.`
-    : (data.message ?? "A major program is required for this role.")
+  const messages = data?.[field]
+  return Array.isArray(messages) && typeof messages[0] === "string"
+    ? messages[0]
+    : null
 }

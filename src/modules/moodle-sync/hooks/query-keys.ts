@@ -7,10 +7,21 @@ import type {
 export const moodleSyncKeys = {
   all: ["moodle-sync"] as const,
 
-  categories: () => [...moodleSyncKeys.all, "categories"] as const,
-  category: (id: number) => [...moodleSyncKeys.categories(), id] as const,
-  categoriesNeedingMapping: () =>
-    [...moodleSyncKeys.categories(), "needs-mapping"] as const,
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `categoriesAll()`/`coursesAll()` are filters-agnostic prefixes — kept
+  // separate from the filtered list keys below (which fold `majorProgramId`
+  // in) so every mutation's invalidation still prefix-matches the list
+  // query regardless of which filter it was fetched with. Embedding filters
+  // directly in the key mutations invalidate by is exactly the bug this
+  // codebase already hit and fixed once — see BACKEND_DEVIATIONS_2026-09-14
+  // A20 ("Fee Types/Invoices lists didn't refresh after create/...").
+  categoriesAll: () => [...moodleSyncKeys.all, "categories"] as const,
+  categories: (filters?: { majorProgramId?: number }) =>
+    [...moodleSyncKeys.categoriesAll(), "list", filters] as const,
+  category: (id: number) =>
+    [...moodleSyncKeys.categoriesAll(), "detail", id] as const,
+  categoriesNeedingMapping: (filters?: { majorProgramId?: number }) =>
+    [...moodleSyncKeys.categoriesAll(), "needs-mapping", filters] as const,
 
   // Multi-Program Platform — sandbox/multi-program-platform/
   cohorts: () => [...moodleSyncKeys.all, "cohorts"] as const,
@@ -20,10 +31,14 @@ export const moodleSyncKeys = {
   user: (id: number) => [...moodleSyncKeys.all, "users", id] as const,
   unmatchedUsers: () => [...moodleSyncKeys.all, "users", "unmatched"] as const,
 
-  courses: () => [...moodleSyncKeys.all, "courses"] as const,
-  course: (id: number) => [...moodleSyncKeys.courses(), id] as const,
+  // A35 — same filters-agnostic-prefix reasoning as categoriesAll() above.
+  coursesAll: () => [...moodleSyncKeys.all, "courses"] as const,
+  courses: (filters?: { majorProgramId?: number }) =>
+    [...moodleSyncKeys.coursesAll(), "list", filters] as const,
+  course: (id: number) =>
+    [...moodleSyncKeys.coursesAll(), "detail", id] as const,
 
-  enrollments: (filters?: { status?: string }) =>
+  enrollments: (filters?: { status?: string; majorProgramId?: number }) =>
     [...moodleSyncKeys.all, "enrollments", filters] as const,
   enrollmentErrors: () =>
     [...moodleSyncKeys.all, "enrollments", "errors"] as const,

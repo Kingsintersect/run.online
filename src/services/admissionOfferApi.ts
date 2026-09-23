@@ -68,6 +68,16 @@ export interface AdmissionOfferQueryFilters {
   status?: AdmissionOfferStatus
   page?: number
   limit?: number
+  // Major-Program Scoping — sandbox/major-program-scoping/
+  // BACKEND_DEVIATIONS_2026-09-14.md A35. Admission Offers are completely
+  // unscoped today — no majorProgramId param exists on GET /admissions at
+  // all, frontend or backend (distinct from Applications, already scoped
+  // per A4/A28/A29). Sent ahead of the backend per CLAUDE.md §14. An offer
+  // carries a real `programId` but not its own `majorProgramId`, so a
+  // caller filtering client-side must cross-reference `programId` against
+  // useAllPrograms()'s per-program `majorProgramId` (best-effort, not an
+  // exact field on the row — see AdmissionOffer's own type above).
+  majorProgramId?: number
 }
 
 export const admissionOfferApi = {

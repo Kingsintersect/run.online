@@ -209,7 +209,7 @@ export default function ResetPasswordPage() {
       >
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/25">
           <Image
-            src="/logo/logo.png"
+            src="/logo/logo.jpg"
             alt="RUN"
             width={28}
             height={28}

@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { UserRole } from "@/config/nav.config"
+import { pickPrimaryRole } from "@/lib/auth/backendAuth"
 import type { Permission } from "@/types/roles"
 import type { MajorProgramScope } from "@/types/school"
 
@@ -198,7 +199,7 @@ export const useAppStore = create<AppState>()(
 
           const nextActiveRole = nextAvailableRoles.includes(state.user.role)
             ? state.user.role
-            : nextAvailableRoles[0]
+            : (pickPrimaryRole(nextAvailableRoles) ?? nextAvailableRoles[0])
 
           return {
             availableRoles: nextAvailableRoles,

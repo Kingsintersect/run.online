@@ -13,6 +13,87 @@ import type {
 
 const AUTH = { access_token: true }
 
+// ── System Monitoring (Scheduled Jobs & Logs) ───────────────
+// New backend capability, added to bruno 2026-09-17, confirmed live with no
+// frontend consumer during the 2026-09-22 bruno-sync audit (see
+// sandbox/BACKEND_DEVIATIONS_2026-09-14.md A37 item 4). Both endpoints are
+// enforced super_admin-only inside the controller itself (not by route
+// middleware/permission grants), confirmed live via a non-super-admin token.
+// Shapes below are taken from a real live probe, not just the bruno docs
+// block — the two response bodies differ slightly by whether the log file
+// exists for the requested day (see the optional fields).
+
+export interface ScheduledJob {
+  command: string
+  description: string | null
+  cronExpression: string
+  withoutOverlapping: boolean
+  nextRunAt: string
+  nextRunHuman: string
+}
+
+export interface ScheduledJobsResponse {
+  timezone: string
+  jobs: ScheduledJob[]
+  rawOutputLogEndpoint: string
+}
+
+// "laravel" — default app log, ERROR level only in production. "payments" —
+// dedicated debug-level channel for the webhook/payment-lifecycle trail
+// (config/logging.php), since "laravel" silently drops the Log::info() calls
+// that would otherwise carry it. "scheduler" — raw stdout from every
+// artisan-scheduled command as it actually runs (ScheduledJob.command),
+// proof cron is really calling `php artisan schedule:run` on the box, not
+// just that a job is registered.
+export type SystemLogChannel = "laravel" | "payments" | "scheduler"
+
+export interface SystemLogsQueryParams {
+  // YYYY-MM-DD, defaults to today. Not meaningful for channel="scheduler"
+  // (single continuously-appended file, not daily-rotated) — sent regardless,
+  // the backend just ignores it for that channel.
+  date?: string
+  channel?: SystemLogChannel
+  // Default 300, capped at 2000.
+  lines?: number
+  // Case-insensitive substring match across each full multi-line entry
+  // (header + stack trace) before tailing.
+  search?: string
+}
+
+export interface SystemLogsResponse {
+  date?: string
+  channel: string
+  path: string
+  exists: boolean
+  totalLinesInFile?: number
+  truncatedFromBytes?: number | null
+  matchedLines: number
+  returnedLines?: number
+  search?: string | null
+  lines: string[]
+}
+
+export const systemMonitoringApi = {
+  getScheduledJobs: async (): Promise<ScheduledJobsResponse> => {
+    return apiClient
+      .get<{
+        data: ScheduledJobsResponse
+      }>("/configuration/scheduled-jobs", AUTH)
+      .then((res) => res.data)
+  },
+
+  getLogs: async (
+    params?: SystemLogsQueryParams
+  ): Promise<SystemLogsResponse> => {
+    return apiClient
+      .get<{ data: SystemLogsResponse }>("/configuration/logs", {
+        ...AUTH,
+        params: params as Record<string, unknown> | undefined,
+      })
+      .then((res) => res.data)
+  },
+}
+
 // Real backend contract per bruno/configuration/*.bru (source of truth — see
 // CLAUDE.md §13). List is the only endpoint wrapped in `{data, meta}` — every other
 // endpoint here returns its setting FLAT, confirmed by each .bru file's docs block
@@ -72,6 +153,9 @@ export const configurationKeys = {
     [...configurationKeys.settings(), group] as const,
   settingDetail: (id: number) =>
     [...configurationKeys.settings(), String(id)] as const,
+  scheduledJobs: () => [...configurationKeys.all, "scheduled-jobs"] as const,
+  logs: (params?: SystemLogsQueryParams) =>
+    [...configurationKeys.all, "logs", params ?? {}] as const,
 }
 
 // ── Query options ────────────────────────────
@@ -89,6 +173,18 @@ export const configurationQueryOptions = {
     createApiQueryOptions({
       queryKey: configurationKeys.settingDetail(id),
       queryFn: () => settingsApi.getById(id),
+    }),
+
+  scheduledJobs: () =>
+    createApiQueryOptions({
+      queryKey: configurationKeys.scheduledJobs(),
+      queryFn: () => systemMonitoringApi.getScheduledJobs(),
+    }),
+
+  logs: (params?: SystemLogsQueryParams) =>
+    createApiQueryOptions({
+      queryKey: configurationKeys.logs(params),
+      queryFn: () => systemMonitoringApi.getLogs(params),
     }),
 }
 

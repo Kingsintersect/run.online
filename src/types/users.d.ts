@@ -108,6 +108,11 @@ export interface Tutor {
   department_id: number
   department_name: string
   faculty_name: string
+  // Major-Program Scoping — carried on every Lecturer profile since A17/A27,
+  // confirmed live but previously never mapped onto this type. Null for an
+  // unscoped tutor (SUPER_ADMIN-created without a program, rare).
+  major_program_id: number | null
+  major_program_name: string | null
   designation: string
   specialization: string | null
   office_location: string | null
@@ -144,6 +149,11 @@ export interface Staff {
   staff_number: string
   department_id: number | null
   department_name: string | null
+  // Major-Program Scoping — optional on Staff (A36 item 5: a staff role can
+  // be genuinely institution-wide, e.g. bursary/director/dean), unlike
+  // Tutor's required one.
+  major_program_id: number | null
+  major_program_name: string | null
   designation: string
   job_title: string
   office_location: string | null
@@ -187,13 +197,22 @@ export interface CreateTutorPayload {
 }
 
 export interface CreateStaffPayload {
-  user_id: number
+  // Matches CreateTutorPayload's convention — identify the target by email,
+  // not a numeric id an admin has no way to look up. sandbox/tutor-staff-user-
+  // creation/API_CONTRACTS.md — if no account with this email exists yet,
+  // usersApi.createStaff() creates one inline rather than requiring it to
+  // pre-exist.
+  email: string
   first_name: string
   middle_name?: string
   last_name: string
   phone_number?: string
   staff_number: string
   department_id?: number
+  // Major-Program Scoping — A27: Staff is one of the 7 roles scoped to
+  // exactly one major program at creation (required, not nullable), same as
+  // CreateTutorPayload.major_program_id.
+  major_program_id: number
   designation: string
   job_title: string
   role_id: number // selected staff role (e.g. Staff, Registrar, HOD, Bursary)

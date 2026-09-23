@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react"
 import Modal from "@/components/custom/Modal"
 import { Button } from "@/components/ui/button"
 import { getEventTypeMeta } from "../../lib/event-type-meta"
+import { htmlToPlainText } from "../../lib/strip-html"
 import type { CalendarEventResponse } from "../../types"
 
 interface CalendarEventDetailProps {
@@ -31,7 +32,9 @@ export function CalendarEventDetail({
         </span>
 
         {event.description && (
-          <p className="text-sm text-muted-foreground">{event.description}</p>
+          <p className="text-sm whitespace-pre-line text-muted-foreground">
+            {htmlToPlainText(event.description)}
+          </p>
         )}
 
         <div className="space-y-1 text-sm">

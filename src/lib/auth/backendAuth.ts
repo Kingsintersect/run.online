@@ -97,6 +97,36 @@ const normalizeRoleList = (
     .filter((value): value is UserRole => Boolean(value))
 }
 
+// The backend's `roles` array is in grant/creation order, not seniority order
+// — a self-registered account starts as APPLICANT, and any staff-type role
+// added later (e.g. TUTOR) is simply appended. Picking `roles[0]` as the
+// "primary" role therefore sends a now-tutor account straight back into the
+// admission flow, since APPLICANT was granted first. Pick the most senior
+// functional role instead so a multi-role account lands on the dashboard
+// that actually matters. APPLICANT/GUEST are deliberately last — they're
+// pre-account-proper states, never the intended destination once a real
+// role exists alongside them.
+const ROLE_SENIORITY: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+  UserRole.DIRECTOR,
+  UserRole.BURSARY,
+  UserRole.DEAN,
+  UserRole.HOD,
+  UserRole.STAFF,
+  UserRole.TUTOR,
+  UserRole.STUDENT,
+  UserRole.GUEST,
+  UserRole.APPLICANT,
+]
+
+export const pickPrimaryRole = (roles: UserRole[]): UserRole | null => {
+  for (const candidate of ROLE_SENIORITY) {
+    if (roles.includes(candidate)) return candidate
+  }
+  return roles[0] ?? null
+}
+
 const pickToken = (payload: BackendAuthTokens): string | null => {
   if (typeof payload.accessToken === "string" && payload.accessToken)
     return payload.accessToken
@@ -171,7 +201,8 @@ export const normalizeBackendAuthUser = (
   if (!user) return null
 
   const roles = normalizeRoleList(user.roles)
-  const primaryRole = normalizeRole(user.role) ?? roles[0] ?? UserRole.STUDENT
+  const primaryRole =
+    normalizeRole(user.role) ?? pickPrimaryRole(roles) ?? UserRole.STUDENT
   const availableRoles = roles.length > 0 ? roles : [primaryRole]
   const email = String(user.email ?? "").trim()
   const username = String(user.username ?? "").trim()
@@ -275,7 +306,7 @@ export const fetchRefreshedSessionRoles = async (
       role:
         currentActiveRole && roles.includes(currentActiveRole)
           ? currentActiveRole
-          : roles[0],
+          : (pickPrimaryRole(roles) ?? roles[0]),
       availableRoles: roles,
       roles,
       permissions: me.permissions ?? [],
@@ -421,11 +452,17 @@ export type AdminCreateUserPayload = {
   lastName?: string
   phoneNumber?: string
   roleIds: number[]
-  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
-  // §5, revised 2026-09-16: singular and required when roleIds includes any
-  // of Tutor/Admin/Dean/Director/HOD/Bursary/Staff (422 MAJOR_PROGRAM_REQUIRED
-  // otherwise); omitted (or must be null) for Student/Applicant/Super Admin.
-  majorProgramId?: number
+  // Major-Program Scoping — corrected 2026-09-19 against a real live 422
+  // (`bruno/auth/Users - Create (Admin).bru` was right all along): the real
+  // field is `majorProgramIds`, a plural array, not the singular
+  // `majorProgramId` this file previously sent per the design doc's
+  // "revised 2026-09-16" proposal — that revision was never actually built
+  // backend-side. Required (non-empty) when `roleIds` includes any of
+  // Tutor/Admin/Dean/Director/HOD/Bursary/Staff; omitted for
+  // Student/Applicant/Super Admin. The frontend still enforces "exactly one
+  // program" for those seven roles via a single-select UI — it just sends
+  // that one value wrapped in a one-element array on the wire.
+  majorProgramIds?: number[]
 }
 
 // Real API: POST /auth/users — Bruno: auth/Users - Create (Admin).bru.

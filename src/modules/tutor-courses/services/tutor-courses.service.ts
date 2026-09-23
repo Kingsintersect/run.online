@@ -10,10 +10,13 @@
 // violation), now consolidated onto the same real data every other schedule
 // screen in this app uses.
 
+import apiClient from "@/lib/clients/apiClient"
 import { usersApi } from "@/services/usersApi"
 import { timetableService } from "@/modules/timetable/services/timetable.service"
 import type { CreateScheduleDto } from "@/modules/timetable/types/timetable.types"
-import type { AssignedCourse } from "../types"
+import type { AssignedCourse, MoodleLaunchResult } from "../types"
+
+const AUTH = { access_token: true } as const
 
 export const tutorCoursesService = {
   async getAssignedCourses(lecturerId: number): Promise<AssignedCourse[]> {
@@ -72,5 +75,18 @@ export const tutorCoursesService = {
 
   async removeScheduleSlot(scheduleId: number) {
     return timetableService.deleteSchedule(scheduleId)
+  },
+
+  // Proposed, not yet built backend-side — see
+  // sandbox/tutor-moodle-sync/API_CONTRACTS.md §3. Mirrors the real, live
+  // student endpoint (`GET /students/me/courses/:offeringId/launch`)
+  // exactly, just under the lecturer's own namespace. Until the backend
+  // ships it, every call here 404s — the UI treats that the same as "not
+  // set up on Moodle yet" (see MoodleLaunchButton), never a broken page.
+  async launchMoodleCourse(offeringId: number): Promise<MoodleLaunchResult> {
+    return apiClient.get<MoodleLaunchResult>(
+      `/users/lecturers/me/courses/${offeringId}/launch`,
+      AUTH
+    )
   },
 }

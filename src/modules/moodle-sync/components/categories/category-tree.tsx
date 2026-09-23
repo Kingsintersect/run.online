@@ -174,8 +174,22 @@ function TreeNode({ node, depth, byParent }: TreeNodeProps) {
   )
 }
 
-export function CategoryTree() {
-  const { data = [], isLoading, isError } = useSyncCategories()
+interface CategoryTreeProps {
+  /** Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+   * `null`/omitted renders every category, unfiltered (today's behavior). */
+  majorProgramId?: number | null
+}
+
+export function CategoryTree({ majorProgramId = null }: CategoryTreeProps) {
+  // useSyncCategories -> moodleSyncService.listCategories already applies
+  // the real majorProgramId filter client-side (derived per-node from the
+  // AcademicUnit tree's linkedEntity — see that service's own comment), so
+  // `data` here is already correctly scoped; no second filter needed.
+  const {
+    data = [],
+    isLoading,
+    isError,
+  } = useSyncCategories(majorProgramId != null ? { majorProgramId } : undefined)
 
   if (isLoading) {
     return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { CheckCircle2, ClipboardCheck, UserRound, XCircle } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
@@ -13,6 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { useStudentMajorProgramMap } from "@/hooks/use-student-major-program-map"
 import { useClearances, useClearanceTypes } from "../../hooks/use-clearance"
 import { ClearanceStatusBadge } from "../shared/clearance-status-badge"
 import { ClearanceApproveDialog } from "./clearance-approve-dialog"
@@ -42,18 +44,36 @@ export function ClearanceReviewQueue() {
     "PENDING"
   )
   const [typeFilter, setTypeFilter] = useState<number | undefined>(undefined)
+  const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
+    null
+  )
   const [approveTarget, setApproveTarget] = useState<number | null>(null)
   const [rejectTarget, setRejectTarget] = useState<number | null>(null)
 
   const { data: types } = useClearanceTypes()
   const {
-    data: clearances = [],
+    data: rawClearances = [],
     isLoading,
     isError,
   } = useClearances({
     status: statusFilter,
     typeId: typeFilter,
+    majorProgramId: majorProgramFilter ?? undefined,
   })
+
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /clearance doesn't support majorProgramId server-side yet, so this
+  // cross-references the student roster to resolve each request's student's
+  // major program — see use-student-major-program-map.ts's own doc comment
+  // for the "unresolved students are never filtered out" fail-open rule.
+  const { getMajorProgramId } = useStudentMajorProgramMap()
+  const clearances = useMemo(() => {
+    if (majorProgramFilter == null) return rawClearances
+    return rawClearances.filter((c) => {
+      const mpId = getMajorProgramId(c.studentId)
+      return mpId === undefined || mpId === majorProgramFilter
+    })
+  }, [rawClearances, majorProgramFilter, getMajorProgramId])
 
   return (
     <div className="space-y-4">
@@ -66,6 +86,11 @@ export function ClearanceReviewQueue() {
           checkpoint(s).
         </p>
       </div>
+
+      <MajorProgramFilterTabs
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-1">

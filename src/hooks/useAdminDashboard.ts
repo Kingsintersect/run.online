@@ -20,20 +20,24 @@ import { UserRole } from "@/config/nav.config"
 //
 // This hook backs three pages: SUPER_ADMIN's /admin/dashboard, and (via
 // usePlatformDashboardData) ADMIN and DEAN's shared /manager/dashboard —
-// see manager/(routes)/dashboard/page.tsx. Confirmed live (2026-09-12) that
-// /users/stats, /fees/reports/summary, and /assessments/sync/status all
-// 403 for DEAN (STAFF hit the same wall — see that page's own STAFF branch
-// for why STAFF got a fully separate dashboard instead of this gate; DEAN's
-// permission set is broad enough, and close enough to ADMIN's, that a full
-// rebuild wasn't worth it — just skip the specific calls DEAN can't make).
-// Gated by role rather than a permission check because the exact backend
-// permission each of these three endpoints actually enforces isn't
-// documented anywhere this session found — role is what was empirically
-// confirmed to work.
+// see manager/(routes)/dashboard/page.tsx. Gated by role rather than a
+// permission check because the exact backend permission each endpoint
+// enforces isn't documented anywhere this session found — role is what was
+// empirically confirmed to work.
+//
+// Re-verified live 2026-09-22 (BACKEND_DEVIATIONS_2026-09-14.md A37) — the
+// 2026-09-12 finding that all of /users/stats, /fees/reports/summary,
+// /assessments/sync/status, and GET /admissions/applications?status=pending
+// 403 for DEAN is now only PARTLY true: /users/stats and
+// /fees/reports/summary now return 200 for DEAN (same backend fix as the
+// BURSARY/DIRECTOR fee-reports bug). /assessments/sync/status and the
+// pending-applications list are still 403 for DEAN, confirmed the same day
+// — those two stay admin-only.
 export function useOperationsDashboardData() {
   const role = useAppStore((s) => s.user?.role)
-  const canSeeAdminStats =
+  const isAdminOrSuperAdmin =
     role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN
+  const canSeeAdminStats = isAdminOrSuperAdmin || role === UserRole.DEAN
 
   const stats = useQuery({
     queryKey: usersKeys.stats(),
@@ -47,21 +51,17 @@ export function useOperationsDashboardData() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // CORRECTION (2026-09-12): assumed DEAN could reach this — DEAN's
-  // permission catalog entry is literally "admissions.view" — but
-  // confirmed live it 403s for DEAN too, so gated the same as the four
-  // above. The catalog permission name and what the backend route
-  // actually enforces don't always match for DEAN; don't assume from the
-  // catalog again for this dashboard, verify live.
+  // Still 403 for DEAN, confirmed live 2026-09-22 — stays admin-only.
   const pendingApplications = useQuery({
     queryKey: applicationReviewKeys.list({ status: "pending" }),
     queryFn: () => applicationReviewApi.list({ status: "pending" }),
     staleTime: 60 * 1000,
-    enabled: canSeeAdminStats,
+    enabled: isAdminOrSuperAdmin,
   })
 
   const collections = useCollectionsSummary(undefined, canSeeAdminStats)
-  const assessmentSync = useAssessmentSyncStatus(canSeeAdminStats)
+  // Still 403 for DEAN, confirmed live 2026-09-22 — stays admin-only.
+  const assessmentSync = useAssessmentSyncStatus(isAdminOrSuperAdmin)
 
   const totalStudents = stats.data?.data?.total_students ?? null
   const totalTutors = stats.data?.data?.total_tutors ?? null

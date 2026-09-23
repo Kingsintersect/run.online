@@ -49,6 +49,13 @@ export const DocumentQueryFiltersSchema = z.object({
   status: DocumentStatusSchema.optional(),
   page: z.number().optional(),
   limit: z.number().optional(),
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /documents has no majorProgramId support server-side (confirmed
+  // unscoped, ENDPOINT_INVENTORY.md item 13). Sent ahead of the backend per
+  // CLAUDE.md §14; document-review-table.tsx also filters client-side via
+  // use-student-major-program-map.ts, since the response only carries a
+  // bare studentId, not a nested student object to name-match against.
+  majorProgramId: z.number().optional(),
 })
 
 export const StudentDocumentQueryFiltersSchema = z.object({

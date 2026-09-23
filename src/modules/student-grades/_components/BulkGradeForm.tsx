@@ -15,6 +15,7 @@ import {
 import { gradesService } from "../services/grades.service"
 import { useBulkCreateGrades } from "../hooks/use-grades-mutations"
 import { courseOfferingQueryOptions } from "@/services/courseOfferingApi"
+import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import { useCaPreview } from "@/modules/moodle-sync/hooks/use-sync-assessments"
 import type { BulkGradeItemDto } from "../types/grades.types"
 import type { CourseOffering } from "@/types/school"
@@ -49,9 +50,22 @@ export function BulkGradeForm() {
   // A Grade row is keyed by (studentId, courseId, semesterId), and an
   // offering embeds both, so picking one offering supplies everything the
   // real bulk-create endpoint needs.
-  const { data: offeringsRes, isLoading: offeringsLoading } = useQuery(
-    courseOfferingQueryOptions.list()
-  )
+  //
+  // Lecturer-ownership scoping (real, independent bug — not major-program
+  // scoping): this picker used to call courseOfferingQueryOptions.list()
+  // with no filter at all, pulling every offering system-wide — a tutor
+  // could select and grade any course's offering, not just their own,
+  // unlike the Course Assignments screen's `useAssignedCourses`, which
+  // already scopes via `?lecturerId=` (a confirmed-live filter — see
+  // BACKEND_DEVIATIONS_2026-09-14.md Part C). Scoped the same way here.
+  const { lecturerId, isLoading: lecturerIdLoading } = useMyLecturerId()
+  const { data: offeringsRes, isLoading: offeringsQueryLoading } = useQuery({
+    ...courseOfferingQueryOptions.list(
+      lecturerId != null ? { lecturerId } : undefined
+    ),
+    enabled: lecturerId !== null,
+  })
+  const offeringsLoading = lecturerIdLoading || offeringsQueryLoading
   const offerings = offeringsRes?.data ?? []
 
   const caPreviewMutation = useCaPreview()

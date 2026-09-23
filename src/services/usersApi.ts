@@ -131,6 +131,8 @@ interface WireStaffProfile {
   updatedAt: string
   user: WireUserRef
   department?: WireRelationRef & { faculty?: WireRelationRef }
+  majorProgramId?: number | null
+  majorProgramName?: string | null
 }
 
 interface WireLecturer extends WireStaffProfile {
@@ -287,6 +289,8 @@ const mapTutor = (l: WireLecturer): Tutor => ({
   department_id: l.departmentId ?? 0,
   department_name: l.department?.name ?? "—",
   faculty_name: l.department?.faculty?.name ?? "—",
+  major_program_id: l.majorProgramId ?? null,
+  major_program_name: l.majorProgramName ?? null,
   designation: l.designation,
   specialization: l.specialization,
   office_location: l.officeLocation,
@@ -318,6 +322,8 @@ const mapStaff = (s: WireStaff): Staff => ({
   staff_number: s.staffNumber,
   department_id: s.departmentId,
   department_name: s.department?.name ?? null,
+  major_program_id: s.majorProgramId ?? null,
+  major_program_name: s.majorProgramName ?? null,
   designation: s.designation,
   job_title: s.jobTitle,
   office_location: s.officeLocation,
@@ -541,15 +547,23 @@ export const usersApi = {
     return res.data
   },
 
-  // Built ahead of the backend (TUTOR_FORM_FIX_HANDOFF.txt, 2026-09-17): the
-  // request now identifies the existing user by `email` (was `userId`) and
-  // adds `facultyId`/`majorProgramId`. If the backend hasn't shipped this
-  // contract yet, the request will 422/fail honestly — no client-side
-  // fallback to the old `userId` shape.
+  // Create-or-Attach, confirmed live 2026-09-23 (sandbox/tutor-staff-user-
+  // creation/, A39 — backend shipped this same-day). `email` no longer has
+  // to match an existing User: if it does, unchanged attach behavior; if it
+  // doesn't, the backend creates one inline in the same transaction and
+  // emails a welcome message itself. Response carries `userCreated`/
+  // `emailSent`/`emailError` alongside `data` — no client-side
+  // orchestration needed anymore (this used to manually create a bare
+  // account and retry; the backend does that internally now).
   async createTutor(
     payload: CreateTutorPayload
   ): Promise<ApiSingleResponse<Tutor>> {
-    const res = await apiClient.post<{ data: WireLecturer }>(
+    const res = await apiClient.post<{
+      data: WireLecturer
+      userCreated?: boolean
+      emailSent?: boolean
+      emailError?: string
+    }>(
       "/users/lecturers",
       {
         email: payload.email,
@@ -572,7 +586,16 @@ export const usersApi = {
       },
       AUTH
     )
-    return { data: mapTutor(res.data), message: "Tutor created" }
+
+    if (!res.userCreated) {
+      return { data: mapTutor(res.data), message: "Tutor created" }
+    }
+    return {
+      data: mapTutor(res.data),
+      message: res.emailSent
+        ? "Tutor created — a new account was created and a welcome email was sent."
+        : 'Tutor created — a new account was created, but the welcome email could not be sent. Use "Resend Invite" to try again.',
+    }
   },
 
   async updateTutor(
@@ -595,7 +618,13 @@ export const usersApi = {
     return { data: mapTutor(res.data), message: "Tutor updated" }
   },
 
-  /* ── Staff ── */
+  /* ── Staff ──
+   * A35/ENDPOINT_INVENTORY.md confirmed `GET /users/staff` was the only one of
+   * the three user-list endpoints (students/lecturers/staff) with *no*
+   * `majorProgramId` param at all, frontend or backend. Sent speculatively
+   * here per CLAUDE.md §14, matching exactly how `listStudents`/`listTutors`
+   * above already send it — if the backend ignores it, the list is simply
+   * unfiltered by major program rather than silently wrong. */
   async listStaff(filters?: UserQueryFilters): Promise<ApiListResponse<Staff>> {
     const res = await apiClient.get<ApiPaginatedResponse<WireStaff>>(
       "/users/staff",
@@ -604,6 +633,7 @@ export const usersApi = {
         params: {
           search: filters?.search,
           isActive: filters?.is_active,
+          majorProgramId: filters?.major_program_id,
           page: filters?.page,
           limit: filters?.limit ?? 100,
         },
@@ -625,19 +655,35 @@ export const usersApi = {
   // form lets an admin pick one via the real `/auth/roles` list (see getStaffEligibleRoles
   // below) since the mock this replaces always required a role choice. Confirm with
   // backend whether `roleId` is honored or ignored — see MISSING_BACKEND_APIS.md.
+  // A27: Staff is one of the 7 major-program-scoped roles, required (not
+  // nullable) at creation — same contract shape as `createTutor`'s
+  // `majorProgramId` above (SCHEMA_CHANGES.md §3-4). Sent alongside the
+  // existing fields; if the backend hasn't shipped enforcement for it yet,
+  // this fails honestly (422) rather than silently dropping the scope.
+  //
+  // Create-or-Attach, confirmed live 2026-09-23 (A39) — same as createTutor
+  // above: `email` creates a User inline if none exists, no client-side
+  // orchestration needed (this used to look the email up and manually
+  // create a bare account; the backend does both internally now).
   async createStaff(
     payload: CreateStaffPayload
   ): Promise<ApiSingleResponse<Staff>> {
-    const res = await apiClient.post<{ data: WireStaff }>(
+    const res = await apiClient.post<{
+      data: WireStaff
+      userCreated?: boolean
+      emailSent?: boolean
+      emailError?: string
+    }>(
       "/users/staff",
       {
-        userId: payload.user_id,
+        email: payload.email,
         firstName: payload.first_name,
         middleName: payload.middle_name,
         lastName: payload.last_name,
         phoneNumber: payload.phone_number,
         staffNumber: payload.staff_number,
         departmentId: payload.department_id,
+        majorProgramId: payload.major_program_id,
         designation: payload.designation,
         jobTitle: payload.job_title,
         roleId: payload.role_id,
@@ -650,7 +696,48 @@ export const usersApi = {
       },
       AUTH
     )
-    return { data: mapStaff(res.data), message: "Staff created" }
+
+    if (!res.userCreated) {
+      return { data: mapStaff(res.data), message: "Staff created" }
+    }
+    return {
+      data: mapStaff(res.data),
+      message: res.emailSent
+        ? "Staff member created — a new account was created and a welcome email was sent."
+        : 'Staff member created — a new account was created, but the welcome email could not be sent. Use "Resend Invite" to try again.',
+    }
+  },
+
+  // POST /users/staff/:id/resend-invite — Admin only. NEW 2026-09-23 (A39's
+  // "worth doing" secondary ask, shipped same day) — mirrors
+  // resendTutorInvite exactly.
+  async resendStaffInvite(
+    staffId: number,
+    opts: { login_url?: string; template_id?: number } = {}
+  ): Promise<{
+    userId: number
+    email: string
+    emailSent: boolean
+    sentAt: string | null
+    emailError?: string
+  }> {
+    const res = await apiClient.post<{
+      data: {
+        userId: number
+        email: string
+        emailSent: boolean
+        sentAt: string | null
+        emailError?: string
+      }
+    }>(
+      `/users/staff/${staffId}/resend-invite`,
+      {
+        loginUrl: opts.login_url || undefined,
+        templateId: opts.template_id,
+      },
+      AUTH
+    )
+    return res.data
   },
 
   async updateStaff(
@@ -677,12 +764,20 @@ export const usersApi = {
    * §"Course Offering — lecturerId filter"). Session/semester display names are
    * resolved from `GET /academic-calendar` in a parallel request — the offering
    * endpoint itself only returns the term ids. */
-  async listCourseOfferings(): Promise<ApiListResponse<CourseOffering>> {
+  // Major-Program Scoping — `?majorProgramId=` is real and backend-enforced
+  // on this endpoint (confirmed live, A4/A36 item 4: narrows within the
+  // caller's own scope, 403 OUT_OF_SCOPE otherwise). Used to scope the
+  // tutor-assignment course picker to the tutor's own major program.
+  async listCourseOfferings(filters?: {
+    majorProgramId?: number | null
+  }): Promise<ApiListResponse<CourseOffering>> {
     const [res, terms] = await Promise.all([
-      apiClient.get<ApiListResponse<WireCourseOffering>>(
-        "/courses/offerings",
-        AUTH
-      ),
+      apiClient.get<ApiListResponse<WireCourseOffering>>("/courses/offerings", {
+        ...AUTH,
+        params: filters?.majorProgramId
+          ? { majorProgramId: filters.majorProgramId }
+          : undefined,
+      }),
       fetchAcademicTermNames(),
     ])
     const list = res.data ?? []
@@ -945,10 +1040,14 @@ export const usersQueryOptions = {
         queryFn: () => usersApi.getTutorCourses(id),
       }),
   },
-  courseOfferings: () =>
+  courseOfferings: (filters?: { majorProgramId?: number | null }) =>
     createApiQueryOptions({
-      queryKey: [...usersKeys.all, "course-offerings"] as const,
-      queryFn: () => usersApi.listCourseOfferings(),
+      queryKey: [
+        ...usersKeys.all,
+        "course-offerings",
+        filters?.majorProgramId ?? null,
+      ] as const,
+      queryFn: () => usersApi.listCourseOfferings(filters),
     }),
   staff: {
     list: (filters?: UserQueryFilters) =>

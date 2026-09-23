@@ -26,12 +26,24 @@ export const gradesKeys = {
   cgpa: (studentId: number | null) =>
     [...gradesKeys.all, "cgpa", studentId] as const,
 
-  dashboard: () => [...gradesKeys.all, "dashboard"] as const,
-  distribution: () => [...gradesKeys.all, "distribution"] as const,
-  programPerformance: () => [...gradesKeys.all, "program-performance"] as const,
-  cgpaTrends: () => [...gradesKeys.all, "cgpa-trends"] as const,
-  topPerformers: (limit: number) =>
-    [...gradesKeys.all, "top-performers", limit] as const,
+  // majorProgramId included in every analytics key below so switching the
+  // major-program filter tab (Major-Program Scoping) doesn't read a stale
+  // cache entry from a different scope.
+  dashboard: (majorProgramId?: number | null) =>
+    [...gradesKeys.all, "dashboard", majorProgramId ?? null] as const,
+  distribution: (majorProgramId?: number | null) =>
+    [...gradesKeys.all, "distribution", majorProgramId ?? null] as const,
+  programPerformance: (majorProgramId?: number | null) =>
+    [...gradesKeys.all, "program-performance", majorProgramId ?? null] as const,
+  cgpaTrends: (majorProgramId?: number | null) =>
+    [...gradesKeys.all, "cgpa-trends", majorProgramId ?? null] as const,
+  topPerformers: (limit: number, majorProgramId?: number | null) =>
+    [
+      ...gradesKeys.all,
+      "top-performers",
+      limit,
+      majorProgramId ?? null,
+    ] as const,
 
   grouped: (groupBy: GradesGroupBy, filters: GradeFilters) =>
     [...gradesKeys.all, "grouped", groupBy, filters] as const,

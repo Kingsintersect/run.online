@@ -58,6 +58,8 @@ export const venuesApi = {
 }
 
 export const examSchedulesApi = {
+  // `filters.majorProgramId` — see ExamScheduleFilters' own comment
+  // (sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35).
   async list(filters: ExamScheduleFilters = {}): Promise<{
     data: ExamSchedule[]
     meta: { total: number; page: number; limit: number }

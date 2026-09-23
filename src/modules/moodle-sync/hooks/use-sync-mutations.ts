@@ -20,7 +20,7 @@ export function usePushCategory() {
   return useMutation({
     mutationFn: (dto: PushCategoryDto) => moodleSyncService.pushCategory(dto),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -32,7 +32,7 @@ export function usePushSubtree() {
     mutationFn: (rootUnitId: number) =>
       moodleSyncService.pushSubtree(rootUnitId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -41,7 +41,7 @@ export function usePullCategories() {
   return useMutation({
     mutationFn: moodleSyncService.pullCategories,
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -51,7 +51,7 @@ export function usePullCategory() {
     mutationFn: (moodleCategoryId: number) =>
       moodleSyncService.pullCategory(moodleCategoryId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -61,7 +61,7 @@ export function useResolveCategoryMapping() {
     mutationFn: ({ id, dto }: { id: number; dto: ResolveCategoryMappingDto }) =>
       moodleSyncService.resolveCategoryMapping(id, dto),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -70,7 +70,7 @@ export function useDeleteCategoryMapping() {
   return useMutation({
     mutationFn: (id: number) => moodleSyncService.deleteCategoryMapping(id),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.categories() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
   })
 }
 
@@ -118,7 +118,7 @@ export function usePushCourse() {
     mutationFn: (courseOfferingId: number) =>
       moodleSyncService.pushCourse(courseOfferingId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.courses() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.coursesAll() }),
   })
 }
 
@@ -128,7 +128,7 @@ export function usePushCoursesBulk() {
     mutationFn: (payload: CoursesBulkPushPayload) =>
       moodleSyncService.pushCoursesBulk(payload),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.courses() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.coursesAll() }),
   })
 }
 
@@ -137,7 +137,7 @@ export function usePullCourses() {
   return useMutation({
     mutationFn: moodleSyncService.pullCourses,
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.courses() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.coursesAll() }),
   })
 }
 
@@ -147,7 +147,7 @@ export function usePullCourse() {
     mutationFn: (moodleCourseId: number) =>
       moodleSyncService.pullCourse(moodleCourseId),
     onSuccess: () =>
-      qc.invalidateQueries({ queryKey: moodleSyncKeys.courses() }),
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.coursesAll() }),
   })
 }
 
@@ -295,8 +295,8 @@ export function usePullCalendarForCourse() {
 // ---------- Reconcile & Reset — sandbox/moodle-sync-reconciliation/ ----------
 
 const RECONCILE_INVALIDATION: Record<ReconcileModule, readonly unknown[]> = {
-  categories: moodleSyncKeys.categories(),
-  courses: moodleSyncKeys.courses(),
+  categories: moodleSyncKeys.categoriesAll(),
+  courses: moodleSyncKeys.coursesAll(),
   users: [...moodleSyncKeys.all, "users"],
 }
 

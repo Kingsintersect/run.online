@@ -135,7 +135,7 @@ export default function SignUpPage() {
             >
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/30">
                 <Image
-                  src="/logo/logo.png"
+                  src="/logo/logo.jpg"
                   alt="RUN"
                   width={30}
                   height={30}

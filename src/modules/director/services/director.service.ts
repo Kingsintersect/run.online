@@ -122,27 +122,32 @@ function departmentNameParam(filter?: DirectorFilter): string | undefined {
 
 // ─── Fees composition (shared by Overview + Financial) ──────────────────────
 // Real: GET /fees/reports/outstanding (confirmed shape, grouped by fee type —
-// see payment_README.md). Unconfirmed: GET /fees/reports/summary's response
-// body has no documented shape anywhere (bruno/fee/Reports - Summary.bru has
-// no example). Both are queried in parallel so an unconfirmed/failing summary
-// call doesn't sink the whole tab — totalExpected/totalCollected fall back to
-// summing the fully-real Outstanding data if summary is unavailable or comes
-// back in an unexpected shape.
+// see payment_README.md). GET /fees/reports/summary's response body has no
+// documented example in bruno. Both are queried in parallel so a failing/
+// malformed summary call doesn't sink the whole tab — totalExpected/
+// totalCollected fall back to summing the fully-real Outstanding data if
+// summary is unavailable or comes back in an unexpected shape.
 
 async function fetchFeesSummaryData(filter?: DirectorFilter): Promise<{
   totalExpected: number
   totalCollected: number
   totalOutstanding: number
   byFeeType: FinancialSummary["byFeeType"]
-  // Added 2026-09-12 — see DashboardOverview.hasLoadErrors's comment. Both
-  // /fees/reports/summary and /fees/reports/outstanding 403 for DIRECTOR
-  // (and BURSARY, DEAN — sandbox/fee-management/bursary_403_bug_report.md).
-  // This used to swallow that behind `?? 0`/`: []`, every caller included.
+  // The 403 both of these used to return for DIRECTOR/BURSARY/DEAN
+  // (sandbox/fee-management/bursary_403_bug_report.md) was confirmed fixed
+  // live 2026-09-22 (BACKEND_DEVIATIONS_2026-09-14.md A37) — the backend's
+  // role allow-list was replaced with a permission check. `hasErrors` stays
+  // as general resilience against any other transient failure.
   hasErrors: boolean
 }> {
   const params: Record<string, unknown> = {
     facultyName: facultyNameParam(filter),
     departmentName: departmentNameParam(filter),
+    // Major-Program Scoping — A33. Sent ahead of the backend (CLAUDE.md
+    // §14); both responses are pure aggregates with no per-program
+    // breakdown, so unlike fetchPaymentRecords above there's no client-side
+    // fallback possible here — stays unscoped in the UI until this ships.
+    majorProgramId: filter?.majorProgramId,
   }
 
   const [summaryRes, outstandingRes] = await Promise.allSettled([
@@ -352,14 +357,21 @@ export const directorService = {
     // GET /fees/reports/collections-trend — see §2.8, now shipped by the
     // backend team. No time-series aggregate existed anywhere in the Fee
     // module before this; kept the try/catch below so a transient failure
-    // degrades to an empty chart rather than sinking the whole tab. Also
-    // 403s for DIRECTOR — confirmed live, folded into hasLoadErrors below.
+    // degrades to an empty chart rather than sinking the whole tab. The 403
+    // this used to return for DIRECTOR was confirmed fixed live 2026-09-22
+    // (A37) — try/catch stays as general resilience, not a bug workaround.
     let monthlyTrend: FinancialSummary["monthlyTrend"] = []
     let trendFailed = false
     try {
       const res = await apiClient.get<{
         data: { month: string; collected: number; expected: number }[]
-      }>("/fees/reports/collections-trend", { ...AUTH, params: { months: 12 } })
+      }>("/fees/reports/collections-trend", {
+        ...AUTH,
+        // Major-Program Scoping — A33, sent ahead of the backend; a
+        // time-series trend has no per-program breakdown to filter
+        // client-side, same reasoning as fetchFeesSummaryData above.
+        params: { months: 12, majorProgramId: filter?.majorProgramId },
+      })
       monthlyTrend = res.data
     } catch {
       monthlyTrend = []
@@ -389,6 +401,11 @@ export const directorService = {
     const params: Record<string, unknown> = {
       facultyName: facultyNameParam(filter),
       departmentName: departmentNameParam(filter),
+      // Major-Program Scoping — A33. This calls the same GET /fees/invoices
+      // endpoint the admin Invoices list uses, already scoped/enforced per
+      // A4 — so unlike the aggregate reports below, this one is genuinely
+      // filtered server-side, not just sent ahead of the backend.
+      majorProgramId: filter?.majorProgramId,
       level:
         filter?.level && filter.level !== "all"
           ? Number(filter.level)
@@ -507,8 +524,8 @@ export const directorService = {
       studentsByLevel: stats?.students_by_level ?? [],
       studentsByGender: stats?.students_by_gender ?? { male: 0, female: 0 },
       tutorsByDesignation: stats?.tutors_by_designation ?? [],
-      // Added 2026-09-12 — see DashboardOverview.hasLoadErrors's comment.
-      // All three of these 403 for DIRECTOR, confirmed live.
+      // The 403 all three of these used to return for DIRECTOR was
+      // confirmed fixed live 2026-09-22 (A37) — kept as general resilience.
       hasLoadErrors:
         studentsRes.status !== "fulfilled" ||
         tutorsRes.status !== "fulfilled" ||

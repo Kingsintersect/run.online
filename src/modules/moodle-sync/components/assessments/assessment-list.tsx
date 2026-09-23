@@ -9,6 +9,7 @@ import { useSyncAssessments } from "../../hooks/use-sync-assessments"
 import { usePullAllAssessments } from "../../hooks/use-sync-mutations"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
 import { ResetSyncButton } from "../shared/reset-sync-dialog"
+import { stripHtmlToText } from "../../lib/strip-html"
 import type { AssessmentType } from "../../types"
 
 const TYPES: { value: AssessmentType | "all"; label: string }[] = [
@@ -121,7 +122,7 @@ export function AssessmentList() {
                 </p>
                 {item.description && (
                   <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                    {item.description}
+                    {stripHtmlToText(item.description)}
                   </p>
                 )}
               </div>

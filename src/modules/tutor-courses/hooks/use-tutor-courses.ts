@@ -82,3 +82,12 @@ export function useSyncSchedule() {
     },
   })
 }
+
+// Button-triggered (mints a fresh one-time launch URL per click), not a
+// query — same pattern as the student-facing useLaunchMoodleCourse.
+export function useLaunchMoodleCourse() {
+  return useMutation({
+    mutationFn: (offeringId: number) =>
+      tutorCoursesService.launchMoodleCourse(offeringId),
+  })
+}

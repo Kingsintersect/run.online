@@ -13,6 +13,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { useAssessment } from "../../hooks/use-sync-assessments"
+import { htmlToPlainText } from "../../lib/strip-html"
 import type { AssessmentType } from "../../types"
 
 const typeConfig: Record<
@@ -137,8 +138,8 @@ export function AssessmentDetailView({
 
         {data.description && (
           <div className="mt-4 rounded-xl bg-muted/30 p-4">
-            <p className="text-sm leading-relaxed text-foreground">
-              {data.description}
+            <p className="text-sm leading-relaxed whitespace-pre-line text-foreground">
+              {htmlToPlainText(data.description)}
             </p>
           </div>
         )}

@@ -158,11 +158,16 @@ export const feeManagementService = {
       AUTH
     ),
 
-  getOverdueInvoices: () =>
-    apiClient.get<{ data: InvoiceResponse[] }>(
-      `${BASE}/invoices/overdue`,
-      AUTH
-    ),
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A33.
+  // Sent regardless (build-ahead per CLAUDE.md §14); the backend doesn't
+  // support this param yet, so overdue-report.tsx also filters client-side
+  // (via each invoice's student.programName) so the UI is correctly scoped
+  // today, not just once this ships.
+  getOverdueInvoices: (filters?: { majorProgramId?: number }) =>
+    apiClient.get<{ data: InvoiceResponse[] }>(`${BASE}/invoices/overdue`, {
+      ...AUTH,
+      params: filters as Record<string, unknown>,
+    }),
 
   resolveInvoices: () =>
     apiClient.post<ResolveInvoicesResponse>(
@@ -213,18 +218,26 @@ export const feeManagementService = {
 
   // ── Reports ─────────────────────────────────────────────────────────────────
 
+  // Major-Program Scoping — A33. Sent regardless, build-ahead per CLAUDE.md
+  // §14. Both responses are pure aggregates (a scalar summary; a per-fee-type
+  // breakdown, not per-program) — there's no raw per-invoice data here to
+  // filter client-side, so unlike overdue invoices above, this stays
+  // unscoped in the UI until the backend actually implements the param.
+  // Deliberately not adding a filter control that would look functional but
+  // do nothing — see CLAUDE.md §14's fallback rule.
   getCollectionsSummary: (filters?: {
     sessionId?: number
     feeTypeId?: number
+    majorProgramId?: number
   }) =>
     apiClient.get<CollectionsSummaryResponse>(`${BASE}/reports/summary`, {
       ...AUTH,
       params: filters as Record<string, unknown>,
     }),
 
-  getOutstandingReport: () =>
-    apiClient.get<OutstandingReportResponse>(
-      `${BASE}/reports/outstanding`,
-      AUTH
-    ),
+  getOutstandingReport: (filters?: { majorProgramId?: number }) =>
+    apiClient.get<OutstandingReportResponse>(`${BASE}/reports/outstanding`, {
+      ...AUTH,
+      params: filters as Record<string, unknown>,
+    }),
 }

@@ -488,6 +488,16 @@ class GradesService {
     if (filters.semesterId !== "all")
       params.semesterId =
         Number(filters.semesterId.replace(/\D/g, "")) || undefined
+    // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+    // A35. Sent ahead of the backend per CLAUDE.md §14. No client-side
+    // fallback filter is possible here: mapGrade (below) always sets
+    // programId/programName to "" because the raw /results/grades response's
+    // `course` relation carries no program info at all — there's genuinely
+    // nothing per-row to match against a major program with, unlike
+    // fee-management's invoices (which do carry a resolvable program via the
+    // student relation).
+    if (filters.majorProgramId != null)
+      params.majorProgramId = filters.majorProgramId
     // studentId/courseId aren't part of GradeFilters (search box covers that
     // client-side below); academicYearId/programId/gradeLetter have no real
     // query-param counterpart on GET /results/grades and are applied
@@ -718,10 +728,21 @@ class GradesService {
 
   // ── Analytics — real, see MISSING_BACKEND_APIS.md §2.7 for current status ──
 
-  async getDashboardData(): Promise<GradeSummaryStats> {
+  // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+  // A35. majorProgramId sent ahead of the backend per CLAUDE.md §14. This is
+  // a pure institution-wide aggregate (totals only, no per-program
+  // breakdown) — there is genuinely nothing per-record to filter client-side,
+  // same reasoning as A33's "don't fake a filter on a pure aggregate with no
+  // per-record breakdown." Sent only, no working fallback.
+  async getDashboardData(
+    majorProgramId?: number | null
+  ): Promise<GradeSummaryStats> {
     const res = await apiClient.get<
       GradeSummaryStats | { data: GradeSummaryStats }
-    >(`${BASE}/dashboard`, AUTH)
+    >(`${BASE}/dashboard`, {
+      ...AUTH,
+      params: majorProgramId != null ? { majorProgramId } : undefined,
+    })
     return unwrap<GradeSummaryStats>(res, {
       totalGrades: 0,
       publishedCount: 0,
@@ -749,33 +770,65 @@ class GradesService {
     return res.data
   }
 
-  async getGradeDistribution(): Promise<GradeDistributionItem[]> {
+  // Grade letter distribution, institution-wide — no program dimension at
+  // all in the response (grouped by grade letter, not program). Same "pure
+  // aggregate, sent only" reasoning as getDashboardData above.
+  async getGradeDistribution(
+    majorProgramId?: number | null
+  ): Promise<GradeDistributionItem[]> {
     const res = await apiClient.get<
       GradeDistributionItem[] | { data: GradeDistributionItem[] }
-    >(`${BASE}/grades/distribution`, AUTH)
+    >(`${BASE}/grades/distribution`, {
+      ...AUTH,
+      params: majorProgramId != null ? { majorProgramId } : undefined,
+    })
     return unwrap<GradeDistributionItem[]>(res, [])
   }
 
-  async getProgramPerformance(): Promise<ProgramPerformance[]> {
+  // Unlike the other four analytics endpoints here, this one's response IS
+  // per-program (sandbox/result/missing_grade_apis.readme.md §3 documents a
+  // real numeric `programId` per row) — a genuine client-side fallback filter
+  // is possible and built in GradesSummaryPage (matches each row's programId
+  // against programs known to belong to the selected major program, same
+  // pattern as director/grades/page.tsx's byProgram name-matching).
+  async getProgramPerformance(
+    majorProgramId?: number | null
+  ): Promise<ProgramPerformance[]> {
     const res = await apiClient.get<
       ProgramPerformance[] | { data: ProgramPerformance[] }
-    >(`${BASE}/programs/performance`, AUTH)
+    >(`${BASE}/programs/performance`, {
+      ...AUTH,
+      params: majorProgramId != null ? { majorProgramId } : undefined,
+    })
     return unwrap<ProgramPerformance[]>(res, [])
   }
 
-  async getCgpaTrends(): Promise<CgpaTrendPoint[]> {
+  // Aggregated by semester, not by program — same "pure aggregate, sent
+  // only" reasoning as getDashboardData above.
+  async getCgpaTrends(
+    majorProgramId?: number | null
+  ): Promise<CgpaTrendPoint[]> {
     const res = await apiClient.get<
       CgpaTrendPoint[] | { data: CgpaTrendPoint[] }
-    >(`${BASE}/cgpa/trends`, AUTH)
+    >(`${BASE}/cgpa/trends`, {
+      ...AUTH,
+      params: majorProgramId != null ? { majorProgramId } : undefined,
+    })
     return unwrap<CgpaTrendPoint[]>(res, [])
   }
 
-  async getTopPerformers(limit = 10): Promise<TopPerformer[]> {
+  // Each row carries `programName` (no id) — a genuine but weaker fallback
+  // filter than getProgramPerformance's (name match, same approach as
+  // director/grades/page.tsx's byProgram), built in GradesSummaryPage.
+  async getTopPerformers(
+    limit = 10,
+    majorProgramId?: number | null
+  ): Promise<TopPerformer[]> {
     const res = await apiClient.get<TopPerformer[] | { data: TopPerformer[] }>(
       `${BASE}/students/top-performers`,
       {
         ...AUTH,
-        params: { limit },
+        params: majorProgramId != null ? { limit, majorProgramId } : { limit },
       }
     )
     return unwrap<TopPerformer[]>(res, [])
@@ -787,6 +840,16 @@ class GradesService {
   ): Promise<GroupedGradeData[]> {
     const params: Record<string, unknown> = { groupBy }
     if (filters.status !== "all") params.status = filters.status
+    // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
+    // A35. Sent ahead of the backend per CLAUDE.md §14. Same "no per-record
+    // program id" caveat as getGrades above applies to every grouping
+    // dimension except `groupBy: "program"` (whose `key` is documented as the
+    // real programId per sandbox/result/missing_grade_apis.readme.md §5) —
+    // narrowing that one case client-side isn't done here to keep this
+    // filter's behavior consistent across all three groupings rather than
+    // working for one and silently not for the other two.
+    if (filters.majorProgramId != null)
+      params.majorProgramId = filters.majorProgramId
     const res = await apiClient.get<
       GroupedGradeData[] | { data: GroupedGradeData[] }
     >(`${BASE}/grades/grouped`, {

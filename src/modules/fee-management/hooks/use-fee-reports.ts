@@ -8,12 +8,15 @@ export function useCollectionsSummary(
   filters?: {
     sessionId?: number
     feeTypeId?: number
+    majorProgramId?: number
   },
   // Added 2026-09-12 so callers that only sometimes have permission for this
-  // endpoint (e.g. the shared admin/manager dashboard, which DEAN also
-  // renders but can't call /fees/reports/summary — confirmed live, 403)
-  // can skip the request entirely instead of it firing and failing. Default
-  // true keeps every existing caller unchanged.
+  // endpoint can skip the request entirely instead of it firing and
+  // failing. GET /fees/reports/summary 403ing for DEAN/BURSARY/DIRECTOR was
+  // confirmed fixed live 2026-09-22 (A37) — this param is kept as a general
+  // mechanism (still used by useOperationsDashboardData for STAFF, which is
+  // still 403'd), not because this specific endpoint needs it anymore.
+  // Default true keeps every existing caller unchanged.
   enabled = true
 ) {
   return useQuery({
@@ -24,10 +27,10 @@ export function useCollectionsSummary(
   })
 }
 
-export function useOutstandingReport() {
+export function useOutstandingReport(filters?: { majorProgramId?: number }) {
   return useQuery({
-    queryKey: feeKeys.outstandingReport(),
-    queryFn: feeManagementService.getOutstandingReport,
+    queryKey: feeKeys.outstandingReport(filters as Record<string, unknown>),
+    queryFn: () => feeManagementService.getOutstandingReport(filters),
     staleTime: 1000 * 60 * 2,
   })
 }

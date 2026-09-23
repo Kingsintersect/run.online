@@ -330,7 +330,7 @@ export default function TutorsPage({
           open={showCreate}
           onClose={() => setShowCreate(false)}
           title="Add New Tutor"
-          subtitle="Select an existing user and fill in tutor details"
+          subtitle="Enter an email and fill in tutor details"
           size="xl"
         >
           <CreateTutorForm
@@ -510,7 +510,10 @@ function CreateTutorForm({
       toast.error("Please select a major program.")
       return
     }
-    onSubmit(form)
+    // The mutation's own onError already shows a toast with the real reason
+    // (e.g. "no user with this email exists yet") — this just prevents an
+    // unhandled-rejection console error on top of that when it fails.
+    void onSubmit(form).catch(() => {})
   }
 
   return (
@@ -519,7 +522,8 @@ function CreateTutorForm({
       className="max-h-[60vh] space-y-4 overflow-y-auto pr-1"
     >
       <p className="text-xs text-muted-foreground">
-        Enter the email of the existing user you want to assign as a tutor.
+        Enter the tutor&apos;s email. If no account exists yet, one will be
+        created automatically.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -728,7 +732,7 @@ function EditTutorForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(form)
+    void onSubmit(form).catch(() => {})
   }
 
   return (
@@ -841,12 +845,22 @@ const selectCls =
 
 function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
   const { data: coursesData, isLoading } = useTutorCourses(tutor.id)
-  const { data: offeringsData } = useCourseOfferings()
+  // Major-Program Scoping — real, backend-enforced (`?majorProgramId=` is
+  // confirmed live on `GET /courses/offerings`, A4/A36 item 4). A tutor
+  // outside a major program (rare — an unscoped SUPER_ADMIN-created account)
+  // falls back to unfiltered, matching how every other "unscoped = ALL"
+  // screen in this app behaves.
+  const { data: offeringsData } = useCourseOfferings({
+    majorProgramId: tutor.major_program_id,
+  })
   const assignCourse = useAssignCourse()
   const unassignCourse = useUnassignCourse()
 
   const [selectedOffering, setSelectedOffering] = useState<number>(0)
   const [selectedRole, setSelectedRole] = useState<TutorCourseRole>("primary")
+  const [facultyFilter, setFacultyFilter] = useState("")
+  const [departmentFilter, setDepartmentFilter] = useState("")
+  const [levelFilter, setLevelFilter] = useState("")
 
   const assignments = coursesData?.data ?? []
   const assignedOfferingIds = new Set(assignments.map((a) => a.offering_id))
@@ -854,9 +868,62 @@ function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
     (o) => !assignedOfferingIds.has(o.id)
   )
 
+  // Facet options derived from the (already major-program-scoped) result
+  // set itself, not a separate academic-structure lookup — this way a
+  // filter option never points at zero results, and no id-based cascade is
+  // needed since every offering already carries its own readable names.
+  const facultyOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableOfferings
+            .map((o) => o.owning_faculty_name)
+            .filter((v): v is string => Boolean(v))
+        )
+      ).sort(),
+    [availableOfferings]
+  )
+  const departmentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableOfferings
+            .filter(
+              (o) => !facultyFilter || o.owning_faculty_name === facultyFilter
+            )
+            .map((o) => o.owning_department_name)
+            .filter((v): v is string => Boolean(v))
+        )
+      ).sort(),
+    [availableOfferings, facultyFilter]
+  )
+  const levelOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableOfferings
+            .map((o) => o.level_name)
+            .filter((v): v is string => Boolean(v))
+        )
+      ).sort(),
+    [availableOfferings]
+  )
+
+  const filteredOfferings = useMemo(
+    () =>
+      availableOfferings.filter(
+        (o) =>
+          (!facultyFilter || o.owning_faculty_name === facultyFilter) &&
+          (!departmentFilter ||
+            o.owning_department_name === departmentFilter) &&
+          (!levelFilter || o.level_name === levelFilter)
+      ),
+    [availableOfferings, facultyFilter, departmentFilter, levelFilter]
+  )
+
   const offeringOptions = useMemo(
     () =>
-      availableOfferings.map((o) => {
+      filteredOfferings.map((o) => {
         const category = formatOfferingCategory(o)
         const programmes = o.programs.length
           ? `${o.programs.length} programme${o.programs.length === 1 ? "" : "s"}`
@@ -873,7 +940,7 @@ function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
             .join("  ·  "),
         }
       }),
-    [availableOfferings]
+    [filteredOfferings]
   )
 
   const handleAssign = async () => {
@@ -891,11 +958,79 @@ function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
     <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1">
       {/* Assign new course */}
       <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4">
-        <h3 className="text-sm font-semibold text-foreground">Assign Course</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">
+            Assign Course
+          </h3>
+          {!tutor.major_program_id && (
+            <span className="text-[11px] text-muted-foreground">
+              This tutor has no major program — showing all courses
+            </span>
+          )}
+        </div>
+
+        {/* Academic-structure filters, faceted from the scoped result set */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-foreground">
+              Faculty
+            </label>
+            <select
+              className={selectCls}
+              value={facultyFilter}
+              onChange={(e) => {
+                setFacultyFilter(e.target.value)
+                setDepartmentFilter("")
+              }}
+            >
+              <option value="">All faculties</option>
+              {facultyOptions.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-foreground">
+              Department
+            </label>
+            <select
+              className={selectCls}
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+            >
+              <option value="">All departments</option>
+              {departmentOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-foreground">
+              Level
+            </label>
+            <select
+              className={selectCls}
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value)}
+            >
+              <option value="">All levels</option>
+              {levelOptions.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_140px_auto]">
           <div>
             <label className="mb-1 block text-xs font-medium text-foreground">
-              Course Offering
+              Course Offering ({offeringOptions.length})
             </label>
             <Combobox
               options={offeringOptions}

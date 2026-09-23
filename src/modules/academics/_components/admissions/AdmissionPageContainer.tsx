@@ -56,11 +56,9 @@ export default function AdmissionsPage({
   // RequirementsManager compares program ids as strings (a holdover from the
   // legacy mock program shape) — real Program.id is numeric, so it's
   // stringified here rather than changing that comparison logic.
-  const programs = programsRes?.data.map((p) => ({
-    id: String(p.id),
-    name: p.name,
-    code: p.code,
-  }))
+  const allPrograms = programsRes?.data ?? []
+  const toProgramSummary = (list: typeof allPrograms) =>
+    list.map((p) => ({ id: String(p.id), name: p.name, code: p.code }))
 
   // ── Local state ──────────────────────────
   // Different major programs can run independent calendars (Undergraduate,
@@ -89,8 +87,15 @@ export default function AdmissionsPage({
     : null
   const selectedSession =
     sessions?.find((s) => s.id === selectedSessionIdNum) ?? null
-  const { data: cycles, isLoading: isLoadingCycles } =
-    useAdmissionCycles(selectedSessionIdNum)
+  // Major-Program Scoping — sandbox/major-program-scoping/
+  // BACKEND_DEVIATIONS_2026-09-14.md A35. Sent ahead of the backend per
+  // CLAUDE.md §14 — a no-op today since selecting a session (already
+  // filtered to this major program via the tabs above) fully determines
+  // scope; see admissionSetupApi.ts's note.
+  const { data: cycles, isLoading: isLoadingCycles } = useAdmissionCycles(
+    selectedSessionIdNum,
+    majorProgramFilter
+  )
   const createCycle = useCreateAdmissionCycle()
   const updateCycle = useUpdateAdmissionCycle(selectedSessionIdNum ?? 0)
   const deleteCycle = useDeleteAdmissionCycle(selectedSessionIdNum ?? 0)
@@ -159,6 +164,22 @@ export default function AdmissionsPage({
   // ── Drilled-in: Requirements view ────────
   if (managingCycleId) {
     const cycle = cycles?.find((c) => c.id === managingCycleId)
+    // Major-Program Scoping — sandbox/major-program-scoping/
+    // BACKEND_DEVIATIONS_2026-09-14.md A35. Program already carries a real
+    // majorProgramId, so this is an exact client-side filter (not a
+    // name-derived fallback): a requirement's program picker only offers
+    // programs under this cycle's own session's major program. A null
+    // session.majorProgramId (institution-wide session) keeps today's
+    // exact behavior — every program stays offered, unscoped.
+    const cycleSession = sessions?.find(
+      (s) => s.id === cycle?.academic_session_id
+    )
+    const scopedPrograms =
+      cycleSession?.majorProgramId != null
+        ? allPrograms.filter(
+            (p) => p.majorProgramId === cycleSession.majorProgramId
+          )
+        : allPrograms
     return (
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <Button
@@ -182,7 +203,7 @@ export default function AdmissionsPage({
 
         <RequirementsManager
           cycleId={managingCycleId}
-          programs={programs ?? []}
+          programs={toProgramSummary(scopedPrograms)}
           canManage={canManage}
         />
       </div>

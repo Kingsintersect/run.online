@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import {
   ChevronLeft,
@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/select"
 import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { useStudentMajorProgramMap } from "@/hooks/use-student-major-program-map"
 import { useDocuments } from "../../hooks/use-documents"
 import {
   useDeleteDocument,
@@ -53,6 +55,10 @@ export function DocumentReviewTable() {
   const setDocumentTypeFilter = useDocumentUiStore(
     (s) => s.setDocumentTypeFilter
   )
+  const majorProgramFilter = useDocumentUiStore((s) => s.majorProgramFilter)
+  const setMajorProgramFilter = useDocumentUiStore(
+    (s) => s.setMajorProgramFilter
+  )
   const page = useDocumentUiStore((s) => s.page)
   const setPage = useDocumentUiStore((s) => s.setPage)
 
@@ -62,13 +68,28 @@ export function DocumentReviewTable() {
   const { data, isLoading, isError } = useDocuments({
     status: statusFilter,
     documentType: documentTypeFilter || undefined,
+    majorProgramId: majorProgramFilter ?? undefined,
     page,
     limit: 15,
   })
   const deleteDoc = useDeleteDocument()
   const download = useDownloadDocument()
 
-  const documents = data?.data ?? []
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /documents doesn't support majorProgramId server-side yet, and each
+  // document only carries a bare studentId (no nested student object), so
+  // this cross-references the student roster to resolve one — see
+  // use-student-major-program-map.ts's own doc comment for the "unresolved
+  // students are never filtered out" fail-open rule this follows.
+  const { getMajorProgramId } = useStudentMajorProgramMap()
+  const documents = useMemo(() => {
+    const all = data?.data ?? []
+    if (majorProgramFilter == null) return all
+    return all.filter((doc) => {
+      const mpId = getMajorProgramId(doc.studentId)
+      return mpId === undefined || mpId === majorProgramFilter
+    })
+  }, [data, majorProgramFilter, getMajorProgramId])
   const meta = data?.meta
 
   const handleDownload = async (id: number, fileName: string) => {
@@ -92,6 +113,11 @@ export function DocumentReviewTable() {
 
   return (
     <div className="space-y-3">
+      <MajorProgramFilterTabs
+        value={majorProgramFilter}
+        onChange={setMajorProgramFilter}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/30 p-1">
           {STATUS_TABS.map((tab) => (

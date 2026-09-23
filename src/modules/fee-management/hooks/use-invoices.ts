@@ -39,13 +39,17 @@ export function useInvoice(id: number) {
 }
 
 // `enabled` added 2026-09-12 — see the matching note on useCollectionsSummary
-// in use-fee-reports.ts. Confirmed live this 403s for both DEAN and,
-// surprisingly, BURSARY itself (the role this data exists for) — see
-// sandbox/fee-management/bursary_403_bug_report.md.
-export function useOverdueInvoices(enabled = true) {
+// in use-fee-reports.ts. GET /fees/invoices/overdue 403ing for DEAN and
+// BURSARY (sandbox/fee-management/bursary_403_bug_report.md) was confirmed
+// fixed live 2026-09-22 (A37) — this param is kept as a general mechanism,
+// not because this endpoint needs it anymore.
+export function useOverdueInvoices(
+  filters?: { majorProgramId?: number },
+  enabled = true
+) {
   return useQuery({
-    queryKey: feeKeys.overdueInvoices(),
-    queryFn: feeManagementService.getOverdueInvoices,
+    queryKey: feeKeys.overdueInvoices(filters as Record<string, unknown>),
+    queryFn: () => feeManagementService.getOverdueInvoices(filters),
     staleTime: 1000 * 60 * 2,
     enabled,
   })

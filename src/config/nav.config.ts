@@ -37,6 +37,7 @@ import {
   UserCheck,
   CalendarCheck,
   MapPin,
+  Activity,
 } from "lucide-react"
 
 /* ------------------------------------------------------------------ */
@@ -628,6 +629,12 @@ const superAdminNav: NavGroup[] = [
             href: "/admin/configurations/demographics",
             matchExactOnly: true,
             icon: MapPin,
+          },
+          {
+            title: "System Monitoring",
+            href: "/admin/configurations/system-monitoring",
+            matchExactOnly: true,
+            icon: Activity,
           },
         ],
       },

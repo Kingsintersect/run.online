@@ -34,6 +34,16 @@ export const CategorySyncResponseSchema = z.object({
   needsMapping: z.boolean(),
   syncError: z.string().nullable(),
   lastSyncAt: z.string().nullable(),
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // Another "Frontend Contract Addition," same pattern as unitName/
+  // unitTypeCode/parentId above: derived client-side (never sent by the
+  // backend) by walking this node's AcademicUnit ancestor chain for the
+  // nearest `linkedEntity.type === "major_program"` (A18 — resolved
+  // 2026-09-16). Real per-node data, not a guess, since this deployment's
+  // own Moodle category tree is already rooted one-major-program-per-branch
+  // (e.g. "PART-TIME PROGRAMS"). `null` when no ancestor (including the
+  // node itself) is linked to a MajorProgram yet.
+  majorProgramId: z.number().nullable(),
 })
 
 // Resolving a flagged (needsMapping: true) row pulled from Moodle with no

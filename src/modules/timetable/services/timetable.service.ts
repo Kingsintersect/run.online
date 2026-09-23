@@ -230,6 +230,13 @@ export const timetableService = {
       dayOfWeek: filters.dayOfWeek,
       venue: filters.venue,
       classType: filters.classType,
+      // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md
+      // A35. Sent ahead of the backend per CLAUDE.md §14. Send-only:
+      // TimetableSlot carries no program-derivable field (courseCode/
+      // courseTitle/offeringId only), so there's nothing to filter
+      // client-side without an extra offering->program lookup per row —
+      // not built here rather than faked.
+      majorProgramId: filters.majorProgramId,
       page: filters.page ?? 1,
       limit: filters.limit ?? 20,
     }

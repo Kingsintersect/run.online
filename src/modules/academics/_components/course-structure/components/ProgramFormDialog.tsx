@@ -24,6 +24,7 @@ import {
   useMajorPrograms,
   useLevels,
 } from "@/hooks/useCourseStructure"
+import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import {
   resolveFacultyAcademicUnit,
   resolveMajorProgramAcademicUnit,
@@ -59,6 +60,28 @@ export function ProgramFormDialog({
   const majorPrograms = (majorProgramsData?.data ?? []).filter(
     (mp) => mp.isActive
   )
+  // Major-Program Scoping — sandbox/major-program-scoping/. Same restriction
+  // as FacultyFormDialog's majorProgramId picker: a scoped caller can only
+  // assign a new Program to a major program within their own grant. Always
+  // keeps the program's own current value visible even if it falls outside
+  // scope, so editing an out-of-scope program never silently blanks it.
+  const { isUnscoped, scopedPrograms } = useMajorProgramScope()
+  const majorProgramOptions = isUnscoped
+    ? majorPrograms
+    : (() => {
+        const scopedIds = new Set(scopedPrograms.map((sp) => sp.id))
+        const filtered = majorPrograms.filter((mp) => scopedIds.has(mp.id))
+        if (
+          program?.majorProgramId != null &&
+          !filtered.some((mp) => mp.id === program.majorProgramId)
+        ) {
+          const existing = majorPrograms.find(
+            (mp) => mp.id === program.majorProgramId
+          )
+          if (existing) filtered.push(existing)
+        }
+        return filtered
+      })()
   const { data: levelsData } = useLevels()
   const levels = [...(levelsData?.data ?? [])].sort(
     (a, b) => a.numericValue - b.numericValue
@@ -102,11 +125,19 @@ export function ProgramFormDialog({
       // Creating directly under a major program defaults the administrative
       // scope to match — a program placed there but scoped elsewhere would
       // be a confusing contradiction — but it stays a normal, editable field
-      // (no lock), same as every other default in this form.
-      majorProgramId: program?.majorProgramId ?? majorProgram?.id ?? null,
+      // (no lock), same as every other default in this form. Falling back
+      // further to the scoped caller's own single major program (Major-
+      // Program Scoping — sandbox/major-program-scoping/) when neither of
+      // the above applies, same default FacultyFormDialog now uses.
+      majorProgramId:
+        program?.majorProgramId ??
+        majorProgram?.id ??
+        (!isUnscoped && scopedPrograms.length === 1
+          ? scopedPrograms[0].id
+          : null),
       entryLevelId: program?.entryLevelId ?? null,
     })
-  }, [open, program, majorProgram, reset])
+  }, [open, program, majorProgram, reset, isUnscoped, scopedPrograms])
 
   const onSubmit = async (values: ProgramFormValues) => {
     try {
@@ -257,7 +288,7 @@ export function ProgramFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— Not assigned —</SelectItem>
-                  {majorPrograms.map((mp) => (
+                  {majorProgramOptions.map((mp) => (
                     <SelectItem key={mp.id} value={String(mp.id)}>
                       {mp.name}
                     </SelectItem>

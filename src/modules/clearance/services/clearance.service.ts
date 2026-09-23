@@ -58,9 +58,14 @@ export const clearanceService = {
   // Confirmed live wrapped with a SUPER_ADMIN token — see this file's
   // header comment. `meta` (page/limit/total) is returned too but dropped
   // here since the only current consumer just needs the list.
-  async list(
-    filters: ClearanceQueryFilters = {}
-  ): Promise<StudentClearance[]> {
+  //
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /clearance has no majorProgramId support server-side (confirmed
+  // unscoped, ENDPOINT_INVENTORY.md item 15). `majorProgramId` sent
+  // regardless; the frontend also filters client-side in
+  // clearance-review-queue.tsx (via use-student-major-program-map.ts) so
+  // results are correct either way.
+  async list(filters: ClearanceQueryFilters = {}): Promise<StudentClearance[]> {
     const res = await apiClient.get<{ data: StudentClearance[] }>(BASE, {
       ...AUTH,
       params: filters as Record<string, unknown>,

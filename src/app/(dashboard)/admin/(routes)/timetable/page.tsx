@@ -87,15 +87,30 @@ export default function AdminTimetablePage() {
       t.staff_number,
   }))
 
-  // Exam Timetable — sandbox/exam-timetable/.
+  // Exam Timetable — sandbox/exam-timetable/. Major-Program Scoping — same
+  // reuse-the-existing-tab reasoning as the class-schedules query above
+  // (sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35).
   const [examDialogOpen, setExamDialogOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<ExamSchedule | null>(null)
-  const { data: examsData, isLoading: examsLoading } = useExamSchedules()
+  const { data: examsData, isLoading: examsLoading } = useExamSchedules(
+    majorProgramFilter != null ? { majorProgramId: majorProgramFilter } : {}
+  )
   const exams = examsData?.data ?? []
 
   // One filter at a time drives the data source: a dedicated lecturer/semester
   // endpoint when scoped, the full paginated list otherwise.
-  const allQuery = useAllSchedules()
+  //
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // This page already has a major-program tab (`majorProgramFilter` above,
+  // via `MajorProgramTabs`) for resolving the active session/semester — sent
+  // through here too as `majorProgramId` rather than adding a second,
+  // competing filter bar. Only wired on the "all schedules" fallback (the
+  // dedicated lecturer/semester endpoints below take no query params at
+  // all), which is exactly the case where results can otherwise span every
+  // major program's lecturers/semesters at once.
+  const allQuery = useAllSchedules(
+    majorProgramFilter != null ? { majorProgramId: majorProgramFilter } : {}
+  )
   const lecturerQuery = useSchedulesByLecturer(lecturerId)
   const semesterQuery = useSchedulesBySemester(lecturerId ? null : semesterId)
 

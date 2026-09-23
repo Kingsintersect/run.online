@@ -8,6 +8,7 @@ import {
   Pencil,
   Loader2,
   Download,
+  Receipt,
   UserX,
   UserCheck,
   Search,
@@ -19,8 +20,10 @@ import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import { useLevels } from "@/hooks/useCourseStructure"
+import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
+import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { StudentInvoicesPanel } from "@/modules/fee-management/components/admin/student-invoices-panel"
 import {
   useStudents,
   useStudentLookupByMatric,
@@ -54,6 +57,7 @@ const statusVariant: Record<
 const PERM = {
   manageStudents: { resource: "students", action: "manage" },
   manageDepts: { resource: "departments", action: "manage" },
+  viewFees: { resource: "fee-management", action: "view" },
 } as const
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -134,6 +138,7 @@ export default function StudentsPage({
   // Props take precedence; fall back to internally-derived values
   const canCreate = canCreateProp ?? can(PERM.manageStudents)
   const canExport = canExportProp ?? can(PERM.manageDepts)
+  const canViewInvoices = can(PERM.viewFees)
 
   const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
     null
@@ -146,6 +151,23 @@ export default function StudentsPage({
   const [selected, setSelected] = useState<Student | null>(null)
   const [editing, setEditing] = useState<Student | null>(null)
   const [statusTarget, setStatusTarget] = useState<Student | null>(null)
+  const [invoicesFor, setInvoicesFor] = useState<Student | null>(null)
+
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A33.
+  // GET /fees/invoices/student/:studentId has no scope check server-side
+  // yet, so this proactively hides "View Invoices" for a student outside
+  // the caller's own scope — a UI convenience per useMajorProgramScope's own
+  // doc comment, never a substitute for real backend enforcement. Students
+  // have no majorProgramId of their own on the row, so it's derived by
+  // matching program_name against the programs list (same best-effort
+  // name-match pattern already used for Overdue Invoices/Director reports).
+  const { data: programsRes } = useAllPrograms()
+  const { withinScope } = useMajorProgramScope()
+  const majorProgramIdByProgramName = new Map(
+    (programsRes?.data ?? []).map((p) => [p.name, p.majorProgramId ?? null])
+  )
+  const isStudentInScope = (student: Student) =>
+    withinScope(majorProgramIdByProgramName.get(student.program_name) ?? null)
 
   // Exact matric lookup — finds a student even if they're not on the loaded
   // page, then opens the detail modal on it.
@@ -255,6 +277,22 @@ export default function StudentsPage({
                   >
                     <Eye size={14} />
                   </Button>
+                  {/* View Invoices — fee-management:view, and only for a
+                      student we can already tell is in scope; see
+                      isStudentInScope above. */}
+                  {canViewInvoices &&
+                    isStudentInScope(row as unknown as Student) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setInvoicesFor(row as unknown as Student)
+                        }
+                        title="View Invoices"
+                      >
+                        <Receipt size={14} />
+                      </Button>
+                    )}
                   {/* Edit + Deactivate — students:manage only */}
                   {canCreate && (
                     <>
@@ -319,6 +357,21 @@ export default function StudentsPage({
         size="lg"
       >
         {selected && <StudentDetail student={selected} />}
+      </Modal>
+
+      {/* Invoices modal */}
+      <Modal
+        open={!!invoicesFor}
+        onClose={() => setInvoicesFor(null)}
+        title={
+          invoicesFor
+            ? `Invoices — ${invoicesFor.user.first_name} ${invoicesFor.user.last_name}`
+            : ""
+        }
+        subtitle={invoicesFor?.matric_number}
+        size="lg"
+      >
+        {invoicesFor && <StudentInvoicesPanel studentId={invoicesFor.id} />}
       </Modal>
 
       {/* Edit modal */}

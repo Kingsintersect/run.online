@@ -12,6 +12,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import StatusBadge from "@/components/custom/StatusBadge"
+import { stripHtmlToText } from "../../lib/strip-html"
 import type { AssessmentResponse, AssessmentType } from "../../types"
 
 // ── Assessment type config ────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export function AssessmentCard({
 
         {assessment.description && (
           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-            {assessment.description}
+            {stripHtmlToText(assessment.description)}
           </p>
         )}
 

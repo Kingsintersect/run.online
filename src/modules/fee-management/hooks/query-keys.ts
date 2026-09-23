@@ -29,7 +29,8 @@ export const feeKeys = {
   myInvoices: () => [...feeKeys.all, "invoices", "my"] as const,
   studentInvoices: (studentId: number) =>
     [...feeKeys.all, "invoices", "student", studentId] as const,
-  overdueInvoices: () => [...feeKeys.all, "invoices", "overdue"] as const,
+  overdueInvoices: (filters?: Record<string, unknown>) =>
+    [...feeKeys.all, "invoices", "overdue", filters] as const,
 
   // Payments — added in slice 3
   paymentHistory: (invoiceId: number) =>
@@ -40,5 +41,6 @@ export const feeKeys = {
   // Reports — added in slice 4
   collectionsSummary: (filters?: Record<string, unknown>) =>
     [...feeKeys.all, "reports", "collections", filters] as const,
-  outstandingReport: () => [...feeKeys.all, "reports", "outstanding"] as const,
+  outstandingReport: (filters?: Record<string, unknown>) =>
+    [...feeKeys.all, "reports", "outstanding", filters] as const,
 } as const

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown, BookOpen, AlertCircle } from "lucide-react"
 import { courseOfferingQueryOptions } from "@/services/courseOfferingApi"
+import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import EmptyState from "@/components/custom/EmptyState"
 import { GradesTable } from "./grades-table"
 import { GradeDetailModal } from "./modals/grade-detail-modal"
@@ -35,9 +36,21 @@ export function TutorCourseGradeBook({
   const [selectedOffering, setSelectedOffering] =
     useState<CourseOffering | null>(null)
 
-  const { data: offeringsRes, isLoading: offeringsLoading } = useQuery(
-    courseOfferingQueryOptions.list()
-  )
+  // Lecturer-ownership scoping (real, independent bug — not major-program
+  // scoping): this picker used to call courseOfferingQueryOptions.list()
+  // with no filter at all, pulling every offering system-wide — a tutor
+  // could select and grade any course's offering, not just their own,
+  // unlike the Course Assignments screen's `useAssignedCourses`, which
+  // already scopes via `?lecturerId=` (a confirmed-live filter — see
+  // BACKEND_DEVIATIONS_2026-09-14.md Part C). Scoped the same way here.
+  const { lecturerId, isLoading: lecturerIdLoading } = useMyLecturerId()
+  const { data: offeringsRes, isLoading: offeringsQueryLoading } = useQuery({
+    ...courseOfferingQueryOptions.list(
+      lecturerId != null ? { lecturerId } : undefined
+    ),
+    enabled: lecturerId !== null,
+  })
+  const offeringsLoading = lecturerIdLoading || offeringsQueryLoading
   const offerings = offeringsRes?.data ?? []
 
   const { grades, loading, isError } = useGradesByCourseAndSemester(

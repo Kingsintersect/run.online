@@ -87,12 +87,42 @@ interface RawCategorySync {
   lastSyncAt: string | null
 }
 
+interface UnitLookupEntry {
+  name: string
+  typeCode: string
+  parentId: number | null
+  linkedEntity: { type: string; id: number } | null
+}
+
+// Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+// Walks a category's AcademicUnit ancestor chain (parentId) looking for the
+// nearest node whose linkedEntity resolves to a MajorProgram (A18) — e.g.
+// the "PART-TIME PROGRAMS" root category. Real derivation, not a guess:
+// every node in `unitsById` came from the same tree this category's own
+// `academicUnitId` belongs to. A depth guard prevents an infinite loop if
+// the tree ever has a cyclic parentId (shouldn't happen, but this is
+// client-side derived data, not a trusted server invariant).
+function resolveMajorProgramId(
+  academicUnitId: number | null,
+  unitsById: Map<number, UnitLookupEntry>
+): number | null {
+  let currentId = academicUnitId
+  let guard = 0
+  while (currentId !== null && guard < 50) {
+    const unit = unitsById.get(currentId)
+    if (!unit) return null
+    if (unit.linkedEntity?.type === "major_program") {
+      return unit.linkedEntity.id
+    }
+    currentId = unit.parentId
+    guard += 1
+  }
+  return null
+}
+
 function mapCategorySync(
   raw: RawCategorySync,
-  unitsById: Map<
-    number,
-    { name: string; typeCode: string; parentId: number | null }
-  >
+  unitsById: Map<number, UnitLookupEntry>
 ): CategorySyncResponse {
   const unit = unitsById.get(raw.academicUnitId)
   return {
@@ -109,17 +139,21 @@ function mapCategorySync(
     needsMapping: raw.needsMapping,
     syncError: raw.syncError,
     lastSyncAt: raw.lastSyncAt,
+    majorProgramId: resolveMajorProgramId(raw.academicUnitId, unitsById),
   }
 }
 
-async function buildUnitLookup(): Promise<
-  Map<number, { name: string; typeCode: string; parentId: number | null }>
-> {
+async function buildUnitLookup(): Promise<Map<number, UnitLookupEntry>> {
   const res = await academicUnitsApi.list()
   return new Map(
     res.data.map((u) => [
       u.id,
-      { name: u.name, typeCode: u.typeCode, parentId: u.parentId },
+      {
+        name: u.name,
+        typeCode: u.typeCode,
+        parentId: u.parentId,
+        linkedEntity: u.linkedEntity,
+      },
     ])
   )
 }
@@ -261,23 +295,44 @@ function normalizeAssessmentSyncStatus(
 export const moodleSyncService = {
   // ---------- Categories ----------
 
-  async listCategories(): Promise<CategorySyncResponse[]> {
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `majorProgramId` is sent ahead of the backend per CLAUDE.md §14 (no
+  // confirmation `/moodle-sync/categories` honors it yet) AND applied as a
+  // real client-side filter — unlike most other speculative majorProgramId
+  // sends in this codebase, this one is genuine: `mapCategorySync` above
+  // already derives each row's true majorProgramId from the AcademicUnit
+  // tree (A18's linkedEntity mechanism), so filtering on it here is
+  // filtering on real data, not a guess.
+  async listCategories(filters?: {
+    majorProgramId?: number
+  }): Promise<CategorySyncResponse[]> {
     const [res, unitsById] = await Promise.all([
-      apiClient.get<{ data: RawCategorySync[] }>(`${BASE}/categories`, AUTH),
+      apiClient.get<{ data: RawCategorySync[] }>(`${BASE}/categories`, {
+        ...AUTH,
+        params: filters as Record<string, unknown>,
+      }),
       buildUnitLookup(),
     ])
-    return res.data.map((r) => mapCategorySync(r, unitsById))
+    const mapped = res.data.map((r) => mapCategorySync(r, unitsById))
+    return filters?.majorProgramId
+      ? mapped.filter((c) => c.majorProgramId === filters.majorProgramId)
+      : mapped
   },
 
-  async getCategoriesNeedingMapping(): Promise<CategorySyncResponse[]> {
+  async getCategoriesNeedingMapping(filters?: {
+    majorProgramId?: number
+  }): Promise<CategorySyncResponse[]> {
     const [res, unitsById] = await Promise.all([
       apiClient.get<{ data: RawCategorySync[] }>(
         `${BASE}/categories/needs-mapping`,
-        AUTH
+        { ...AUTH, params: filters as Record<string, unknown> }
       ),
       buildUnitLookup(),
     ])
-    return res.data.map((r) => mapCategorySync(r, unitsById))
+    const mapped = res.data.map((r) => mapCategorySync(r, unitsById))
+    return filters?.majorProgramId
+      ? mapped.filter((c) => c.majorProgramId === filters.majorProgramId)
+      : mapped
   },
 
   async getCategory(id: number): Promise<CategorySyncResponse> {
@@ -456,10 +511,20 @@ export const moodleSyncService = {
 
   // ---------- Courses ----------
 
-  async listCourses(): Promise<CourseSyncResponse[]> {
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // Sent ahead of the backend per CLAUDE.md §14. Send-only, unlike
+  // listCategories above: CourseSyncResponse carries no field a
+  // majorProgramId could be derived from client-side without an extra
+  // cross-join against the category tree's moodleCategoryId (course's own
+  // `moodleCategoryId` isn't the same id space as a category row's
+  // `academicUnitId`) — not built here rather than faked, same reasoning as
+  // A33's pure-aggregate sends elsewhere in this codebase.
+  async listCourses(filters?: {
+    majorProgramId?: number
+  }): Promise<CourseSyncResponse[]> {
     const res = await apiClient.get<{ data: CourseSyncResponse[] }>(
       `${BASE}/courses`,
-      AUTH
+      { ...AUTH, params: filters as Record<string, unknown> }
     )
     return res.data
   },
@@ -504,8 +569,12 @@ export const moodleSyncService = {
 
   // ---------- Enrollments ----------
 
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `majorProgramId` sent ahead of the backend per CLAUDE.md §14 — send-only,
+  // same reasoning as listCourses above (EnrollmentSyncResponse carries no
+  // program-derivable field either).
   async listEnrollments(
-    filters: { status?: string } = {}
+    filters: { status?: string; majorProgramId?: number } = {}
   ): Promise<EnrollmentSyncResponse[]> {
     const res = await apiClient.get<{ data: EnrollmentSyncResponse[] }>(
       `${BASE}/enrollments`,
@@ -782,7 +851,14 @@ export const moodleSyncService = {
     return apiClient.delete<{ message: string }>(`/assessments/${id}`, AUTH)
   },
 
-  async getAssessmentSyncStatus(): Promise<AssessmentSyncStatusResult> {
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `majorProgramId` sent ahead of the backend per CLAUDE.md §14. Send-only:
+  // this is a pure aggregate (summary counts + a flat per-course list with
+  // no program-derivable field), so there's nothing to filter client-side —
+  // same reasoning as A33's other pure-aggregate sends in this codebase.
+  async getAssessmentSyncStatus(filters?: {
+    majorProgramId?: number
+  }): Promise<AssessmentSyncStatusResult> {
     // `/assessments/sync/status` — Admin. Documented shape is
     // `{ summary: {...}, courses: [...] }`; the older
     // `/moodle-sync/assessments/sync-status` returned a flatter
@@ -790,7 +866,7 @@ export const moodleSyncService = {
     // Normalize both so the table never crashes on a shape change.
     const res = await apiClient.get<Record<string, unknown>>(
       `/assessments/sync/status`,
-      AUTH
+      { ...AUTH, params: filters as Record<string, unknown> }
     )
     return normalizeAssessmentSyncStatus(res)
   },
@@ -886,11 +962,20 @@ export const moodleSyncService = {
   // sandbox/moodle-sync-reconciliation/API_CONTRACTS.md.
 
   // Dry run against live Moodle — writes nothing.
-  async previewReconcile(module: ReconcileModule): Promise<ReconcilePreview> {
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // `majorProgramId` sent ahead of the backend per CLAUDE.md §14 as a query
+  // param (the endpoint takes no body) — send-only, narrowing which
+  // module's records get previewed/reconciled to one major program isn't
+  // something the frontend can verify happened without the backend's own
+  // response naming the scope it applied.
+  async previewReconcile(
+    module: ReconcileModule,
+    filters?: { majorProgramId?: number }
+  ): Promise<ReconcilePreview> {
     const res = await apiClient.post<{ data: ReconcilePreview }>(
       `${BASE}/${module}/reconcile/preview`,
       undefined,
-      AUTH
+      { ...AUTH, params: filters as Record<string, unknown> }
     )
     return res.data
   },

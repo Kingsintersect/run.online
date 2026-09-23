@@ -14,6 +14,16 @@ export const AllocationQueryFiltersSchema = z.object({
   studentId: z.number().optional(),
   page: z.number().optional(),
   limit: z.number().optional(),
+  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
+  // GET /hostels/allocations has no majorProgramId support server-side
+  // (confirmed unscoped, ENDPOINT_INVENTORY.md item 14). Sent ahead of the
+  // backend per CLAUDE.md §14; allocation-table.tsx also filters
+  // client-side via use-student-major-program-map.ts, since the response
+  // only carries a bare studentId, not a nested student object. The
+  // Hostel/Block/Room structure itself is institution-wide (no program
+  // relationship at all — see hostel.schema.ts) and deliberately isn't
+  // scoped; only Allocations, which belong to a specific student, are.
+  majorProgramId: z.number().optional(),
 })
 
 export const AllocationResponseSchema = z.object({

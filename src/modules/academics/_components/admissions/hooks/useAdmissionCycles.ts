@@ -10,9 +10,18 @@ import type {
   UpdateAdmissionCyclePayload,
 } from "@/types/school"
 
-export function useAdmissionCycles(sessionId: number | null) {
+// Major-Program Scoping — sandbox/major-program-scoping/. `majorProgramId`
+// is a no-op today (cycles fully inherit scope from `sessionId` already, per
+// admissionSetupApi.ts's note on listCyclesBySession) but is threaded
+// through here so callers filtering by major program (AdmissionPageContainer
+// already does, at the session-picker level) can pass it once the backend
+// starts honoring it directly.
+export function useAdmissionCycles(
+  sessionId: number | null,
+  majorProgramId?: number | null
+) {
   return useQuery({
-    ...admissionSetupQueryOptions.cyclesBySession(sessionId!),
+    ...admissionSetupQueryOptions.cyclesBySession(sessionId!, majorProgramId),
     enabled: !!sessionId,
     staleTime: 1000 * 60 * 5,
   })
@@ -32,7 +41,7 @@ export function useCreateAdmissionCycle() {
     ...admissionSetupMutationOptions.createCycle(),
     onSuccess: async (_data, variables: CreateAdmissionCyclePayload) => {
       await qc.invalidateQueries({
-        queryKey: admissionSetupKeys.cyclesBySession(
+        queryKey: admissionSetupKeys.cyclesBySessionPrefix(
           variables.academic_session_id
         ),
       })
@@ -50,7 +59,7 @@ export function useUpdateAdmissionCycle(sessionId: number) {
     ) => {
       await Promise.all([
         qc.invalidateQueries({
-          queryKey: admissionSetupKeys.cyclesBySession(sessionId),
+          queryKey: admissionSetupKeys.cyclesBySessionPrefix(sessionId),
         }),
         qc.invalidateQueries({
           queryKey: admissionSetupKeys.cycleDetail(variables.id),
@@ -66,7 +75,7 @@ export function useDeleteAdmissionCycle(sessionId: number) {
     ...admissionSetupMutationOptions.deleteCycle(),
     onSuccess: async () => {
       await qc.invalidateQueries({
-        queryKey: admissionSetupKeys.cyclesBySession(sessionId),
+        queryKey: admissionSetupKeys.cyclesBySessionPrefix(sessionId),
       })
     },
   })
@@ -82,7 +91,7 @@ export function useUpdateAdmissionStatus(sessionId: number) {
     ) => {
       await Promise.all([
         qc.invalidateQueries({
-          queryKey: admissionSetupKeys.cyclesBySession(sessionId),
+          queryKey: admissionSetupKeys.cyclesBySessionPrefix(sessionId),
         }),
         qc.invalidateQueries({
           queryKey: admissionSetupKeys.cycleDetail(variables.id),
