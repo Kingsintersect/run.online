@@ -17,6 +17,8 @@ import DataTable, { type Column } from "@/components/custom/DataTable"
 import Avatar from "@/components/custom/Avatar"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { Button } from "@/components/ui/button"
+import { useAppStore } from "@/store"
+import { UserRole } from "@/config/nav.config"
 import type { User } from "@/types/users"
 import {
   PieChart,
@@ -108,6 +110,18 @@ export default function UsersSummaryPage() {
   const [managingRolesFor, setManagingRolesFor] = useState<User | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
 
+  // Creating a user and assigning roles both hit backend endpoints gated
+  // on the literal `admin` role (UserController::store(),
+  // UserRoleController — see BaseUserController::requireRoles(['admin'])
+  // and UserRoleController::requireAdmin()), not a permission. DEAN and
+  // STAFF share this same page/layout (manager/layout.tsx's RoleGuard)
+  // and have real, broader permissions for plenty of what's on it, but
+  // NOT this — showing them these two controls unconditionally meant
+  // clicking either always 403'd. Fixed 2026-09-16, direct product
+  // instruction ("Deans should not have all the admin permissions").
+  const { user } = useAppStore()
+  const isAdmin = user?.role === UserRole.ADMIN
+
   return (
     <div className="mx-auto space-y-8 px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
@@ -126,10 +140,12 @@ export default function UsersSummaryPage() {
             manage Students, Tutors, and Staff.
           </p>
         </div>
-        <Button onClick={() => setShowCreateUser(true)}>
-          <Plus className="size-4" data-icon="inline-start" />
-          Add User
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setShowCreateUser(true)}>
+            <Plus className="size-4" data-icon="inline-start" />
+            Add User
+          </Button>
+        )}
       </motion.div>
 
       {/* Charts */}
@@ -371,22 +387,26 @@ export default function UsersSummaryPage() {
           data={(usersData?.data ?? []) as (User & Record<string, unknown>)[]}
           columns={[
             ...columns,
-            {
-              key: "actions",
-              header: "",
-              align: "center",
-              width: "70px",
-              render: (row) => (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setManagingRolesFor(row)}
-                  title="Manage roles"
-                >
-                  <ShieldCheck className="size-3.5" />
-                </Button>
-              ),
-            },
+            ...(isAdmin
+              ? [
+                  {
+                    key: "actions",
+                    header: "",
+                    align: "center" as const,
+                    width: "70px",
+                    render: (row: User) => (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setManagingRolesFor(row)}
+                        title="Manage roles"
+                      >
+                        <ShieldCheck className="size-3.5" />
+                      </Button>
+                    ),
+                  },
+                ]
+              : []),
           ]}
           loading={usersLoading}
           searchPlaceholder="Search by name, email, or username…"

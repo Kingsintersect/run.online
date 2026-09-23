@@ -46,3 +46,7 @@ bruno
 /bruno/
 test.txt
 .env*
+
+.zip*
+run_api.code-workspace
+TUTOR_FORM_FIX_HANDOFF.txt
