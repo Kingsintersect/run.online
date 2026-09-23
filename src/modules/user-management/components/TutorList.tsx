@@ -27,7 +27,7 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import {
   useMajorPrograms,
-  useFaculties,
+  useFacultiesByMajorProgram,
   useDepartments,
 } from "@/hooks/useCourseStructure"
 import { toast } from "sonner"
@@ -481,7 +481,16 @@ function CreateTutorForm({
     designation: "",
   })
 
-  const { data: facultiesRes } = useFaculties()
+  // Cascade: Major Program -> Faculty -> Department. Direct request,
+  // 2026-09-23: "once the major program is selected, let the faculties
+  // under that program be shown in the faculty dropdown and when
+  // faculty is selected, the departments under that should be shown."
+  // Both filters are real, backend-enforced (FacultyController's
+  // majorProgramId resolution / DepartmentController's facultyId
+  // filter) — not narrowed client-side.
+  const { data: facultiesRes } = useFacultiesByMajorProgram(
+    form.major_program_id || null
+  )
   const { data: departmentsRes } = useDepartments(form.faculty_id || null)
   const { data: majorProgramsRes } = useMajorPrograms()
   const faculties = (facultiesRes?.data ?? []).filter((f) => f.isActive)
@@ -492,6 +501,14 @@ function CreateTutorForm({
 
   const update = (key: keyof CreateTutorPayload, value: string | number) =>
     setForm((prev) => ({ ...prev, [key]: value }))
+
+  const handleMajorProgramChange = (value: number) =>
+    setForm((prev) => ({
+      ...prev,
+      major_program_id: value,
+      faculty_id: 0,
+      department_id: 0,
+    }))
 
   const handleFacultyChange = (value: number) =>
     setForm((prev) => ({ ...prev, faculty_id: value, department_id: 0 }))
@@ -542,15 +559,38 @@ function CreateTutorForm({
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
+            Major Program *
+          </label>
+          <select
+            className={selectCls}
+            required
+            value={form.major_program_id || ""}
+            onChange={(e) => handleMajorProgramChange(Number(e.target.value))}
+          >
+            <option value="">Select a major program…</option>
+            {majorPrograms.map((mp) => (
+              <option key={mp.id} value={mp.id}>
+                {mp.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">
             Faculty *
           </label>
           <select
             className={selectCls}
             required
+            disabled={!form.major_program_id}
             value={form.faculty_id || ""}
             onChange={(e) => handleFacultyChange(Number(e.target.value))}
           >
-            <option value="">Select a faculty…</option>
+            <option value="">
+              {form.major_program_id
+                ? "Select a faculty…"
+                : "Select a major program first"}
+            </option>
             {faculties.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -577,24 +617,6 @@ function CreateTutorForm({
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">
-            Major Program *
-          </label>
-          <select
-            className={selectCls}
-            required
-            value={form.major_program_id || ""}
-            onChange={(e) => update("major_program_id", Number(e.target.value))}
-          >
-            <option value="">Select a major program…</option>
-            {majorPrograms.map((mp) => (
-              <option key={mp.id} value={mp.id}>
-                {mp.name}
               </option>
             ))}
           </select>

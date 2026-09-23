@@ -40,6 +40,22 @@ export const facultiesApi = {
     return apiClient.get<{ data: Faculty[] }>(`${BASE}/faculties`, AUTH)
   },
 
+  // GET /academic/faculties?majorProgramId= — real, backend-enforced
+  // (run_api's FacultyController, A17): most-specific-plus-derived —
+  // a Faculty directly tagged with this major program, OR one
+  // derivable through its own Departments/Programs, OR (untagged with
+  // nothing derivable) a genuinely institution-wide Faculty. Not a
+  // client-side filter over listByMajorProgram — the backend already
+  // does the resolution.
+  async listByMajorProgram(
+    majorProgramId: number
+  ): Promise<{ data: Faculty[] }> {
+    return apiClient.get<{ data: Faculty[] }>(`${BASE}/faculties`, {
+      ...AUTH,
+      params: { majorProgramId },
+    })
+  },
+
   async getById(id: number): Promise<{ data: Faculty }> {
     return apiClient.get<{ data: Faculty }>(`${BASE}/faculties/${id}`, AUTH)
   },
@@ -266,6 +282,12 @@ export const courseStructureKeys = {
   faculties: {
     all: ["course-structure", "faculties"] as const,
     list: () => [...courseStructureKeys.faculties.all, "list"] as const,
+    byMajorProgram: (majorProgramId: number) =>
+      [
+        ...courseStructureKeys.faculties.all,
+        "by-major-program",
+        majorProgramId,
+      ] as const,
     detail: (id: number) =>
       [...courseStructureKeys.faculties.all, "detail", id] as const,
     eligibleDeans: () =>
@@ -314,6 +336,11 @@ export const courseStructureQueryOptions = {
       createApiQueryOptions({
         queryKey: courseStructureKeys.faculties.list(),
         queryFn: () => facultiesApi.list(),
+      }),
+    byMajorProgram: (majorProgramId: number) =>
+      createApiQueryOptions({
+        queryKey: courseStructureKeys.faculties.byMajorProgram(majorProgramId),
+        queryFn: () => facultiesApi.listByMajorProgram(majorProgramId),
       }),
     detail: (id: number) =>
       createApiQueryOptions({

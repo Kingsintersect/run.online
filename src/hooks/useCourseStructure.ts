@@ -22,6 +22,22 @@ export function useFaculties() {
   })
 }
 
+/**
+ * Cascading twin of useDepartments(facultyId) one tier up — direct
+ * request, 2026-09-23: "once the major program is selected, let the
+ * faculties under that program be shown in the faculty dropdown."
+ * Real, backend-enforced filter (run_api FacultyController, A17), not
+ * a client-side narrowing — see facultiesApi.listByMajorProgram()'s
+ * own comment for the exact resolution rule.
+ */
+export function useFacultiesByMajorProgram(majorProgramId: number | null) {
+  return useQuery({
+    ...courseStructureQueryOptions.faculties.byMajorProgram(majorProgramId!),
+    enabled: !!majorProgramId,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 export function useFaculty(id: number | null) {
   return useQuery({
     ...courseStructureQueryOptions.faculties.detail(id ?? 0),
