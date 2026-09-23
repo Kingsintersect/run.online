@@ -105,6 +105,22 @@ export const departmentsApi = {
     })
   },
 
+  // GET /academic/departments?majorProgramId= — real, backend-enforced
+  // (run_api's DepartmentController, added 2026-09-24 alongside the
+  // Lecturer facultyId/departmentId relax). Same most-specific-plus-
+  // derived resolution as facultiesApi.listByMajorProgram(), one tier
+  // down. Used when a major program's real structure has no Faculty
+  // layer at all — lets a Department (attached with a null facultyId)
+  // still be found directly by major program.
+  async listByMajorProgram(
+    majorProgramId: number
+  ): Promise<{ data: Department[] }> {
+    return apiClient.get<{ data: Department[] }>(`${BASE}/departments`, {
+      ...AUTH,
+      params: { majorProgramId },
+    })
+  },
+
   // academic_README.md: "Filterable by facultyId" — omitting it returns every
   // department across every faculty. Used where a flat, faculty-agnostic
   // department picker is needed (e.g. the Course Registry form).
@@ -302,6 +318,12 @@ export const courseStructureKeys = {
         "by-faculty",
         facultyId,
       ] as const,
+    byMajorProgram: (majorProgramId: number) =>
+      [
+        ...courseStructureKeys.departments.all,
+        "by-major-program",
+        majorProgramId,
+      ] as const,
     detail: (id: number) =>
       [...courseStructureKeys.departments.all, "detail", id] as const,
   },
@@ -363,6 +385,12 @@ export const courseStructureQueryOptions = {
       createApiQueryOptions({
         queryKey: courseStructureKeys.departments.byFaculty(facultyId),
         queryFn: () => departmentsApi.listByFaculty(facultyId),
+      }),
+    byMajorProgram: (majorProgramId: number) =>
+      createApiQueryOptions({
+        queryKey:
+          courseStructureKeys.departments.byMajorProgram(majorProgramId),
+        queryFn: () => departmentsApi.listByMajorProgram(majorProgramId),
       }),
     detail: (id: number) =>
       createApiQueryOptions({

@@ -572,8 +572,12 @@ export const usersApi = {
         lastName: payload.last_name,
         phoneNumber: payload.phone_number,
         staffNumber: payload.staff_number,
-        facultyId: payload.faculty_id,
-        departmentId: payload.department_id,
+        // Omitted (not 0/null) when the form's structure detection found
+        // no real Faculty/Department under this major program — the
+        // backend's own facultyId/departmentId are nullable, not just
+        // tolerant of a placeholder value.
+        facultyId: payload.faculty_id || undefined,
+        departmentId: payload.department_id || undefined,
         majorProgramId: payload.major_program_id,
         designation: payload.designation,
         specialization: payload.specialization,

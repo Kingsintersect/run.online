@@ -183,8 +183,13 @@ export interface CreateTutorPayload {
   last_name: string
   phone_number?: string
   staff_number: string
-  faculty_id: number
-  department_id: number
+  // Nullable/omittable as of 2026-09-24 — not every major program's real
+  // structure has a Faculty or Department layer (some Moodle-mirrored
+  // structures attach Programs directly under the major program). Sent
+  // only when the form's own dynamic structure detection found a real
+  // one to pick from — see CreateTutorForm.
+  faculty_id?: number
+  department_id?: number
   major_program_id: number
   designation: string
   specialization?: string

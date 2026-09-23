@@ -29,6 +29,7 @@ import {
   useMajorPrograms,
   useFacultiesByMajorProgram,
   useDepartments,
+  useDepartmentsByMajorProgram,
 } from "@/hooks/useCourseStructure"
 import { toast } from "sonner"
 import { MajorProgramTabs } from "@/components/custom/MajorProgramTabs"
@@ -475,29 +476,65 @@ function CreateTutorForm({
     first_name: "",
     last_name: "",
     staff_number: "",
-    faculty_id: 0,
-    department_id: 0,
+    faculty_id: undefined,
+    department_id: undefined,
     major_program_id: 0,
     designation: "",
   })
 
-  // Cascade: Major Program -> Faculty -> Department. Direct request,
-  // 2026-09-23: "once the major program is selected, let the faculties
-  // under that program be shown in the faculty dropdown and when
-  // faculty is selected, the departments under that should be shown."
-  // Both filters are real, backend-enforced (FacultyController's
-  // majorProgramId resolution / DepartmentController's facultyId
-  // filter) — not narrowed client-side.
-  const { data: facultiesRes } = useFacultiesByMajorProgram(
-    form.major_program_id || null
-  )
-  const { data: departmentsRes } = useDepartments(form.faculty_id || null)
-  const { data: majorProgramsRes } = useMajorPrograms()
+  // Cascade: Major Program -> Faculty -> Department — but DYNAMIC, not
+  // a fixed 3-level shape. Direct request, 2026-09-24: "the programmes
+  // do not have the same structure on moodle... some do not have
+  // faculties and some do not have departments, so the form should be
+  // dynamic and in sync with their exact structure." Every applicability
+  // check below is answered by a real, backend-enforced filter — never
+  // assumed or hardcoded per major program:
+  // - majorProgramHasFaculties: does GET /academic/faculties
+  //   ?majorProgramId= come back non-empty for this major program at all?
+  // - departmentApplicable further down: does the resolved department
+  //   source (by faculty, or — when there's no faculty layer — directly
+  //   by major program) come back non-empty?
+  const { data: facultiesRes, isFetched: facultiesFetched } =
+    useFacultiesByMajorProgram(form.major_program_id || null)
   const faculties = (facultiesRes?.data ?? []).filter((f) => f.isActive)
+  // Only trust "no faculties" once the query has actually settled —
+  // before that, `faculties` is just an empty array from `?? []`, which
+  // must never be read as "this major program has no Faculty layer."
+  const majorProgramHasFaculties = facultiesFetched && faculties.length > 0
+
+  const { data: deptsByFacultyRes, isFetched: deptsByFacultyFetched } =
+    useDepartments(majorProgramHasFaculties ? form.faculty_id || null : null)
+  const {
+    data: deptsByMajorProgramRes,
+    isFetched: deptsByMajorProgramFetched,
+  } = useDepartmentsByMajorProgram(
+    facultiesFetched && !majorProgramHasFaculties
+      ? form.major_program_id || null
+      : null
+  )
+  const departmentsRes = majorProgramHasFaculties
+    ? deptsByFacultyRes
+    : deptsByMajorProgramRes
+  const departmentsFetched = majorProgramHasFaculties
+    ? deptsByFacultyFetched
+    : deptsByMajorProgramFetched
   const departments = (departmentsRes?.data ?? []).filter((d) => d.isActive)
+
+  const { data: majorProgramsRes } = useMajorPrograms()
   const majorPrograms = (majorProgramsRes?.data ?? []).filter(
     (mp) => mp.isActive
   )
+
+  // A field only ever counts as "needed" once its own scoped query has
+  // actually settled and come back non-empty.
+  const facultyApplicable = majorProgramHasFaculties
+  const facultyPending = !!form.major_program_id && !facultiesFetched
+  const departmentApplicable = departmentsFetched && departments.length > 0
+  const departmentPending =
+    (facultyApplicable && !!form.faculty_id && !deptsByFacultyFetched) ||
+    (facultiesFetched &&
+      !majorProgramHasFaculties &&
+      !deptsByMajorProgramFetched)
 
   const update = (key: keyof CreateTutorPayload, value: string | number) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -506,25 +543,33 @@ function CreateTutorForm({
     setForm((prev) => ({
       ...prev,
       major_program_id: value,
-      faculty_id: 0,
-      department_id: 0,
+      faculty_id: undefined,
+      department_id: undefined,
     }))
 
   const handleFacultyChange = (value: number) =>
-    setForm((prev) => ({ ...prev, faculty_id: value, department_id: 0 }))
+    setForm((prev) => ({
+      ...prev,
+      faculty_id: value,
+      department_id: undefined,
+    }))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.faculty_id) {
+    if (!form.major_program_id) {
+      toast.error("Please select a major program.")
+      return
+    }
+    if (facultyPending || departmentPending) {
+      toast.error("Still checking this major program's structure…")
+      return
+    }
+    if (facultyApplicable && !form.faculty_id) {
       toast.error("Please select a faculty.")
       return
     }
-    if (!form.department_id) {
+    if (departmentApplicable && !form.department_id) {
       toast.error("Please select a department.")
-      return
-    }
-    if (!form.major_program_id) {
-      toast.error("Please select a major program.")
       return
     }
     // The mutation's own onError already shows a toast with the real reason
@@ -575,52 +620,103 @@ function CreateTutorForm({
             ))}
           </select>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">
-            Faculty *
-          </label>
-          <select
-            className={selectCls}
-            required
-            disabled={!form.major_program_id}
-            value={form.faculty_id || ""}
-            onChange={(e) => handleFacultyChange(Number(e.target.value))}
-          >
-            <option value="">
-              {form.major_program_id
-                ? "Select a faculty…"
-                : "Select a major program first"}
-            </option>
-            {faculties.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">
-            Department *
-          </label>
-          <select
-            className={selectCls}
-            required
-            disabled={!form.faculty_id}
-            value={form.department_id || ""}
-            onChange={(e) => update("department_id", Number(e.target.value))}
-          >
-            <option value="">
-              {form.faculty_id
-                ? "Select a department…"
-                : "Select a faculty first"}
-            </option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Structure-aware, 2026-09-24: not every major program's real
+            Moodle-mirrored structure has a Faculty layer — this field
+            only renders once we actually know one exists, never on a
+            fixed assumption. */}
+        {form.major_program_id ? (
+          facultyPending ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Faculty
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Checking this major program&apos;s structure…
+              </p>
+            </div>
+          ) : facultyApplicable ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Faculty *
+              </label>
+              <select
+                className={selectCls}
+                required
+                value={form.faculty_id || ""}
+                onChange={(e) => handleFacultyChange(Number(e.target.value))}
+              >
+                <option value="">Select a faculty…</option>
+                {faculties.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Faculty
+              </label>
+              <p className="text-xs text-muted-foreground">
+                This major program has no faculties — its courses attach
+                directly.
+              </p>
+            </div>
+          )
+        ) : null}
+        {/* Same structure-awareness one tier down, sourced by faculty
+            when one applies, or directly by major program when it
+            doesn't (a Department can attach with no Faculty). */}
+        {form.major_program_id && !facultyPending ? (
+          departmentPending ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Department
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Checking this major program&apos;s structure…
+              </p>
+            </div>
+          ) : departmentApplicable ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Department *
+              </label>
+              <select
+                className={selectCls}
+                required
+                disabled={facultyApplicable && !form.faculty_id}
+                value={form.department_id || ""}
+                onChange={(e) =>
+                  update("department_id", Number(e.target.value))
+                }
+              >
+                <option value="">
+                  {facultyApplicable && !form.faculty_id
+                    ? "Select a faculty first"
+                    : "Select a department…"}
+                </option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (facultyApplicable && form.faculty_id) || !facultyApplicable ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-foreground">
+                Department
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {facultyApplicable
+                  ? "This faculty has no departments — courses attach directly to it."
+                  : "This major program has no departments — courses attach directly."}
+              </p>
+            </div>
+          ) : null
+        ) : null}
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
             Staff Number *

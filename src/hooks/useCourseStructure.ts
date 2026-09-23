@@ -105,6 +105,23 @@ export function useAllDepartments() {
   })
 }
 
+/**
+ * Direct twin of useDepartments(facultyId) for a major program with no
+ * Faculty layer at all — direct request, 2026-09-24: "some [major
+ * programs] do not have faculties and some do not have departments...
+ * the form should be dynamic." Real, backend-enforced filter
+ * (DepartmentController, mirrors FacultyController's own A17
+ * resolution one tier down) — see departmentsApi.listByMajorProgram()'s
+ * own comment.
+ */
+export function useDepartmentsByMajorProgram(majorProgramId: number | null) {
+  return useQuery({
+    ...courseStructureQueryOptions.departments.byMajorProgram(majorProgramId!),
+    enabled: !!majorProgramId,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 export function useDepartments(facultyId: number | null) {
   return useQuery({
     ...courseStructureQueryOptions.departments.byFaculty(facultyId!),
