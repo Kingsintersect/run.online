@@ -181,18 +181,22 @@ function SchemeForm({
       ) : (
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="scheme-ca">CA weight %</Label>
+            <Label htmlFor="scheme-ca">Fallback CA %</Label>
             <Input
               id="scheme-ca"
               type="number"
+              placeholder="From Moodle"
+              aria-describedby="scheme-weights-help"
               {...form.register("caWeightPercent", nullableNumber)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="scheme-exam">Exam weight %</Label>
+            <Label htmlFor="scheme-exam">Fallback exam %</Label>
             <Input
               id="scheme-exam"
               type="number"
+              placeholder="From Moodle"
+              aria-describedby="scheme-weights-help"
               {...form.register("examWeightPercent", nullableNumber)}
             />
           </div>
@@ -205,6 +209,15 @@ function SchemeForm({
               {...form.register("passMark", nullableNumber)}
             />
           </div>
+          <p
+            id="scheme-weights-help"
+            className="col-span-3 -mt-1 text-xs text-muted-foreground"
+          >
+            CA and exam weights normally come from each course&apos;s Moodle
+            gradebook (its CA and EXAM categories). These are only used for
+            courses whose Moodle gradebook has no weights. Leave both empty, or
+            set both so they add up to 100.
+          </p>
           <p className="col-span-3 -mt-2 text-xs text-destructive">
             {err("caWeightPercent") ?? err("examWeightPercent")}
           </p>

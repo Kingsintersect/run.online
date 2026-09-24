@@ -41,7 +41,13 @@ export const RowFlagSchema = z.enum([
   "MOODLE_DRIFT",
   "SCHEME_UNRESOLVED",
   "ADJUSTMENT_SUPERSEDED",
+  // Contract v1.1 (build-ahead, BACKEND_DEVIATIONS A46): neither Moodle nor
+  // the resolved scheme supplies CA/exam weights.
+  "WEIGHTS_UNRESOLVED",
 ])
+
+// Contract v1.1: where an offering's CA/exam weights came from.
+export const WeightSourceSchema = z.enum(["MOODLE", "SCHEME", "NONE"])
 
 export const PaginationMetaSchema = z.object({
   total: z.number(),
@@ -72,6 +78,11 @@ export const ResultSheetSummarySchema = z.object({
   withheldCount: z.number(),
   lastPulledAt: z.string().nullable(),
   lecturers: z.array(z.object({ id: z.number(), name: z.string() })),
+  // Contract v1.1, not live yet (A46). Optional so today's responses parse;
+  // when absent the UI says nothing about weights (never inferred).
+  caWeight: decimalOrNull.optional(),
+  examWeight: decimalOrNull.optional(),
+  weightSource: WeightSourceSchema.optional(),
 })
 
 export const SheetRowItemSchema = z.object({
@@ -500,15 +511,21 @@ export const GradingSchemeFormSchema = z
         })
       return
     }
-    if (s.caWeightPercent == null || s.examWeightPercent == null) {
+    // Contract v1.1: weights come from the Moodle gradebook first; a
+    // scheme's weights are only the fallback, so both may be left empty.
+    // If either is set, both must be, and they must add up to 100.
+    const ca = s.caWeightPercent
+    const exam = s.examWeightPercent
+    if (ca == null && exam == null) return
+    if (ca == null || exam == null) {
       ctx.addIssue({
         code: "custom",
         path: ["caWeightPercent"],
-        message: "Set both the CA and exam weights.",
+        message: "Set both fallback weights, or leave both empty.",
       })
       return
     }
-    if (s.caWeightPercent + s.examWeightPercent !== 100)
+    if (ca + exam !== 100)
       ctx.addIssue({
         code: "custom",
         path: ["examWeightPercent"],

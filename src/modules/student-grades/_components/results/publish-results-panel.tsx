@@ -173,6 +173,9 @@ export function PublishResultsPanel() {
                 {previewData.feeGateEnabled
                   ? " — students owing mandatory fees will be withheld."
                   : " — every approved result will be published."}
+                <span className="text-[11px]">
+                  (as reported by the publish preview)
+                </span>
               </p>
               {previewData.programs.length > 0 && (
                 <div className="overflow-x-auto rounded-2xl border border-border bg-card">

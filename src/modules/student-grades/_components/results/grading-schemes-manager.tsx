@@ -72,8 +72,10 @@ export function GradingSchemesManager({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="max-w-2xl text-xs text-muted-foreground">
           A program&apos;s own scheme overrides its major program&apos;s
-          default. CA and exam weights must add up to 100; grade bands must
-          cover 0–100 with no gaps or overlaps.
+          default. CA and exam weights come from each course&apos;s Moodle
+          gradebook first; a scheme&apos;s weights are only the fallback for
+          courses with none. Grade bands must cover 0–100 with no gaps or
+          overlaps.
         </p>
         {canManage && (
           <Button size="sm" onClick={() => setEditing({ scheme: null })}>
@@ -112,7 +114,10 @@ export function GradingSchemesManager({
                     <p className="text-xs text-muted-foreground">
                       {scheme.schemeType === "PASS_FAIL"
                         ? `Pass mark ${fmtScore(scheme.passMark)}`
-                        : `CA ${fmtScore(scheme.caWeightPercent)}% · Exam ${fmtScore(scheme.examWeightPercent)}%`}
+                        : scheme.caWeightPercent == null &&
+                            scheme.examWeightPercent == null
+                          ? "No fallback weights (uses Moodle's)"
+                          : `Fallback weights: CA ${fmtScore(scheme.caWeightPercent)}% · Exam ${fmtScore(scheme.examWeightPercent)}%`}
                     </p>
                   </div>
                   {canManage && (
@@ -158,13 +163,19 @@ export function GradingSchemesManager({
                   >
                     <p className="flex items-center gap-1.5 font-semibold">
                       <AlertTriangle className="size-3 shrink-0" aria-hidden />
-                      Not usable yet — fix before pulling results:
+                      The server reports problems with this scheme:
                     </p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-5">
                       {scheme.problems.map((p) => (
                         <li key={p}>{p}</li>
                       ))}
                     </ul>
+                    <p className="mt-1.5 text-amber-800/80 dark:text-amber-200/80">
+                      Weights are a fallback: courses whose Moodle gradebook
+                      weights its CA and EXAM categories don&apos;t need them.
+                      Until the server supports that (contract v1.1), it still
+                      reports missing weights here.
+                    </p>
                   </div>
                 )}
 

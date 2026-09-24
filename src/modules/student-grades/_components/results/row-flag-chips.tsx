@@ -1,4 +1,10 @@
-import { AlertTriangle, GitCompare, HelpCircle, Wallet } from "lucide-react"
+import {
+  AlertTriangle,
+  GitCompare,
+  HelpCircle,
+  Scale,
+  Wallet,
+} from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RowFlag } from "../../types"
@@ -39,6 +45,12 @@ export const FLAG_META: Record<
     icon: GitCompare,
     className: "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300",
     hint: "A filled-in score was replaced by a real Moodle grade on re-pull.",
+  },
+  WEIGHTS_UNRESOLVED: {
+    label: "No CA/exam weights",
+    icon: Scale,
+    className: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300",
+    hint: "Neither the Moodle gradebook nor the grading scheme gives CA/exam weights, so this row can't be computed.",
   },
 }
 

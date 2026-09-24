@@ -1,6 +1,7 @@
-import { AlertOctagon, Layers } from "lucide-react"
+import { AlertOctagon, Layers, Scale } from "lucide-react"
 import { ResultStatusBadge } from "./result-status-badge"
 import { formatDateTime } from "./offerings-table"
+import { fmtScore } from "./format"
 import type { ResultSheet } from "../../types"
 
 // The Moodle setup convention (C3) tutors follow so items map themselves.
@@ -56,6 +57,18 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
             {s.lecturers.length > 0 &&
               ` · ${s.lecturers.map((l) => l.name).join(", ")}`}
           </p>
+          {/* Contract v1.1 (A46). Shown only when the backend sends a
+              source — never inferred from the scheme or the scores. */}
+          {(s.weightSource === "MOODLE" || s.weightSource === "SCHEME") && (
+            <p className="text-xs font-medium text-foreground">
+              CA {fmtScore(s.caWeight)} / Exam {fmtScore(s.examWeight)}
+              <span className="font-normal text-muted-foreground">
+                {s.weightSource === "MOODLE"
+                  ? " · from the Moodle gradebook"
+                  : " · from the grading scheme (Moodle has no weights)"}
+              </span>
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-x-6 gap-y-2 sm:grid-cols-6">
           <Stat label="Students" value={s.studentCount} />
@@ -66,6 +79,29 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
           <Stat label="Withheld" value={s.withheldCount} />
         </div>
       </div>
+
+      {s.weightSource === "NONE" && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5"
+        >
+          <Scale
+            className="mt-0.5 size-4 shrink-0 text-destructive"
+            aria-hidden
+          />
+          <div className="text-xs">
+            <p className="font-semibold text-destructive">
+              No CA/exam weights for this course. Scores can&apos;t be computed
+              or submitted until there are.
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              Weight the CA and EXAM categories in this course&apos;s Moodle
+              gradebook, or give the grading scheme fallback weights in Result
+              configuration.
+            </p>
+          </div>
+        </div>
+      )}
 
       {s.unmappedItemCount > 0 && (
         <div

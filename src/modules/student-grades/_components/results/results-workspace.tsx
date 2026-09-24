@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import { ClipboardList, Info, RotateCcw, Search } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { Button } from "@/components/ui/button"
@@ -200,11 +200,14 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
       </section>
 
       <PermissionGate require={RESULTS_PERMISSIONS.sync}>
-        <MoodlePullPanel
-          semesterId={w.semesterId}
-          selectedOfferingIds={selectedIds}
-          onStarted={() => setSelectedIds([])}
-        />
+        {/* The panel reads ?pullJob= via useSearchParams. */}
+        <Suspense fallback={null}>
+          <MoodlePullPanel
+            semesterId={w.semesterId}
+            selectedOfferingIds={selectedIds}
+            onStarted={() => setSelectedIds([])}
+          />
+        </Suspense>
       </PermissionGate>
 
       {sheets.isLoading ? (

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import { Check, Eye, Loader2 } from "lucide-react"
+import { Check, Eye, Info, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -293,6 +293,15 @@ export function NormalizationPanel({
                   <legend className="text-sm font-medium">
                     Students ({selected.length} selected)
                   </legend>
+                  {/* Sends each row's `studentId` (portal students.id), as
+                      the contract names it. Awaiting backend confirmation
+                      (BACKEND_DEVIATIONS A45 CR6) — never switch to grade or
+                      Moodle user ids on a guess. */}
+                  <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                    <Info className="mt-0.5 size-3 shrink-0" aria-hidden />
+                    The selection is sent as portal student IDs (not grade or
+                    Moodle IDs).
+                  </p>
                   <Input
                     aria-label="Filter students"
                     placeholder="Filter by matric or name"

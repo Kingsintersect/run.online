@@ -1,12 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { CloudDownload, Loader2, XCircle } from "lucide-react"
+import { CloudDownload, Loader2, X, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { PullRequestSchema } from "../../schemas"
-import { isTerminalPull, usePullJob } from "../../hooks/use-results"
+import {
+  isTerminalPull,
+  usePullJob,
+  usePullJobs,
+} from "../../hooks/use-results"
 import { useStartPull } from "../../hooks/use-results-mutations"
 import { toResultsApiError } from "../../lib/results-errors"
 import { NotAvailableNotice } from "./not-available-notice"
@@ -28,16 +33,65 @@ const STATUS_LABEL = {
 // "Pull from Moodle" (gate results.sync at the call site). Starts a job
 // (202 {jobId}) then polls it every 3 s until terminal (usePullJob), showing
 // progress and per-offering errors.
+//
+// Survives a page refresh: the job id lives in the URL (`?pullJob=<id>`) —
+// UI state, not server data, so not in Zustand. With no URL job, the newest
+// QUEUED/RUNNING job for the current semester is resumed from
+// GET /results/moodle/pull-jobs; if that lookup fails (404, or a server that
+// doesn't accept the comma status list) it degrades to URL-only.
+// Uses useSearchParams, so render it inside <Suspense>.
 export function MoodlePullPanel({
   semesterId,
   selectedOfferingIds,
   onStarted,
 }: MoodlePullPanelProps) {
-  const [jobId, setJobId] = useState<number | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const urlJobId = Number(searchParams.get("pullJob")) || null
+  const [dismissedId, setDismissedId] = useState<number | null>(null)
   const [notAvailable, setNotAvailable] = useState(false)
   const startPull = useStartPull()
+
+  // Only looked up when the URL doesn't already name a job.
+  const activeJobs = usePullJobs(
+    {
+      status: ["QUEUED", "RUNNING"],
+      semesterId: semesterId ?? undefined,
+      page: 1,
+      limit: 1,
+    },
+    urlJobId == null
+  )
+  const resumedId = activeJobs.data?.available
+    ? (activeJobs.data.data.data[0]?.id ?? null)
+    : null
+  const candidate = urlJobId ?? resumedId
+  const jobId =
+    candidate != null && candidate !== dismissedId ? candidate : null
+
+  const setUrlJob = (id: number | null) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (id == null) params.delete("pullJob")
+    else params.set("pullJob", String(id))
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
   const job = usePullJob(jobId)
   const jobData = job.data?.available ? job.data.data : null
+
+  // A URL job that no longer exists or isn't visible to this user (real 404,
+  // not a missing route) is dropped from the URL rather than kept forever.
+  const staleUrlJob =
+    urlJobId != null && jobId === urlJobId && job.error?.status === 404
+  useEffect(() => {
+    if (!staleUrlJob) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("pullJob")
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }, [staleUrlJob, searchParams, pathname, router])
   const running = jobData != null && !isTerminalPull(jobData.status)
 
   const start = async () => {
@@ -53,7 +107,8 @@ export function MoodlePullPanel({
     }
     try {
       const res = await startPull.mutateAsync(body.data)
-      setJobId(res.jobId)
+      setDismissedId(null)
+      setUrlJob(res.jobId)
       setNotAvailable(false)
       onStarted?.()
       toast.success(
@@ -116,8 +171,21 @@ export function MoodlePullPanel({
             <span className="font-medium text-foreground">
               {STATUS_LABEL[jobData.status]}
             </span>
-            <span className="text-muted-foreground tabular-nums">
+            <span className="flex items-center gap-2 text-muted-foreground tabular-nums">
               {jobData.offeringsDone} / {jobData.offeringsTotal} offerings
+              {isTerminalPull(jobData.status) && (
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label="Dismiss pull result"
+                  onClick={() => {
+                    setDismissedId(jobData.id)
+                    setUrlJob(null)
+                  }}
+                >
+                  <X />
+                </Button>
+              )}
             </span>
           </div>
           <Progress value={pct} label="Moodle pull progress" />

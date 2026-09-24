@@ -121,7 +121,8 @@ export interface AdjustmentQueueFilters {
 
 export interface PullJobFilters {
   semesterId?: number
-  status?: PullJobStatus
+  /** Sent comma-joined, e.g. `status=QUEUED,RUNNING`. */
+  status?: PullJobStatus[]
   page: number
   limit: number
 }

@@ -125,6 +125,12 @@ export function ResultPolicyForm({
                   mandatory invoice for the session are skipped at publish and
                   picked up by a later publish once they&apos;ve paid.
                 </p>
+                {/* The publish preview reports its own fee-gate value, which
+                    has disagreed with this one (BACKEND_DEVIATIONS A45);
+                    each screen labels its source instead of reconciling. */}
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Source: this major program&apos;s result policy.
+                </p>
               </div>
               <Switch
                 id="policy-fee-gate"

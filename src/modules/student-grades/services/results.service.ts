@@ -163,7 +163,10 @@ export const resultsApi = {
   getPullJob: (id: number): Promise<GradePullJob> =>
     getOne(`${R}/moodle/pull-jobs/${id}`, GradePullJobSchema),
   listPullJobs: (f: PullJobFilters): Promise<Paginated<GradePullJob>> =>
-    getPage(`${R}/moodle/pull-jobs`, GradePullJobSchema, { ...f }),
+    getPage(`${R}/moodle/pull-jobs`, GradePullJobSchema, {
+      ...f,
+      status: f.status?.join(","),
+    }),
 
   // Offerings / sheets
   listSheets: (f: ResultSheetFilters): Promise<Paginated<ResultSheetSummary>> =>
