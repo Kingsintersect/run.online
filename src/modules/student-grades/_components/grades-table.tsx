@@ -9,9 +9,6 @@ import {
   ChevronsUpDown,
   ChevronLeft,
   ChevronRight,
-  Pencil,
-  Send,
-  Loader2,
 } from "lucide-react"
 import { useState, useMemo } from "react"
 import StatusBadge from "@/components/custom/StatusBadge"
@@ -21,7 +18,6 @@ import type {
   GradeStatus,
   GradesPaginationState,
 } from "../types/grades.types"
-import { useSubmitGrade } from "../hooks/use-grades-mutations"
 
 // ─── Status badge mapping ─────────────────────────────────────────────────────
 
@@ -113,7 +109,6 @@ interface GradesTableProps {
   onPageChange: (page: number) => void
   onViewGrade: (grade: Grade) => void
   onViewTranscript: (grade: Grade) => void
-  canManage?: boolean // ← ADD THIS
 }
 
 export function GradesTable({
@@ -123,11 +118,9 @@ export function GradesTable({
   onPageChange,
   onViewGrade,
   onViewTranscript,
-  canManage = false, // ← ADD THIS with default
 }: GradesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
-  const submitMutation = useSubmitGrade()
 
   const handleSort = (key: keyof Grade) => {
     if (sortKey === key) {
@@ -334,32 +327,6 @@ export function GradesTable({
                         >
                           <User className="h-3.5 w-3.5" />
                         </button>
-                        {/* Edit button - only show if user can manage */}
-                        {canManage && (
-                          <button
-                            onClick={() => onViewGrade(grade)}
-                            title="Edit grade"
-                            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {/* Submit for approval - only for DRAFT rows the user can manage */}
-                        {canManage && grade.status === "DRAFT" && (
-                          <button
-                            onClick={() => submitMutation.mutate(grade.id)}
-                            disabled={submitMutation.isPending}
-                            title="Submit for approval"
-                            className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-primary/10 hover:text-primary disabled:opacity-50"
-                          >
-                            {submitMutation.isPending &&
-                            submitMutation.variables === grade.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Send className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        )}
                       </div>
                     </td>
                   </motion.tr>

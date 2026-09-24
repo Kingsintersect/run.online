@@ -23,7 +23,6 @@ import type {
   VisibilityResponse,
   AssessmentSyncResult,
   AssessmentSyncStatusResult,
-  CaPreviewResponse,
   GradeResponse,
   CalendarEventResponse,
   ReconcileModule,
@@ -924,21 +923,6 @@ export const moodleSyncService = {
       undefined,
       AUTH
     )
-  },
-
-  // Moodle CA → Grade.caScore bridge. NOT YET SHIPPED (404 on both
-  // `/assessments/ca-preview` and `/moodle-sync/assessments/ca-preview` as of
-  // 2026-09-10) — sandbox/API_GAPS_2026-09.md §2 has the spec. The
-  // "Pull CA from Moodle" button surfaces the error until it lands; manual CA
-  // entry works meanwhile.
-  async getCaPreview(
-    offeringId: number,
-    params: { semesterId: number; caMax?: number }
-  ): Promise<CaPreviewResponse> {
-    const res = await apiClient.get<
-      CaPreviewResponse | { data: CaPreviewResponse }
-    >(`/assessments/ca-preview/${offeringId}`, { ...AUTH, params })
-    return "data" in res ? res.data : res
   },
 
   // ---------- Grades (read-only) ----------

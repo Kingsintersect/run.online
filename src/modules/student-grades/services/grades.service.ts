@@ -59,14 +59,6 @@ import type {
   GradeSemester,
   GradeProgram,
   CourseOption,
-  PublishSelectionFilters,
-  PublishSummary,
-  CreateGradeDto,
-  BulkGradeDto,
-  BulkGradeResult,
-  UpdateGradeDto,
-  PublishResult,
-  GradeStatusTransitionResult,
   CalculateCgpaResult,
 } from "../types/grades.types"
 
@@ -451,20 +443,6 @@ class GradesService {
     await apiClient.delete<void>(`${BASE}/grade-scales/${id}`, AUTH)
   }
 
-  // GET /results/grades/course/:courseId/semester/:semesterId — Lecturer,
-  // Admin. Every grade for one course in one semester, in one call (no
-  // pagination) — for the tutor grade book's per-course view.
-  async getGradesByCourseAndSemester(
-    courseId: number,
-    semesterId: number
-  ): Promise<Grade[]> {
-    const res = await apiClient.get<{ data: RawGradeRelations[] }>(
-      `${BASE}/grades/course/${courseId}/semester/${semesterId}`,
-      AUTH
-    )
-    return res.data.map(mapGrade)
-  }
-
   // GET /results/grades/:id — one grade with its relations expanded. The list
   // rows already carry most of this; used to refresh a single row (e.g. the
   // detail modal) against the freshest server state. Envelope unconfirmed —
@@ -597,132 +575,6 @@ class GradesService {
       totalCreditUnits: cgpaHistory.reduce((a, h) => a + h.totalCreditUnits, 0),
       grades,
       cgpaHistory,
-    }
-  }
-
-  // ── Grade Actions — real ────────────────────────────────────────────────────
-
-  async createGrade(dto: CreateGradeDto): Promise<Grade> {
-    const res = await apiClient.post<{ data: RawGradeRelations }>(
-      `${BASE}/grades`,
-      dto,
-      AUTH
-    )
-    return mapGrade(res.data)
-  }
-
-  async updateGrade(id: number, dto: UpdateGradeDto): Promise<Grade> {
-    const res = await apiClient.patch<{ data: RawGradeRelations }>(
-      `${BASE}/grades/${id}`,
-      dto,
-      AUTH
-    )
-    return mapGrade(res.data)
-  }
-
-  async bulkCreateGrades(dto: BulkGradeDto): Promise<BulkGradeResult> {
-    return apiClient.post<BulkGradeResult>(`${BASE}/grades/bulk`, dto, AUTH)
-  }
-
-  async submitGrade(id: number): Promise<GradeStatusTransitionResult> {
-    return apiClient.patch<GradeStatusTransitionResult>(
-      `${BASE}/grades/${id}/submit`,
-      undefined,
-      AUTH
-    )
-  }
-
-  async approveGrade(
-    id: number,
-    remarks?: string
-  ): Promise<GradeStatusTransitionResult> {
-    return apiClient.patch<GradeStatusTransitionResult>(
-      `${BASE}/grades/${id}/approve`,
-      { remarks },
-      AUTH
-    )
-  }
-
-  async rejectGrade(
-    id: number,
-    remarks: string
-  ): Promise<GradeStatusTransitionResult> {
-    const res = await apiClient.patch<GradeStatusTransitionResult>(
-      `${BASE}/grades/${id}/reject`,
-      { remarks },
-      AUTH
-    )
-    // Reject moves SUBMITTED -> DRAFT per result_README.md; the response's
-    // own `status` field is the authoritative value, this is just a safety
-    // fallback in case the backend ever echoes something unexpected.
-    return { ...res, status: res.status ?? "DRAFT" }
-  }
-
-  // ── Publish — real, semester-scoped (NOT per-grade-id) ──────────────────────
-  // The real endpoint publishes every APPROVED grade in a semester in one
-  // shot; there is no "publish these specific grade IDs" endpoint. Callers
-  // should re-fetch the affected grade set afterward rather than expect a
-  // list of updated records back.
-
-  async publishSemester(semesterId: number): Promise<PublishResult> {
-    const res = await apiClient.post<{ data: PublishResult }>(
-      `${BASE}/grades/publish/${semesterId}`,
-      undefined,
-      AUTH
-    )
-    return res.data
-  }
-
-  // ── Publish preview: real grades list, filtered client-side to a course ────
-  // No dedicated "publish preview" endpoint exists — this is just the real
-  // grades list, filtered by whatever the wizard has selected.
-
-  async getGradesForPublish(
-    filters: PublishSelectionFilters
-  ): Promise<Grade[]> {
-    const params: Record<string, unknown> = {}
-    if (filters.semesterId)
-      params.semesterId =
-        Number(filters.semesterId.replace(/\D/g, "")) || undefined
-    if (filters.courseId) params.courseId = filters.courseId
-    const res = await apiClient.get<{ data: RawGradeRelations[] }>(
-      `${BASE}/grades`,
-      {
-        ...AUTH,
-        params,
-      }
-    )
-    return res.data.map(mapGrade)
-  }
-
-  buildPublishSummary(grades: Grade[]): PublishSummary {
-    const publishable = grades.filter((g) => g.status === "APPROVED")
-    const alreadyPublished = grades.filter(
-      (g) => g.status === "PUBLISHED"
-    ).length
-    const scored = grades.filter((g) => g.totalScore !== null)
-    const avgScore = scored.length
-      ? Math.round(
-          (scored.reduce((a, g) => a + (g.totalScore ?? 0), 0) /
-            scored.length) *
-            10
-        ) / 10
-      : null
-    const passing = grades.filter((g) => (g.gradePoint ?? 0) > 0).length
-    const withheld = grades.filter(
-      (g) => g.hasOutstandingFees && g.status !== "PUBLISHED"
-    ).length
-    return {
-      totalGrades: grades.length,
-      publishableCount: publishable.length,
-      alreadyPublished,
-      draftCount: grades.filter((g) => g.status === "DRAFT").length,
-      submittedCount: grades.filter((g) => g.status === "SUBMITTED").length,
-      withheldCount: withheld,
-      avgScore,
-      passRate: grades.length
-        ? Math.round((passing / grades.length) * 1000) / 10
-        : 0,
     }
   }
 
@@ -887,13 +739,6 @@ class GradesService {
       data: { terms: TermResultEntry[] }
     }>("/students/me/results", AUTH)
     return res.data.terms
-  }
-
-  // ── Out of scope — different module, still mock (see file header) ──────────
-
-  async getCoursesByProgram(programId: string): Promise<CourseOption[]> {
-    await new Promise((r) => setTimeout(r, 150))
-    return COURSES.filter((c) => c.programId === programId)
   }
 
   // ── Export ───────────────────────────────────────────────────────────────────

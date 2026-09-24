@@ -78,6 +78,14 @@ export default function GradesResultsPage({
 
   return (
     <div className="space-y-4">
+      <header>
+        <h2 className="text-lg font-semibold text-foreground">All grades</h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Read-only list of every grade row, with export and transcripts.
+          Pulling, normalizing and approving happen per course in Course
+          results; publishing in Publish results.
+        </p>
+      </header>
       {/* Toolbar row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* View toggle */}
@@ -200,18 +208,13 @@ export default function GradesResultsPage({
           onPageChange={goToPage}
           onViewGrade={openGradeDetail}
           onViewTranscript={(grade) => openTranscript(grade.studentId)}
-          canManage={canManage}
         />
       ) : (
         <GradesGroupedView data={groupedData} loading={groupedLoading} />
       )}
 
       {/* Modals */}
-      <GradeDetailModal
-        open={gradeDetailOpen}
-        onClose={closeGradeDetail}
-        canManage={canManage}
-      />
+      <GradeDetailModal open={gradeDetailOpen} onClose={closeGradeDetail} />
       <TranscriptModal
         open={transcriptOpen}
         onClose={closeTranscript}

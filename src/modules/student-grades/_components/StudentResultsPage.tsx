@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import {
   Award,
@@ -8,17 +9,23 @@ import {
   Clock,
   GraduationCap,
   Download,
+  Hourglass,
   Loader2,
+  Wallet,
 } from "lucide-react"
 import { useMyStudentId } from "@/hooks/use-my-student-id"
+import { useMyActiveSession } from "@/hooks/use-my-active-session"
 import { useProgram } from "@/hooks/useCourseStructure"
 import {
   useMyTermResults,
-  useStudentTranscript,
+  useStudentCgpa,
   useDownloadSemesterResult,
 } from "../hooks/use-grades-data"
+import { useMyPublishedGrades, useMyResultStatus } from "../hooks/use-results"
 import { TermResultsView } from "./TermResultsView"
-import type { Grade, CgpaHistoryEntry } from "../types/grades.types"
+import { fmtScore } from "./results/format"
+import type { CgpaHistoryEntry } from "../types/grades.types"
+import type { StudentGrade } from "../types"
 
 // ─── Grade colour map ──────────────────────────────────────────────────────────
 
@@ -31,15 +38,6 @@ const GRADE_CHIP: Record<string, string> = {
   CD: "text-orange-700 bg-orange-50 dark:bg-orange-950/40 dark:text-orange-300",
   D: "text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300",
   F: "text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300",
-}
-
-const STATUS_CHIP: Record<string, string> = {
-  PUBLISHED:
-    "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300",
-  APPROVED: "text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300",
-  SUBMITTED:
-    "text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300",
-  DRAFT: "text-slate-600 bg-slate-100 dark:bg-slate-800/50 dark:text-slate-300",
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -55,17 +53,9 @@ function GradeLetterBadge({ letter }: { letter: string | null }) {
   )
 }
 
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${STATUS_CHIP[status] ?? ""}`}
-    >
-      {status}
-    </span>
-  )
-}
-
-function GradeRow({ grade }: { grade: Grade }) {
+// Renders a StudentGrade only (contract C8) — published results, no status,
+// no raw scores, no adjustments.
+function GradeRow({ grade }: { grade: StudentGrade }) {
   return (
     <tr className="border-b border-border/30 transition-colors last:border-0 hover:bg-muted/20">
       <td className="px-3 py-2.5">
@@ -73,20 +63,20 @@ function GradeRow({ grade }: { grade: Grade }) {
           {grade.courseCode}
         </p>
         <p className="text-[11px] leading-tight text-muted-foreground">
-          {grade.courseName}
+          {grade.courseTitle}
         </p>
       </td>
       <td className="px-3 py-2.5 text-center font-mono text-xs">
-        {grade.caScore ?? "—"}
+        {fmtScore(grade.caScore)}
       </td>
       <td className="px-3 py-2.5 text-center font-mono text-xs">
-        {grade.examScore ?? "—"}
+        {fmtScore(grade.examScore)}
       </td>
       <td className="px-3 py-2.5 text-center font-mono text-xs font-bold text-foreground">
-        {grade.totalScore ?? "—"}
+        {fmtScore(grade.totalScore)}
       </td>
       <td className="px-3 py-2.5 text-center">
-        <GradeLetterBadge letter={grade.gradeLetter} />
+        <GradeLetterBadge letter={grade.grade} />
       </td>
       <td className="px-3 py-2.5 text-center font-mono text-xs">
         {grade.gradePoint?.toFixed(2) ?? "—"}
@@ -94,10 +84,55 @@ function GradeRow({ grade }: { grade: Grade }) {
       <td className="px-3 py-2.5 text-center text-xs text-muted-foreground">
         {grade.creditUnits}
       </td>
-      <td className="px-3 py-2.5 text-center">
-        <StatusPill status={grade.status} />
-      </td>
     </tr>
+  )
+}
+
+// ─── Withheld / not-yet-released banner (current semester) ─────────────────────
+
+function ResultStatusBanner({ semesterId }: { semesterId: number | null }) {
+  const status = useMyResultStatus(semesterId)
+  // Not live yet → nothing to say honestly; never guess a withheld state.
+  const s = status.data?.available ? status.data.data : null
+  if (!s || s.published) return null
+  if (s.withheld && s.reason === "OUTSTANDING_FEES")
+    return (
+      <div
+        role="status"
+        className="flex flex-wrap items-start gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4"
+      >
+        <Wallet
+          className="mt-0.5 size-5 shrink-0 text-rose-600 dark:text-rose-400"
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1 text-sm">
+          <p className="font-semibold text-foreground">Results withheld</p>
+          <p className="text-muted-foreground">
+            Your results for this semester are withheld because of outstanding
+            fees. They will appear once your fees are cleared.
+          </p>
+        </div>
+        <Link
+          href="/student/fees"
+          className="self-center rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+        >
+          View my fees
+        </Link>
+      </div>
+    )
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-3 rounded-2xl border border-border bg-muted/30 p-4"
+    >
+      <Hourglass
+        className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+        aria-hidden
+      />
+      <p className="text-sm text-muted-foreground">
+        Results for this semester have not been released yet.
+      </p>
+    </div>
   )
 }
 
@@ -158,16 +193,20 @@ function CgpaHistorySection({ history }: { history: CgpaHistoryEntry[] }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function StudentResultsPage() {
-  const { studentId, programId } = useMyStudentId()
+  const { studentId, programId, isLoading: studentLoading } = useMyStudentId()
   const { data: programData, isLoading: programLoading } = useProgram(programId)
+  const { currentSemester } = useMyActiveSession()
   // SECONDARY_SCHOOL programs use a simple average + class position per
   // term (TermResultsView below), not a credit-weighted GPA — every other
-  // category keeps the CGPA transcript view unchanged. See
+  // category uses the published-results view. See
   // sandbox/schema-moodel-sync-refactor/api-v2.md §"GET /students/me/results".
   const isSecondarySchool =
     programData?.data.programCategory === "SECONDARY_SCHOOL"
 
-  const { transcript, loading: transcriptLoading } = useStudentTranscript(
+  const gradesQuery = useMyPublishedGrades(
+    !programLoading && !isSecondarySchool ? studentId : null
+  )
+  const cgpa = useStudentCgpa(
     !programLoading && !isSecondarySchool ? studentId : null
   )
   const downloadResult = useDownloadSemesterResult()
@@ -175,37 +214,29 @@ export default function StudentResultsPage() {
     !programLoading && isSecondarySchool
   )
 
-  // Group grades by semester (most recent first)
-  const bySemester =
-    transcript?.grades.reduce<Record<string, Grade[]>>((acc, g) => {
-      const key = `${g.academicYear}::${g.semesterId}`
-      if (!acc[key]) acc[key] = []
-      acc[key].push(g)
-      return acc
-    }, {}) ?? {}
-
-  const semesters = Object.entries(bySemester)
-    .map(([key, grades]) => {
-      const wSum = grades.reduce(
-        (a, g) => a + (g.gradePoint ?? 0) * g.creditUnits,
-        0
-      )
-      const cuSum = grades.reduce((a, g) => a + g.creditUnits, 0)
-      const semesterId = parseInt(grades[0].semesterId.replace("sem-", ""))
-      return {
-        key,
-        label: grades[0].semesterName,
-        academicYear: grades[0].academicYear,
-        semesterId,
-        grades,
-        gpa: cuSum ? Math.round((wSum / cuSum) * 100) / 100 : 0,
-      }
-    })
-    .sort((a, b) => b.semesterId - a.semesterId) // most recent first
+  // Group published grades by semester (most recent first). The semester
+  // GPA is the backend's own figure from cgpa_history — never recomputed here.
+  const grades = gradesQuery.data ?? []
+  const bySemester = grades.reduce<Map<number, StudentGrade[]>>((acc, g) => {
+    acc.set(g.semesterId, [...(acc.get(g.semesterId) ?? []), g])
+    return acc
+  }, new Map())
+  const semesters = [...bySemester.entries()]
+    .map(([semesterId, list]) => ({
+      semesterId,
+      label: list[0].semesterName,
+      academicYear: list[0].academicSession,
+      grades: list,
+      gpa:
+        cgpa.history.find((h) => h.semesterId === String(semesterId))?.gpa ??
+        null,
+    }))
+    .sort((a, b) => b.semesterId - a.semesterId)
+  const creditUnits = grades.reduce((a, g) => a + g.creditUnits, 0)
 
   if (
     programLoading ||
-    (isSecondarySchool ? termsLoading : transcriptLoading)
+    (isSecondarySchool ? termsLoading : gradesQuery.isLoading || cgpa.loading)
   ) {
     return (
       <div className="animate-pulse space-y-4">
@@ -221,6 +252,26 @@ export default function StudentResultsPage() {
     )
   }
 
+  // Found in QA 2026-09-25: an account with the student role but no student
+  // record (GET /users/students/me → 404) used to read "No results published
+  // yet", which isn't true — there's no record to publish results against.
+  if (!studentLoading && studentId == null)
+    return (
+      <div
+        role="status"
+        className="rounded-2xl border border-dashed border-border p-8 text-center"
+      >
+        <p className="text-sm font-semibold text-foreground">
+          Your student record isn&apos;t set up yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Results appear once the registry has created your student record and
+          your results are published. Contact the registry if you&apos;ve
+          already been admitted.
+        </p>
+      </div>
+    )
+
   if (isSecondarySchool) {
     return (
       <div className="space-y-6">
@@ -235,33 +286,40 @@ export default function StudentResultsPage() {
     )
   }
 
-  if (!transcript) return null
+  if (gradesQuery.isError)
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
+        Couldn&apos;t load your results. Please try again shortly.
+      </div>
+    )
 
   return (
     <div className="space-y-6">
+      <ResultStatusBanner semesterId={currentSemester?.id ?? null} />
+
       {/* Header stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           {
             label: "Current CGPA",
-            value: transcript.currentCGPA?.toFixed(2) ?? "—",
+            value: cgpa.currentCGPA?.toFixed(2) ?? "—",
             icon: Award,
             color: "text-primary",
           },
           {
-            label: "Credit Units Earned",
-            value: transcript.totalCreditUnits,
+            label: "Credit Units (published)",
+            value: creditUnits,
             icon: BookOpen,
             color: "text-blue-500",
           },
           {
             label: "Program",
-            value: transcript.programCode,
+            value: programData?.data.code ?? "—",
             icon: GraduationCap,
             color: "text-violet-500",
           },
           {
-            label: "Semesters Completed",
+            label: "Semesters Published",
             value: semesters.length,
             icon: Clock,
             color: "text-amber-500",
@@ -281,9 +339,7 @@ export default function StudentResultsPage() {
       </div>
 
       {/* CGPA history */}
-      {transcript.cgpaHistory.length > 0 && (
-        <CgpaHistorySection history={transcript.cgpaHistory} />
-      )}
+      <CgpaHistorySection history={cgpa.history} />
 
       {/* Grades by semester */}
       <div className="flex items-center gap-2 space-y-1">
@@ -296,15 +352,15 @@ export default function StudentResultsPage() {
       {semesters.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-muted-foreground">
           <BookOpen size={36} className="opacity-30" />
-          <p className="text-sm">No results available yet.</p>
+          <p className="text-sm">No results published yet.</p>
           <p className="text-xs opacity-70">
-            Results will appear here once published.
+            Your results will appear here as soon as they&apos;re published.
           </p>
         </div>
       ) : (
         semesters.map((sem, idx) => (
           <motion.div
-            key={sem.key}
+            key={sem.semesterId}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.04 }}
@@ -326,7 +382,7 @@ export default function StudentResultsPage() {
                     Semester GPA
                   </p>
                   <p className="font-mono text-base font-bold text-foreground">
-                    {sem.gpa.toFixed(2)}
+                    {sem.gpa?.toFixed(2) ?? "—"}
                     <span className="text-xs font-normal text-muted-foreground">
                       {" "}
                       / 5.0
@@ -336,6 +392,7 @@ export default function StudentResultsPage() {
                 <button
                   type="button"
                   title="Download result sheet (PDF)"
+                  aria-label={`Download ${sem.label} ${sem.academicYear} result sheet`}
                   onClick={() =>
                     downloadResult.mutate({
                       semesterId: sem.semesterId,
@@ -368,10 +425,10 @@ export default function StudentResultsPage() {
                       "Grade",
                       "GP",
                       "Units",
-                      "Status",
                     ].map((h) => (
                       <th
                         key={h}
+                        scope="col"
                         className="px-3 py-2.5 text-left text-[10px] font-semibold tracking-wide whitespace-nowrap text-muted-foreground uppercase"
                       >
                         {h}

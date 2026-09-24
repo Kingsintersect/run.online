@@ -63,14 +63,6 @@
       "action": "submit"
     },
     {
-      "resource": "my-results",
-      "action": "view"
-    },
-    {
-      "resource": "my-grades",
-      "action": "view"
-    },
-    {
       "resource": "notifications",
       "action": "view"
     },
@@ -137,6 +129,14 @@
     {
       "resource": "attendance",
       "action": "view.own"
+    },
+    {
+      "resource": "my-grades",
+      "action": "view"
+    },
+    {
+      "resource": "my-results",
+      "action": "view"
     }
   ],
   "TUTOR": [
@@ -161,22 +161,6 @@
       "action": "view"
     },
     {
-      "resource": "results",
-      "action": "submit"
-    },
-    {
-      "resource": "results",
-      "action": "export"
-    },
-    {
-      "resource": "gradebook",
-      "action": "view"
-    },
-    {
-      "resource": "gradebook",
-      "action": "manage"
-    },
-    {
       "resource": "teaching-resources",
       "action": "view"
     },
@@ -215,6 +199,18 @@
     {
       "resource": "attendance",
       "action": "record"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "results",
+      "action": "view"
     }
   ],
   "HOD": [
@@ -239,26 +235,6 @@
       "action": "view"
     },
     {
-      "resource": "results",
-      "action": "submit"
-    },
-    {
-      "resource": "results",
-      "action": "approve"
-    },
-    {
-      "resource": "results",
-      "action": "export"
-    },
-    {
-      "resource": "gradebook",
-      "action": "view"
-    },
-    {
-      "resource": "gradebook",
-      "action": "manage"
-    },
-    {
       "resource": "teaching-resources",
       "action": "view"
     },
@@ -297,6 +273,38 @@
     {
       "resource": "attendance",
       "action": "record"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "adjust"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "results",
+      "action": "items.map"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "sync"
+    },
+    {
+      "resource": "results",
+      "action": "view"
     }
   ],
   "DEAN": [
@@ -385,30 +393,6 @@
       "action": "manage"
     },
     {
-      "resource": "grades-summary",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "manage"
-    },
-    {
-      "resource": "results",
-      "action": "publish"
-    },
-    {
-      "resource": "results",
-      "action": "view.all"
-    },
-    {
-      "resource": "results",
-      "action": "export"
-    },
-    {
       "resource": "analytics",
       "action": "view"
     },
@@ -447,6 +431,46 @@
     {
       "resource": "account-settings",
       "action": "update"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "adjust"
+    },
+    {
+      "resource": "results",
+      "action": "approve"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "results",
+      "action": "items.map"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "sync"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
     }
   ],
   "BURSARY": [
@@ -501,14 +525,6 @@
       "action": "view"
     },
     {
-      "resource": "grade-reports",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "view.all"
-    },
-    {
       "resource": "financial-summary",
       "action": "view"
     },
@@ -539,6 +555,22 @@
     {
       "resource": "account-settings",
       "action": "update"
+    },
+    {
+      "resource": "grade-reports",
+      "action": "view"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
     }
   ],
   "STAFF": [
@@ -797,22 +829,6 @@
       "action": "view"
     },
     {
-      "resource": "grade-reports",
-      "action": "view"
-    },
-    {
-      "resource": "gradebook",
-      "action": "manage"
-    },
-    {
-      "resource": "gradebook",
-      "action": "view"
-    },
-    {
-      "resource": "grades-summary",
-      "action": "view"
-    },
-    {
       "resource": "app-config",
       "action": "manage"
     },
@@ -885,10 +901,6 @@
       "action": "view"
     },
     {
-      "resource": "my-grades",
-      "action": "view"
-    },
-    {
       "resource": "my-hostel",
       "action": "view"
     },
@@ -898,10 +910,6 @@
     },
     {
       "resource": "my-payments",
-      "action": "view"
-    },
-    {
-      "resource": "my-results",
       "action": "view"
     },
     {
@@ -938,22 +946,6 @@
     },
     {
       "resource": "profile",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "manage"
-    },
-    {
-      "resource": "results",
-      "action": "publish"
-    },
-    {
-      "resource": "results",
-      "action": "submit"
-    },
-    {
-      "resource": "results",
       "action": "view"
     },
     {
@@ -1043,6 +1035,90 @@
     {
       "resource": "clearance",
       "action": "approve"
+    },
+    {
+      "resource": "grade-reports",
+      "action": "view"
+    },
+    {
+      "resource": "gradebook",
+      "action": "manage"
+    },
+    {
+      "resource": "gradebook",
+      "action": "view"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "my-grades",
+      "action": "view"
+    },
+    {
+      "resource": "my-results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "adjust"
+    },
+    {
+      "resource": "results",
+      "action": "adjust.approve"
+    },
+    {
+      "resource": "results",
+      "action": "amend_published"
+    },
+    {
+      "resource": "results",
+      "action": "approve"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "results",
+      "action": "items.map"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "policies.manage"
+    },
+    {
+      "resource": "results",
+      "action": "publish"
+    },
+    {
+      "resource": "results",
+      "action": "reopen"
+    },
+    {
+      "resource": "results",
+      "action": "schemes.manage"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "sync"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
     }
   ],
   "ADMIN": [
@@ -1147,30 +1223,6 @@
       "action": "manage"
     },
     {
-      "resource": "grades-summary",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "view"
-    },
-    {
-      "resource": "results",
-      "action": "manage"
-    },
-    {
-      "resource": "results",
-      "action": "publish"
-    },
-    {
-      "resource": "results",
-      "action": "view.all"
-    },
-    {
-      "resource": "results",
-      "action": "export"
-    },
-    {
       "resource": "timetable",
       "action": "view"
     },
@@ -1269,6 +1321,66 @@
     {
       "resource": "attendance",
       "action": "view.own"
+    },
+    {
+      "resource": "grades-summary",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "adjust"
+    },
+    {
+      "resource": "results",
+      "action": "adjust.approve"
+    },
+    {
+      "resource": "results",
+      "action": "approve"
+    },
+    {
+      "resource": "results",
+      "action": "export"
+    },
+    {
+      "resource": "results",
+      "action": "items.map"
+    },
+    {
+      "resource": "results",
+      "action": "manage"
+    },
+    {
+      "resource": "results",
+      "action": "policies.manage"
+    },
+    {
+      "resource": "results",
+      "action": "publish"
+    },
+    {
+      "resource": "results",
+      "action": "reopen"
+    },
+    {
+      "resource": "results",
+      "action": "schemes.manage"
+    },
+    {
+      "resource": "results",
+      "action": "submit"
+    },
+    {
+      "resource": "results",
+      "action": "sync"
+    },
+    {
+      "resource": "results",
+      "action": "view"
+    },
+    {
+      "resource": "results",
+      "action": "view.all"
     }
   ]
 }

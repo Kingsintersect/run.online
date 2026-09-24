@@ -187,7 +187,12 @@ export function GradeBandsSection({ canManage }: { canManage: boolean }) {
                     </td>
                     <td className="px-3 py-2">{b.minScore}</td>
                     <td className="px-3 py-2">{b.maxScore}</td>
-                    <td className="px-3 py-2">{b.gradePoint.toFixed(1)}</td>
+                    <td className="px-3 py-2">
+                      {/* Defensive: the scheme endpoints send null for bands
+                          without points; the legacy list sends 0 (backend
+                          item, BACKEND_DEVIATIONS B13). Never invent a 0. */}
+                      {b.gradePoint == null ? "—" : b.gradePoint.toFixed(1)}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {b.description || "—"}
                     </td>

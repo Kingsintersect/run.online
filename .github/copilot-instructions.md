@@ -7,7 +7,7 @@
 - **Framework:** Next.js 15+ (App Router)
 - **Language:** TypeScript (Strict Mode)
 - **Architecture:** Single-tenant — one deployment per university instance. No multi-tenancy.
-- **Backend:** External NestJS API. Never generate local `app/api` routes, `pages/api` routes, or server actions for database operations unless explicitly requested.
+- **Backend:** External Laravel API (`run/run.api`). Never generate local `app/api` routes, `pages/api` routes, or server actions for database operations unless explicitly requested.
 
 ---
 
@@ -144,36 +144,49 @@ Use only for:
 
 ## 5. RBAC & Permissions Protocol
 
-### Types — `src/types/roles.ts`
+**Corrected 2026-09-17** — this section previously described an aspirational architecture
+(`src/lib/permissions.ts`'s `allPermissions[]`/`pickPermissions()`, `src/lib/role-permissions.ts`'s
+`rolePermissionMap`, a `useRoleGuard` hook) that was never built — confirmed via a repo-wide search,
+zero matches for any of it. What follows is the real, live system.
 
-Defines `UserRole` enum, `Permission` interface, `UserProfile`, and `RoleConfig`. This is the single source of truth for role and permission types.
+### Types — `src/types/roles.ts` and `src/config/nav.config.ts`
 
-### Permission Registry — `src/lib/permissions.ts`
+`UserRole` enum lives in `src/config/nav.config.ts` (also home to `navConfig`/`roleDashboardPath`
+— every role's nav tree and dashboard home route). `Permission`/`UserProfile` types live in
+`src/types/roles.ts`.
 
-- `allPermissions[]` is the canonical flat list of every permission in the system.
-- Permissions grow over time as new modules are added — always append, never reorganise existing IDs.
-- Each permission follows the shape: `{ id, resource, action, module, description, created_at }`.
-- `pickPermissions(...ids)` is the only way to assign permissions to roles.
-- Never inline permission arrays anywhere else in the codebase.
+### Permissions have no local catalog — the backend is the single source of truth
 
-### Role → Permission Map — `src/lib/role-permissions.ts`
+There is no local permission registry or role→permission map to maintain. Every user's
+`permissions: Permission[]` array comes entirely from the backend session (`/auth/login`/
+`/auth/me`) and is stored as-is (`src/store/appStore.ts`) — never computed, reorganised, or
+overridden client-side. Two static JSON files exist for reference/documentation only
+(`src/lib/utils/permissions.json`, `src/lib/utils/Roles.Permissions.assignment.json`) — neither is
+imported or read at runtime; keep them accurate for humans, but don't treat them as executable.
+**Practical consequence:** if two roles' real backend sessions currently return the identical
+permission set (this has happened — Dean vs Admin, until fixed 2026-09-17), there is no local
+override to fix that with; a genuine distinction has to either come from the backend, or — as a
+last resort, matching existing precedent (`HOD`/`Tutor` sharing a nav tree, `Staff`'s narrower
+branch on the shared `/manager/dashboard` route) — a plain role check, clearly commented as to why
+a permission check wasn't available.
 
-- `rolePermissionMap` maps every `UserRole` to its `Permission[]` using `pickPermissions()`.
-- `roleDashboardPath` maps every `UserRole` to its home route.
-- When a new permission is added to `allPermissions`, assign it to the appropriate roles here.
+### Route-level protection — `<RoleGuard>`
 
-### Permission IDs are stable
-
-Once a permission is assigned an ID it never changes. New permissions always get new incremental IDs appended to the list.
-
-### Route-level protection — `useRoleGuard`
-
-```ts
-// Redirects to the user's own dashboard if their role is not in allowedRoles
-useRoleGuard([UserRole.ADMIN, UserRole.SUPER_ADMIN])
+```tsx
+// src/components/dashboard/RoleGuard.tsx
+<RoleGuard
+  role={[UserRole.ADMIN, UserRole.SUPER_ADMIN]}
+  permissions={["fees.verify"]}
+  match="any"
+>
+  <ProtectedPage />
+</RoleGuard>
 ```
 
-Use at the top of protected page components.
+A component, not a hook — wrap the page content in it. `role` is required; `permissions` (dot-string
+format, `"resource.action"`) is optional and layers an additional check on top of the role check.
+Shows a login prompt if unauthenticated, a permission-denied screen if `role`/`permissions` don't
+match (or a custom `fallback`), otherwise renders `children`.
 
 ### Feature-level protection — `usePermissions` hook
 
@@ -220,14 +233,23 @@ if (canAccessModule('finance')) { ... }
 </PermissionGate>
 ```
 
-`PermissionGate` props: `require`, `mode: 'all' | 'any'` (default `'all'`), `fallback`.
+`PermissionGate` props: `require`, `mode: 'all' | 'any'` (default `'all'`), `fallback`,
+`denyBehavior: 'inline' | 'screen' | 'modal'` (default `'inline'` — `'screen'` replaces the whole
+page with a full-page denied screen, `'modal'` shows a blocking popup, use these two for guarding
+an entire page rather than one element).
 
 ### Rule of thumb
 
-- **Route guard** (`useRoleGuard`) → broad role-based redirect at page level.
+- **`<RoleGuard>`** → broad role-based page protection (unauthenticated + role + optional
+  permission, in one component).
 - **`<PermissionGate>`** → conditional rendering of UI elements within a page.
 - **`usePermissions`** → imperative checks inside hook or component logic.
-- Never hard-code role checks like `if (role === 'ADMIN')` for UI access — always check the permission, not the role.
+- Prefer checking the permission over hard-coding a role check (`if (role === 'ADMIN')`) whenever
+  a real permission distinction exists. But per the note above, permissions come from the backend
+  only — if two roles' live sessions genuinely return the same permission set and they need to
+  differ anyway, a clearly-commented role check (matching this codebase's existing precedent, e.g.
+  `Staff`'s narrower dashboard branch) is the honest fallback, not a local permission catalog
+  invented to paper over it.
 
 ---
 
@@ -320,7 +342,7 @@ If a requested change would:
 ## 📦 Project Stack & Context
 - **Framework:** Next.js 15+ (App Router)
 - **Language:** TypeScript (Strict Mode)
-- **Backend:** External NestJS API (No local Prisma/DB)
+- **Backend:** External Laravel API (`run/run.api`) (No local Prisma/DB)
 - **Data Fetching:** TanStack React Query v5
 - **State Management:** Zustand (UI State ONLY)
 - **Validation:** Zod + React Hook Form

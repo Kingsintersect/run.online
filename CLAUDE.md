@@ -11,7 +11,7 @@
 - **Framework:** Next.js 15+ (App Router)
 - **Language:** TypeScript (Strict Mode)
 - **Architecture:** Single-tenant — one deployment per university instance. No multi-tenancy.
-- **Backend:** External NestJS API. Never generate local `app/api` routes, `pages/api` routes,
+- **Backend:** External Laravel API (`run/run.api`). Never generate local `app/api` routes, `pages/api` routes,
   or server actions for database operations unless explicitly requested.
 
 ---

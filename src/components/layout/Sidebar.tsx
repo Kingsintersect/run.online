@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils"
 import { navConfig, NavItem, NavGroup } from "@/config/nav.config"
 import { useFeatureFlags } from "@/hooks/useFeatureFlags"
 import { filterNavGroupsByFeatureFlags } from "@/lib/feature-flags/featureAccess"
+import { filterNavGroupsByPermission } from "@/lib/permissions/filterNavByPermission"
+import { usePermissions } from "@/lib/permissions/usePermissions"
 import { useAppStore, useSidebarStore } from "@/store"
 import Logo from "@/components/branding/Logo"
 import { UNIVERSITY_NAME } from "@/config/global.config"
@@ -317,10 +319,21 @@ export default function Sidebar() {
   const groups = user
     ? navConfig[user.role as keyof typeof navConfig]
     : undefined
+  // Feature flags first, then per-item permissions (NavItem.permission) —
+  // roles sharing a route tree (TUTOR/HOD/DEAN) see only what they may use.
+  const { can, permissions, role } = usePermissions()
   const visibleGroups = useMemo(
     () =>
-      filterNavGroupsByFeatureFlags(groups ?? [], featureFlagsResponse?.flags),
-    [groups, featureFlagsResponse?.flags]
+      filterNavGroupsByPermission(
+        filterNavGroupsByFeatureFlags(
+          groups ?? [],
+          featureFlagsResponse?.flags
+        ),
+        can
+      ),
+    // `can` is derived from permissions + role, which are the real deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, featureFlagsResponse?.flags, permissions, role]
   )
 
   if (!user) return null

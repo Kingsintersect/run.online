@@ -61,6 +61,12 @@ export interface NavItem {
   title: string
   href?: string
   icon: LucideIcon
+  /**
+   * Hides the item unless the session holds this permission (filtered in
+   * Sidebar.tsx). Lets roles that share routes (TUTOR/HOD/DEAN on /tutor)
+   * see only what their permissions allow, instead of a role check.
+   */
+  permission?: { resource: string; action: string }
   badge?: string | number
   badgeVariant?: string
   matchExactOnly?: boolean
@@ -169,12 +175,9 @@ const studentNav: NavGroup[] = [
   {
     label: "Moodle LMS",
     items: [
-      {
-        title: "Moodle Grades",
-        href: "/student/moodle/grades",
-        matchExactOnly: true,
-        icon: Award,
-      },
+      // REMOVED (2026-09-24): "Moodle Grades" -> "/student/moodle/grades".
+      // Students never see raw Moodle marks, only published results
+      // (Results & Grading contract C2.8). Their results live under "Results".
       {
         title: "Moodle Calendar",
         href: "/student/moodle/calendar",
@@ -270,23 +273,15 @@ const tutorNav: NavGroup[] = [
         matchExactOnly: true,
         icon: CalendarDays,
       },
+      // Replaces the old "Grading" section (Submit Results / Grade Book),
+      // removed 2026-09-24: tutors grade only in Moodle. One workspace for
+      // TUTOR, HOD and DEAN; a tutor sees their own offerings read-only,
+      // HOD/DEAN permissions unlock pulling, normalizing and approving.
       {
-        title: "Grading",
+        title: "Course Results",
+        href: "/tutor/results",
         icon: ClipboardList,
-        children: [
-          {
-            title: "Submit Results",
-            href: "/tutor/grading/submit",
-            matchExactOnly: true,
-            icon: FileText,
-          },
-          {
-            title: "Grade Book",
-            href: "/tutor/grading/book",
-            matchExactOnly: true,
-            icon: FolderOpen,
-          },
-        ],
+        permission: { resource: "results", action: "view" },
       },
       // REMOVED (2026-09-12): "Resources" -> "/tutor/resources" 404'd —
       // found via a full nav sweep, live-tested with a real TUTOR login.
@@ -521,21 +516,36 @@ const adminNav: NavGroup[] = [
         href: "/manager/grades/summary",
         matchExactOnly: true,
         icon: BarChart,
+        permission: { resource: "grades-summary", action: "view" },
       },
       {
-        title: "Results",
+        title: "Course Results",
         href: "/manager/grades/results",
+        icon: ClipboardList,
+        permission: { resource: "results", action: "view" },
+      },
+      {
+        title: "Adjustment Approvals",
+        href: "/manager/grades/approvals",
         matchExactOnly: true,
-        icon: ListChevronsUpDown,
+        icon: ShieldCheck,
+        permission: { resource: "results", action: "adjust.approve" },
       },
       {
         title: "Publish Results",
         href: "/manager/grades/publish-results",
         matchExactOnly: true,
         icon: ListChecks,
+        permission: { resource: "results", action: "publish" },
       },
       {
-        title: "Grading Schemes",
+        title: "All Grades",
+        href: "/manager/grades/all-grades",
+        matchExactOnly: true,
+        icon: ListChevronsUpDown,
+      },
+      {
+        title: "Result Configuration",
         href: "/manager/grades/grading-schemes",
         matchExactOnly: true,
         icon: Settings2,
@@ -842,21 +852,36 @@ const superAdminNav: NavGroup[] = [
         href: "/admin/grades/summary",
         matchExactOnly: true,
         icon: BarChart,
+        permission: { resource: "grades-summary", action: "view" },
       },
       {
-        title: "Results",
+        title: "Course Results",
         href: "/admin/grades/results",
+        icon: ClipboardList,
+        permission: { resource: "results", action: "view" },
+      },
+      {
+        title: "Adjustment Approvals",
+        href: "/admin/grades/approvals",
         matchExactOnly: true,
-        icon: ListChevronsUpDown,
+        icon: ShieldCheck,
+        permission: { resource: "results", action: "adjust.approve" },
       },
       {
         title: "Publish Results",
         href: "/admin/grades/publish-results",
         matchExactOnly: true,
         icon: ListChecks,
+        permission: { resource: "results", action: "publish" },
       },
       {
-        title: "Grading Schemes",
+        title: "All Grades",
+        href: "/admin/grades/all-grades",
+        matchExactOnly: true,
+        icon: ListChevronsUpDown,
+      },
+      {
+        title: "Result Configuration",
         href: "/admin/grades/grading-schemes",
         matchExactOnly: true,
         icon: Settings2,
@@ -953,20 +978,37 @@ const superAdminNav: NavGroup[] = [
 // permissions already cover those correctly (students/tutors/staff
 // view+manage). See UserManagementShell.tsx's matching role check for the
 // page-level guard (nav removal alone doesn't stop direct navigation).
+// Grades Management: DEAN shares the tutor routes for course results (a
+// Dean can teach too), so "Course Results" points at /tutor/results. The
+// permission filter hides Publish / Adjustment Approvals (DEAN holds neither);
+// result configuration stays with ADMIN / SUPER_ADMIN.
+const deanGradesNav = (group: NavGroup): NavGroup => ({
+  ...group,
+  items: group.items
+    .filter((item) => item.title !== "Result Configuration")
+    .map((item) =>
+      item.title === "Course Results"
+        ? { ...item, href: "/tutor/results" }
+        : item
+    ),
+})
+
 const deanNav: NavGroup[] = adminNav.map((group) =>
-  group.label !== "User Management"
-    ? group
-    : {
-        ...group,
-        items: group.items.map((item) =>
-          item.title !== "User Management" || !item.children
-            ? item
-            : {
-                ...item,
-                children: item.children.filter((c) => c.title !== "Summary"),
-              }
-        ),
-      }
+  group.label === "Grades Management"
+    ? deanGradesNav(group)
+    : group.label !== "User Management"
+      ? group
+      : {
+          ...group,
+          items: group.items.map((item) =>
+            item.title !== "User Management" || !item.children
+              ? item
+              : {
+                  ...item,
+                  children: item.children.filter((c) => c.title !== "Summary"),
+                }
+          ),
+        }
 )
 
 /* ------------------------------------------------------------------ */

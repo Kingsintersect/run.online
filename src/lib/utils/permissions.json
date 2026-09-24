@@ -315,7 +315,7 @@
       {
         "resource": "results",
         "action": "submit",
-        "description": "Submit course results for approval (tutor-facing)"
+        "description": "Submit a result sheet (pulled from Moodle) for approval"
       },
       {
         "resource": "results",
@@ -340,7 +340,7 @@
       {
         "resource": "results",
         "action": "approve",
-        "description": "Approve tutor-submitted results before publishing (HOD-facing)"
+        "description": "Approve or reject a submitted result sheet"
       },
       {
         "resource": "gradebook",
@@ -356,6 +356,46 @@
         "resource": "grade-reports",
         "action": "view",
         "description": "View departmental/faculty grade reports"
+      },
+      {
+        "resource": "results",
+        "action": "sync",
+        "description": "Pull Moodle grade items and marks into result sheets"
+      },
+      {
+        "resource": "results",
+        "action": "items.map",
+        "description": "Map Moodle grade items to CA / EXAM / EXCLUDED"
+      },
+      {
+        "resource": "results",
+        "action": "adjust",
+        "description": "Normalize (adjust) result scores within scope, and revert adjustments"
+      },
+      {
+        "resource": "results",
+        "action": "adjust.approve",
+        "description": "Approve or reject adjustment batches held for approval"
+      },
+      {
+        "resource": "results",
+        "action": "reopen",
+        "description": "Reopen an approved result sheet back to draft"
+      },
+      {
+        "resource": "results",
+        "action": "amend_published",
+        "description": "Amend an already-published grade (super admin)"
+      },
+      {
+        "resource": "results",
+        "action": "schemes.manage",
+        "description": "Manage grading schemes, grade scales and program scheme overrides"
+      },
+      {
+        "resource": "results",
+        "action": "policies.manage",
+        "description": "Manage per-major-program result policies (fee gate, approval threshold, rounding)"
       }
     ]
   },

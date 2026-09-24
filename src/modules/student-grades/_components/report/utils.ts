@@ -1,6 +1,6 @@
 import type { AppUser } from "@/store/appStore"
 import { UNIVERSITY_NAME } from "@/config/global.config"
-import type { Grade, StudentTranscript } from "../../types/grades.types"
+import type { StudentGrade } from "../../types"
 import type {
   ReportCourse,
   ReportGradeDistributionItem,
@@ -64,21 +64,23 @@ const GRADE_META: Array<{
   },
 ]
 
-export function toReportCourses(grades: Grade[]): ReportCourse[] {
+// Published StudentGrade rows only (contract C8) — a student never renders
+// anything else.
+export function toReportCourses(grades: StudentGrade[]): ReportCourse[] {
   return [...grades]
     .sort((left, right) => left.courseCode.localeCompare(right.courseCode))
     .map((grade) => ({
       id: String(grade.id),
       courseCode: grade.courseCode,
-      courseTitle: grade.courseName,
+      courseTitle: grade.courseTitle,
       creditLoad: grade.creditUnits,
       score: grade.totalScore ?? 0,
-      grade: grade.gradeLetter ?? "F",
+      grade: grade.grade ?? "F",
       gradePoint: grade.gradePoint ?? 0,
       qualityPoints: (grade.gradePoint ?? 0) * grade.creditUnits,
       semesterName: grade.semesterName,
-      academicYear: grade.academicYear,
-      status: grade.status,
+      academicYear: grade.academicSession,
+      status: "PUBLISHED",
     }))
 }
 
@@ -133,16 +135,16 @@ export function calculateReportSummary(
 }
 
 export function buildReportStudentInfo(
-  transcript: StudentTranscript,
-  user: AppUser | null
+  user: AppUser | null,
+  programName: string
 ): ReportStudentInfo {
   return {
-    fullName: user?.name ?? transcript.studentName,
-    regNumber: user?.matricNo ?? transcript.studentMatric,
-    program: transcript.programName,
-    level: user?.level ?? transcript.level,
-    department: user?.department ?? transcript.programName,
-    email: user?.email ?? transcript.studentEmail,
+    fullName: user?.name ?? "—",
+    regNumber: user?.matricNo ?? "—",
+    program: programName,
+    level: user?.level ?? "",
+    department: user?.department ?? programName,
+    email: user?.email ?? "",
     avatarUrl: user?.avatar ?? null,
   }
 }

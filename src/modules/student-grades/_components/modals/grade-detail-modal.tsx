@@ -1,28 +1,12 @@
 "use client"
 
-import { useState } from "react"
 import { motion } from "framer-motion"
-import {
-  CheckCircle2,
-  XCircle,
-  BookOpen,
-  User,
-  Calendar,
-  Hash,
-  ClipboardList,
-  Loader2,
-  Send,
-} from "lucide-react"
+import { BookOpen, User, Calendar, ClipboardList } from "lucide-react"
 import Modal from "@/components/custom/Modal"
 import StatusBadge from "@/components/custom/StatusBadge"
 import type { GradeStatus } from "../../types/grades.types"
 import { useGradesStore } from "../../store/gradesStore"
 import { useGrade } from "../../hooks/use-grades-data"
-import {
-  useSubmitGrade,
-  useApproveGrade,
-  useRejectGrade,
-} from "../../hooks/use-grades-mutations"
 
 type StatusVariant = "success" | "warning" | "destructive" | "info" | "default"
 
@@ -81,24 +65,16 @@ function GradeBar({
   )
 }
 
+// Read-only detail of one legacy grade row. Per-grade submit/approve/reject
+// were removed (2026-09-24): the workflow is sheet-level now (Results
+// workspace → result sheet), see use-results-mutations.ts.
 interface GradeDetailModalProps {
   open: boolean
   onClose: () => void
-  canManage?: boolean
 }
 
-export function GradeDetailModal({
-  open,
-  onClose,
-  canManage = false,
-}: GradeDetailModalProps) {
-  const { selectedGrade, updateGradeInStore } = useGradesStore()
-  const [rejectRemarks, setRejectRemarks] = useState("")
-  const [showRejectForm, setShowRejectForm] = useState(false)
-
-  const submitMutation = useSubmitGrade()
-  const approveMutation = useApproveGrade()
-  const rejectMutation = useRejectGrade()
+export function GradeDetailModal({ open, onClose }: GradeDetailModalProps) {
+  const { selectedGrade } = useGradesStore()
 
   // Refresh the row against server state while the modal is open — the list
   // row is the instant fallback (and what's used if GET /results/grades/:id
@@ -109,37 +85,6 @@ export function GradeDetailModal({
 
   if (!selectedGrade) return null
   const grade = fetchedGrade ?? selectedGrade
-
-  const handleSubmit = async () => {
-    const result = await submitMutation.mutateAsync(grade.id)
-    updateGradeInStore({ ...grade, ...result })
-  }
-
-  const handleApprove = async () => {
-    const result = await approveMutation.mutateAsync({ id: grade.id })
-    updateGradeInStore({ ...grade, ...result })
-  }
-
-  const handleReject = async () => {
-    if (!rejectRemarks.trim()) return
-    const result = await rejectMutation.mutateAsync({
-      id: grade.id,
-      remarks: rejectRemarks.trim(),
-    })
-    updateGradeInStore({ ...grade, ...result })
-    setRejectRemarks("")
-    setShowRejectForm(false)
-  }
-
-  const loading =
-    submitMutation.isPending ||
-    approveMutation.isPending ||
-    rejectMutation.isPending
-  // Only show submit if the user manages this grade and it's still a DRAFT
-  const canSubmit = canManage && grade.status === "DRAFT"
-  // Only show approve/reject if user has manage permission AND grade is in SUBMITTED status
-  const canApprove = canManage && grade.status === "SUBMITTED"
-  const canReject = canManage && grade.status === "SUBMITTED"
 
   const totalPct =
     grade.totalScore !== null
@@ -161,50 +106,6 @@ export function GradeDetailModal({
       size="lg"
       title="Grade Details"
       subtitle={`${grade.studentName} · ${grade.courseCode}`}
-      footer={
-        canSubmit || canApprove || canReject ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {canSubmit && (
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="ml-auto flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
-                )}
-                Submit for Approval
-              </button>
-            )}
-            {canReject && (
-              <button
-                onClick={() => setShowRejectForm((v) => !v)}
-                disabled={loading}
-                className="flex items-center gap-1.5 rounded-xl border border-destructive/30 px-4 py-2 text-xs font-medium text-destructive transition hover:bg-destructive/10 disabled:opacity-50"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                Reject
-              </button>
-            )}
-            {canApprove && (
-              <button
-                onClick={handleApprove}
-                disabled={loading}
-                className="ml-auto flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                )}
-                Approve Grade
-              </button>
-            )}
-          </div>
-        ) : null
-      }
     >
       <div className="space-y-5 p-5">
         {/* Scores summary */}
@@ -316,48 +217,6 @@ export function GradeDetailModal({
             )}
           </div>
         </div>
-
-        {/* Reject form - only show if user can manage */}
-        {showRejectForm && canReject && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"
-          >
-            <div className="mb-2 flex items-center gap-1.5">
-              <Hash className="h-3.5 w-3.5 text-destructive" />
-              <p className="text-xs font-semibold text-destructive">
-                Rejection Reason
-              </p>
-            </div>
-            <textarea
-              value={rejectRemarks}
-              onChange={(e) => setRejectRemarks(e.target.value)}
-              rows={3}
-              placeholder="Explain why this grade is being rejected…"
-              className="w-full resize-none rounded-xl border border-border bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
-            />
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={() => {
-                  setShowRejectForm(false)
-                  setRejectRemarks("")
-                }}
-                className="rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={!rejectRemarks.trim() || loading}
-                className="flex items-center gap-1.5 rounded-xl bg-destructive px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                Confirm Reject
-              </button>
-            </div>
-          </motion.div>
-        )}
       </div>
     </Modal>
   )

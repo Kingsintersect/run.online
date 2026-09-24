@@ -104,7 +104,10 @@ export default function GradeReportsPage() {
         <div className="page-header">
           <div className="page-header-text">
             <h2>Grade Reports</h2>
-            <p>School-wide academic performance, by faculty and by program</p>
+            <p>
+              School-wide academic performance, by faculty and by program —
+              based on published results only
+            </p>
           </div>
           <button
             className="btn-refresh"

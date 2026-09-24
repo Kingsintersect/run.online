@@ -2,169 +2,125 @@
 
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import PublishResultsPage from "./PublishResults"
 import GradesResultsPage from "./Results"
 import GradesSummaryPage from "./StudentGrade"
-import GradingSchemesPage from "./GradingSchemes"
 import StudentResultsPage from "../StudentResultsPage"
-import { BulkGradeForm } from "../BulkGradeForm"
-import { TutorCourseGradeBook } from "../TutorCourseGradeBook"
+import { ResultsWorkspace } from "../results/results-workspace"
+import { ResultSheetView } from "../results/result-sheet-view"
+import { AdjustmentApprovalsQueue } from "../results/adjustment-approvals-queue"
+import { PublishResultsPanel } from "../results/publish-results-panel"
+import { ResultConfiguration } from "../results/result-configuration"
+import { RESULTS_PERMISSIONS as P } from "../../lib/results-permissions"
 
-// ========== GRADE SUMMARY SHELL (Student View) ==========
-// Shows: Grade distribution, top performers, grade scale
-// Requires: my-results:view — was checking "results:view.own", which never
-// existed as a real permission (see permission-audit findings, 2026-09-01);
-// students' actual self-view permission follows the established "my-X"
-// family (my-application, my-courses, my-timetable, my-assessments, etc.).
+// Every results screen is gated by the contract C6 permissions in
+// RESULTS_PERMISSIONS — never by role. Route pages wrap these shells in
+// <RoleGuard> for route ownership; these gates decide what's inside.
+//
+// 2026-09-24: TutorGradeBookShell and TutorSubmitShell were removed — tutors
+// grade only in Moodle. HOD and DEAN share the tutor routes; what each role
+// can do on /tutor/results comes from its permissions.
+
+// ========== GRADE SUMMARY (analytics) ==========
+// Was gated on my-results.view (a student permission) — corrected to the
+// analytics permission (grades-summary.view, C6 results.analytics.view).
 export function GradeSummaryShell() {
   const { can } = usePermissions()
-
-  const canViewOwn = can({ resource: "my-results", action: "view" })
-
   return (
     <div className="space-y-8">
-      <PermissionGate require={{ resource: "my-results", action: "view" }}>
-        <GradesSummaryPage canViewOwn={canViewOwn} />
+      <PermissionGate require={P.analyticsView} denyBehavior="screen">
+        <GradesSummaryPage canView={can(P.analyticsView)} />
       </PermissionGate>
     </div>
   )
 }
 
-// ========== RESULTS SHELL (Admin/Tutor View) ==========
-// Shows: Grades table, filters, grouped view, export
-// Requires: results:view.all OR results:manage (both real, granted
-// permissions as of 2026-09-01 — view.all was a previously-orphaned
-// permission (id 1) never granted to any role until the audit found it).
-export function ResultShell() {
+// ========== ALL GRADES (legacy flat table, read-only) ==========
+export function AllGradesShell() {
   const { can } = usePermissions()
-
   const canViewAll = can({ resource: "results", action: "view.all" })
-  const canManage = can({ resource: "results", action: "manage" })
-  const canExport = can({ resource: "results", action: "export" })
-  // "results:analyze" never existed as a real permission — the grouped/
-  // analytics view this gates is the same concept the system-wide
-  // analytics.view permission already covers (granted to admin/dean).
-  const canAnalyze = can({ resource: "analytics", action: "view" })
-
+  const canView = can(P.view)
   return (
     <div className="space-y-8">
       <PermissionGate
-        require={[
-          { resource: "results", action: "view.all" },
-          { resource: "results", action: "manage" },
-        ]}
+        require={[{ resource: "results", action: "view.all" }, P.view]}
         mode="any"
+        denyBehavior="screen"
       >
         <GradesResultsPage
-          canViewAll={canViewAll}
-          canManage={canManage}
-          canExport={canExport}
-          canAnalyze={canAnalyze}
+          canViewAll={canViewAll || canView}
+          canManage={false}
+          canExport={can(P.export)}
+          canAnalyze={can({ resource: "analytics", action: "view" })}
         />
       </PermissionGate>
     </div>
   )
 }
 
-// ========== PUBLISH RESULTS SHELL ==========
-// Shows: Course selector, student grades, publish button
-// Requires: results:publish (permission 4)
-export function PublishResultShell() {
-  const { can } = usePermissions()
-
-  const canPublish = can({ resource: "results", action: "publish" })
-  const canManage = can({ resource: "results", action: "manage" })
-
+// ========== RESULTS WORKSPACE (screen A) ==========
+export function ResultsWorkspaceShell({
+  sheetBasePath,
+}: {
+  sheetBasePath: string
+}) {
   return (
-    <div className="space-y-8">
-      <PermissionGate require={{ resource: "results", action: "publish" }}>
-        <PublishResultsPage canPublish={canPublish} canManage={canManage} />
-      </PermissionGate>
-    </div>
+    <PermissionGate require={P.view} denyBehavior="screen">
+      <ResultsWorkspace sheetBasePath={sheetBasePath} />
+    </PermissionGate>
   )
 }
 
-// ========== STUDENT RESULT SHELL ==========
-// Shows: Student's own published grades grouped by semester + CGPA history
-// Requires: my-results:view — see GradeSummaryShell's note above.
+// ========== RESULT SHEET (screen B) ==========
+export function ResultSheetShell({
+  offeringId,
+  backHref,
+}: {
+  offeringId: number
+  backHref: string
+}) {
+  return (
+    <PermissionGate require={P.view} denyBehavior="screen">
+      <ResultSheetView offeringId={offeringId} backHref={backHref} />
+    </PermissionGate>
+  )
+}
+
+// ========== ADJUSTMENT APPROVALS (screen C) ==========
+export function AdjustmentApprovalsShell() {
+  return (
+    <PermissionGate require={P.adjustApprove} denyBehavior="screen">
+      <AdjustmentApprovalsQueue />
+    </PermissionGate>
+  )
+}
+
+// ========== PUBLISH RESULTS (screen D) ==========
+export function PublishResultShell() {
+  return (
+    <PermissionGate require={P.publish} denyBehavior="screen">
+      <PublishResultsPanel />
+    </PermissionGate>
+  )
+}
+
+// ========== RESULT CONFIGURATION (screen E) ==========
+export function ResultConfigurationShell() {
+  return (
+    <PermissionGate
+      require={[P.schemesManage, P.policiesManage, P.view]}
+      mode="any"
+      denyBehavior="screen"
+    >
+      <ResultConfiguration />
+    </PermissionGate>
+  )
+}
+
+// ========== STUDENT RESULTS (screen G) ==========
 export function StudentResultShell() {
   return (
-    <PermissionGate
-      require={{ resource: "my-results", action: "view" }}
-      denyBehavior="modal"
-    >
+    <PermissionGate require={P.viewOwn} denyBehavior="modal">
       <StudentResultsPage />
-    </PermissionGate>
-  )
-}
-
-// ========== TUTOR GRADE BOOK SHELL ==========
-// Shows: course-scoped grade book — pick one of your offerings, see every
-// student's grade for that course + semester in one call
-// (GET /results/grades/course/:c/semester/:s).
-// Requires: gradebook:view or gradebook:manage — corrected 2026-09-23. Was
-// checking results:manage, which neither the tutor nor the HOD role (the two
-// roles that reach this shell — hodNav = tutorNav) actually hold; both were
-// specifically granted gradebook.view/gradebook.manage instead (confirmed
-// live via GET /auth/roles/:id — this is the real, purpose-built permission
-// pair for this exact screen, not a stand-in). Every real tutor/HOD account
-// was 403ing on this screen until this fix. Mirrors ResultShell's own
-// view-vs-manage pattern: gate on either, pass the granular canManage flag
-// down for the edit controls.
-export function TutorGradeBookShell() {
-  const { can } = usePermissions()
-
-  const canManage = can({ resource: "gradebook", action: "manage" })
-  const canExport = can({ resource: "results", action: "export" })
-
-  return (
-    <PermissionGate
-      require={[
-        { resource: "gradebook", action: "view" },
-        { resource: "gradebook", action: "manage" },
-      ]}
-      mode="any"
-      denyBehavior="modal"
-    >
-      <TutorCourseGradeBook canManage={canManage} canExport={canExport} />
-    </PermissionGate>
-  )
-}
-
-// ========== GRADING SCHEMES SHELL (Admin config) ==========
-// Shows: pluggable grading schemes (GPA / simple average / pass-fail) + scales
-// Requires: results:manage (permission 3) — same gate as ResultShell's manage side
-export function GradingSchemesShell() {
-  const { can } = usePermissions()
-
-  const canManage = can({ resource: "results", action: "manage" })
-
-  return (
-    <div className="space-y-8">
-      <PermissionGate
-        require={{ resource: "results", action: "manage" }}
-        denyBehavior="modal"
-      >
-        <GradingSchemesPage canManage={canManage} />
-      </PermissionGate>
-    </div>
-  )
-}
-
-// ========== TUTOR SUBMIT RESULTS SHELL ==========
-// Shows: Course + semester selector, student score inputs, submit button
-// Requires: results:submit — corrected 2026-09-23, was checking
-// results:manage (see TutorGradeBookShell's note above for the same class of
-// bug). The tutor/HOD role was specifically granted results.submit ("Submit
-// course results for approval (tutor-facing)") for exactly this screen —
-// confirmed live, results.manage isn't held by either role.
-export function TutorSubmitShell() {
-  return (
-    <PermissionGate
-      require={{ resource: "results", action: "submit" }}
-      denyBehavior="modal"
-    >
-      <BulkGradeForm />
     </PermissionGate>
   )
 }

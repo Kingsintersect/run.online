@@ -44,7 +44,7 @@ const ROUTE_FEATURE_RULES: RouteFeatureRule[] = [
 
   { prefix: "/admin/grades", feature: "grading" },
   { prefix: "/manager/grades", feature: "grading" },
-  { prefix: "/tutor/grading", feature: "grading" },
+  { prefix: "/tutor/results", feature: "grading" },
   { prefix: "/student/results", feature: "grading" },
   { prefix: "/director/grades", feature: "grading" },
 

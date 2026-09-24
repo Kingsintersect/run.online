@@ -295,26 +295,3 @@ export function useGrade(id: number | null) {
     staleTime: 30 * 1000,
   })
 }
-
-// ─── Grades for one course + semester (Lecturer / Admin) ─────────────────────
-
-export function useGradesByCourseAndSemester(
-  courseId: number | null,
-  semesterId: number | null
-) {
-  const query = useQuery({
-    queryKey: gradesKeys.byCourseAndSemester(courseId ?? 0, semesterId ?? 0),
-    queryFn: () =>
-      gradesService.getGradesByCourseAndSemester(
-        courseId as number,
-        semesterId as number
-      ),
-    enabled: !!courseId && !!semesterId,
-    staleTime: 60 * 1000,
-  })
-  return {
-    grades: query.data ?? [],
-    loading: query.isLoading,
-    isError: query.isError,
-  }
-}

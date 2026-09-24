@@ -15,7 +15,9 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { UNIVERSITY_LOGO_URL, UNIVERSITY_NAME } from "@/config/global.config"
 import { useAppStore } from "@/store"
 import { useMyStudentId } from "@/hooks/use-my-student-id"
-import { useStudentTranscript } from "../../hooks/use-grades-data"
+import { useProgram } from "@/hooks/useCourseStructure"
+import { useStudentCgpa } from "../../hooks/use-grades-data"
+import { useMyPublishedGrades } from "../../hooks/use-results"
 import { generateResultPdf } from "./generateResultPdf"
 import {
   AcademicStanding,
@@ -40,29 +42,33 @@ function getCurrentAcademicYearLabel(date = new Date()) {
 
 export default function StudentResultHistoryPage() {
   const user = useAppStore((state) => state.user)
-  const { studentId } = useMyStudentId()
-  const { transcript, loading } = useStudentTranscript(studentId)
+  const { studentId, programId } = useMyStudentId()
+  const { data: programRes } = useProgram(programId)
+  const gradesQuery = useMyPublishedGrades(studentId)
+  const cgpa = useStudentCgpa(studentId)
+  const loading = gradesQuery.isLoading || cgpa.loading
+  const grades = gradesQuery.data
   const [selectedAcademicYear, setSelectedAcademicYear] = useState("")
   const [selectedSemesterId, setSelectedSemesterId] = useState("")
   const [isDownloading, setIsDownloading] = useState(false)
   const currentAcademicYear = useMemo(() => getCurrentAcademicYearLabel(), [])
 
   const semesterOptions = useMemo(() => {
-    if (!transcript) return []
+    if (!grades) return []
 
     return Array.from(
       new Map(
-        transcript.grades.map((grade) => [
-          `${grade.academicYear}::${grade.semesterId}`,
+        grades.map((grade) => [
+          `${grade.academicSession}::${grade.semesterId}`,
           {
-            academicYear: grade.academicYear,
-            semesterId: grade.semesterId,
+            academicYear: grade.academicSession,
+            semesterId: String(grade.semesterId),
             semesterName: grade.semesterName,
           },
         ])
       ).values()
     )
-  }, [transcript]).sort((left, right) => {
+  }, [grades]).sort((left, right) => {
     if (left.academicYear === right.academicYear) {
       return left.semesterName.localeCompare(right.semesterName)
     }
@@ -95,36 +101,33 @@ export default function StudentResultHistoryPage() {
   }, [academicYearOptions, currentAcademicYear, selectedAcademicYear])
 
   const filteredGrades = useMemo(() => {
-    if (!transcript) return []
-    return transcript.grades.filter((grade) => {
-      if (grade.status !== "PUBLISHED") return false
+    if (!grades) return []
+    return grades.filter((grade) => {
       const matchesYear =
-        !selectedAcademicYear || grade.academicYear === selectedAcademicYear
+        !selectedAcademicYear || grade.academicSession === selectedAcademicYear
       const matchesSemester =
-        !selectedSemesterId || grade.semesterId === selectedSemesterId
+        !selectedSemesterId || String(grade.semesterId) === selectedSemesterId
       return matchesYear && matchesSemester
     })
-  }, [transcript, selectedAcademicYear, selectedSemesterId])
+  }, [grades, selectedAcademicYear, selectedSemesterId])
 
   const reportCourses = useMemo(
     () => toReportCourses(filteredGrades),
     [filteredGrades]
   )
   const authoritativeGpa = useMemo(() => {
-    if (!transcript || !selectedSemesterId) return null
-    const entry = transcript.cgpaHistory.find(
-      (h) => h.semesterId === selectedSemesterId
-    )
+    if (!selectedSemesterId) return null
+    const entry = cgpa.history.find((h) => h.semesterId === selectedSemesterId)
     return entry?.gpa ?? null
-  }, [transcript, selectedSemesterId])
+  }, [cgpa.history, selectedSemesterId])
   const reportSummary = useMemo(
     () => calculateReportSummary(reportCourses, authoritativeGpa),
     [reportCourses, authoritativeGpa]
   )
   const studentInfo = useMemo(() => {
-    if (!transcript) return null
-    return buildReportStudentInfo(transcript, user)
-  }, [transcript, user])
+    if (!grades) return null
+    return buildReportStudentInfo(user, programRes?.data.name ?? "—")
+  }, [grades, user, programRes])
 
   const selectedSemester =
     filteredOptions.find(
@@ -166,7 +169,7 @@ export default function StudentResultHistoryPage() {
     )
   }
 
-  if (!transcript || !studentInfo) {
+  if (!grades || !studentInfo) {
     return null
   }
 

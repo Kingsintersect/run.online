@@ -76,18 +76,20 @@ export default function TutorPage() {
         focusTitle="Teaching Agenda"
         focusItems={focusItems}
         quickActions={[
+          // Grading happens in Moodle only (2026-09-24). "Open in Moodle"
+          // lives on each course card in My Courses.
           {
-            title: "Submit results",
-            href: "/tutor/grading/submit",
+            title: "Grade in Moodle",
+            href: "/tutor/courses",
             description:
-              "Push approved scores into the semester result workflow.",
+              "Open a course in Moodle and grade in its CA and EXAM categories.",
             icon: FileText,
             tone: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
           },
           {
-            title: "Open grade book",
-            href: "/tutor/grading/book",
-            description: "Review scripts, moderation notes, and grade trends.",
+            title: "Course results",
+            href: "/tutor/results",
+            description: "See the marks pulled from Moodle for your courses.",
             icon: ClipboardList,
             tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
           },

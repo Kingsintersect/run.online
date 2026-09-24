@@ -3,6 +3,11 @@ import type {
   GradesGroupBy,
   PublishSelectionFilters,
 } from "../types/grades.types"
+import type {
+  AdjustmentQueueFilters,
+  PullJobFilters,
+  ResultSheetFilters,
+} from "../types"
 
 export const gradesKeys = {
   all: ["grades"] as const,
@@ -50,4 +55,46 @@ export const gradesKeys = {
 
   publishPreview: (filters: PublishSelectionFilters) =>
     [...gradesKeys.all, "publish-preview", filters] as const,
+} as const
+
+// ─── Results from Moodle (contract C7) ─────────────────────────────────────
+// Separate namespace from `gradesKeys`: sheet-level mutations invalidate the
+// precise slices below, and publishing also invalidates `gradesKeys.all`
+// (analytics, CGPA, transcripts all read published grades).
+export const resultsKeys = {
+  all: ["results"] as const,
+
+  sheetsAll: () => [...resultsKeys.all, "sheets"] as const,
+  sheets: (filters: ResultSheetFilters) =>
+    [...resultsKeys.sheetsAll(), filters] as const,
+  sheet: (offeringId: number) =>
+    [...resultsKeys.all, "sheet", offeringId] as const,
+  gradeItems: (offeringId: number) =>
+    [...resultsKeys.all, "grade-items", offeringId] as const,
+  adjustments: (offeringId: number) =>
+    [...resultsKeys.all, "adjustments", offeringId] as const,
+  adjustmentQueueAll: () => [...resultsKeys.all, "adjustment-queue"] as const,
+  adjustmentQueue: (filters: AdjustmentQueueFilters) =>
+    [...resultsKeys.adjustmentQueueAll(), filters] as const,
+
+  pullJob: (id: number) => [...resultsKeys.all, "pull-job", id] as const,
+  pullJobs: (filters: PullJobFilters) =>
+    [...resultsKeys.all, "pull-jobs", filters] as const,
+
+  publishPreviewAll: () => [...resultsKeys.all, "publish-preview"] as const,
+  publishPreview: (semesterId: number, majorProgramId: number | null) =>
+    [...resultsKeys.publishPreviewAll(), semesterId, majorProgramId] as const,
+
+  schemesAll: () => [...resultsKeys.all, "schemes"] as const,
+  schemes: (majorProgramId: number | null) =>
+    [...resultsKeys.schemesAll(), majorProgramId] as const,
+  schemeResolution: (programId: number) =>
+    [...resultsKeys.schemesAll(), "resolve", programId] as const,
+  policy: (majorProgramId: number) =>
+    [...resultsKeys.all, "policy", majorProgramId] as const,
+
+  resultStatus: (semesterId: number) =>
+    [...resultsKeys.all, "result-status", semesterId] as const,
+  studentGrades: (studentId: number) =>
+    [...resultsKeys.all, "student-grades", studentId] as const,
 } as const

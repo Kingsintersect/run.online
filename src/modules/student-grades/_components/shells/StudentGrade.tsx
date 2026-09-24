@@ -36,11 +36,11 @@ const fadeUp = {
 }
 
 interface GradesSummaryPageProps {
-  canViewOwn?: boolean
+  canView?: boolean
 }
 
 export default function GradesSummaryPage({
-  canViewOwn = true,
+  canView = true,
 }: GradesSummaryPageProps) {
   // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
   // A35. Sent ahead of the backend per CLAUDE.md §14.
@@ -94,7 +94,7 @@ export default function GradesSummaryPage({
   }, [])
 
   // If user doesn't have permission, show nothing
-  if (!canViewOwn) return null
+  if (!canView) return null
 
   return (
     <div className="space-y-5">
@@ -102,6 +102,13 @@ export default function GradesSummaryPage({
         value={majorProgramId}
         onChange={setMajorProgramId}
       />
+
+      {/* Contract C2.9: every figure here except the draft/pending workflow
+          counters is computed from PUBLISHED results only. */}
+      <p className="text-xs text-muted-foreground">
+        Based on published results only. Draft and pending counts reflect
+        results still in the approval workflow.
+      </p>
 
       {/* Rest of your component remains the same */}
       {!loading && stats && (
@@ -146,7 +153,7 @@ export default function GradesSummaryPage({
           </motion.div>
 
           {/* Top performers + Grade scale - only show for staff/tutors */}
-          {canViewOwn && topPerformers.length > 0 && (
+          {canView && topPerformers.length > 0 && (
             <motion.div
               variants={fadeUp}
               className="grid grid-cols-1 gap-4 lg:grid-cols-2"

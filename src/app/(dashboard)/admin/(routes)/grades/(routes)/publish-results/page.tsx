@@ -1,5 +1,11 @@
-import { PublishResultShell } from '@/modules/student-grades/_components/shells/StudentGradesShell'
+import RoleGuard from "@/components/dashboard/RoleGuard"
+import { UserRole } from "@/config/nav.config"
+import { PublishResultShell } from "@/modules/student-grades/_components/shells/StudentGradesShell"
 
-export default function SAGradePublishResults() {
-   return <PublishResultShell />   // same component, role-aware rendering inside
+export default function PublishResultsPage() {
+  return (
+    <RoleGuard role={[UserRole.SUPER_ADMIN]} permissions={["results.publish"]}>
+      <PublishResultShell />
+    </RoleGuard>
+  )
 }

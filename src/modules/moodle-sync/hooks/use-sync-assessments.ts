@@ -1,6 +1,6 @@
 "use client"
 
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { moodleSyncService } from "../services/moodle-sync.service"
 import { moodleSyncKeys } from "./query-keys"
 import type { AssessmentFilter } from "../types"
@@ -96,22 +96,5 @@ export function useAssessmentSyncStatus(enabled = true) {
     staleTime: 60 * 1000,
     refetchInterval: 2 * 60 * 1000,
     enabled,
-  })
-}
-
-// User-triggered ("Pull CA from Moodle" button), not an auto-fetching query —
-// modeled as a mutation over a GET, matching this session's established
-// pattern for on-demand preview loads (see student-grades' usePublishPreview).
-export function useCaPreview() {
-  return useMutation({
-    mutationFn: ({
-      offeringId,
-      semesterId,
-      caMax,
-    }: {
-      offeringId: number
-      semesterId: number
-      caMax?: number
-    }) => moodleSyncService.getCaPreview(offeringId, { semesterId, caMax }),
   })
 }
