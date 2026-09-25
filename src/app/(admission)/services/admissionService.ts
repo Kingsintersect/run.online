@@ -12,6 +12,7 @@
 import apiClient, {
   createApiMutationOptions,
   createApiQueryOptions,
+  type RequestOptions,
 } from "@/lib/clients/apiClient"
 import type {
   AdmissionStudent,
@@ -115,6 +116,54 @@ let mockStudent: AdmissionStudent = {
 /*  Public API                                                          */
 /* ------------------------------------------------------------------ */
 
+// GET /admission/student with caller-chosen request options (see the two
+// fetchStudentAdmission* methods below).
+async function getStudentAdmission(
+  opts: RequestOptions
+): Promise<AdmissionStudent> {
+  // Real API: GET /admission/student — Bruno: admission/Admission - Student Aggregate.bru
+  // Student Admission Progress spec §3. Composed server-side. Confirmed live 2026-08-25:
+  // wrapped in a `data` envelope like every other endpoint in this backend (the doc's
+  // "returns AdmissionStudent directly" was never actually true) — unwrap it here.
+  //
+  // The has_selected_program/program_*/entry_mode/study_mode/start_term fields aren't
+  // part of the live response yet (see sandbox/MISSING_BACKEND_APIS.md §2.5) — default
+  // them defensively so the "Choice Program" step degrades to "not yet chosen" instead
+  // of throwing, until the backend adds them. Typed as Partial here since the real
+  // response genuinely omits them today, unlike the full AdmissionStudent contract.
+  const { data } = await apiClient.get<{
+    data: Omit<
+      AdmissionStudent,
+      | "has_selected_program"
+      | "program_id"
+      | "program_name"
+      | "entry_mode"
+      | "study_mode"
+      | "start_term"
+    > &
+      Partial<
+        Pick<
+          AdmissionStudent,
+          | "has_selected_program"
+          | "program_id"
+          | "program_name"
+          | "entry_mode"
+          | "study_mode"
+          | "start_term"
+        >
+      >
+  }>("/admission/student", opts)
+  return {
+    has_selected_program: false,
+    program_id: null,
+    program_name: null,
+    entry_mode: null,
+    study_mode: null,
+    start_term: null,
+    ...data,
+  }
+}
+
 export const admissionService = {
   /* ---------- Fees ---------- */
   async fetchFees(): Promise<FeeSchedule> {
@@ -128,47 +177,21 @@ export const admissionService = {
 
   /* ---------- Student Data ---------- */
   async fetchStudentAdmission(): Promise<AdmissionStudent> {
-    // Real API: GET /admission/student — Bruno: admission/Admission - Student Aggregate.bru
-    // Student Admission Progress spec §3. Composed server-side. Confirmed live 2026-08-25:
-    // wrapped in a `data` envelope like every other endpoint in this backend (the doc's
-    // "returns AdmissionStudent directly" was never actually true) — unwrap it here.
-    //
-    // The has_selected_program/program_*/entry_mode/study_mode/start_term fields aren't
-    // part of the live response yet (see sandbox/MISSING_BACKEND_APIS.md §2.5) — default
-    // them defensively so the "Choice Program" step degrades to "not yet chosen" instead
-    // of throwing, until the backend adds them. Typed as Partial here since the real
-    // response genuinely omits them today, unlike the full AdmissionStudent contract.
-    const { data } = await apiClient.get<{
-      data: Omit<
-        AdmissionStudent,
-        | "has_selected_program"
-        | "program_id"
-        | "program_name"
-        | "entry_mode"
-        | "study_mode"
-        | "start_term"
-      > &
-        Partial<
-          Pick<
-            AdmissionStudent,
-            | "has_selected_program"
-            | "program_id"
-            | "program_name"
-            | "entry_mode"
-            | "study_mode"
-            | "start_term"
-          >
-        >
-    }>("/admission/student", AUTH)
-    return {
-      has_selected_program: false,
-      program_id: null,
-      program_name: null,
-      entry_mode: null,
-      study_mode: null,
-      start_term: null,
-      ...data,
-    }
+    return getStudentAdmission(AUTH)
+  },
+
+  // Same call with an explicit bearer token, for code that runs before the
+  // token has been stored in apiClient — the sign-in redirect decides where
+  // a STUDENT lands right after login (lib/auth/post-sign-in.ts). A separate
+  // method rather than an optional parameter, because fetchStudentAdmission
+  // is passed directly as a React Query queryFn (which calls it with a
+  // context object).
+  async fetchStudentAdmissionWithToken(
+    accessToken: string
+  ): Promise<AdmissionStudent> {
+    return getStudentAdmission({
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
   },
 
   /* ---------- Admission stages (sandbox/dynamic-admission/ §4) ---------- */

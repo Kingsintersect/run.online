@@ -1230,9 +1230,12 @@ function collectHrefs(items: NavItem[]): string[] {
  */
 export function resolveSignInRedirect(
   role: UserRole,
-  callbackUrl: string | null | undefined
+  callbackUrl: string | null | undefined,
+  // Overrides the role's static landing page — e.g. a STUDENT who is
+  // admitted and has paid tuition lands on /student/dashboard instead of
+  // /process-admission (decided asynchronously in lib/auth/post-sign-in.ts).
+  home: string = resolvePostSignInPath(role)
 ): string {
-  const home = resolvePostSignInPath(role)
   if (
     !callbackUrl ||
     !callbackUrl.startsWith("/") ||
