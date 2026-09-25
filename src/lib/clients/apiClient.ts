@@ -288,6 +288,11 @@ export class ApiClient {
     }
   }
 
+  /** The access token requests are currently sent with (memory, then storage). */
+  getAccessToken(): string | null {
+    return this.pickAuthToken()
+  }
+
   clearAccessToken(): void {
     this.memoryToken = null
     if (typeof window !== "undefined") {

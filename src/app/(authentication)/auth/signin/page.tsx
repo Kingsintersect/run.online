@@ -13,7 +13,7 @@ import ThemeToggle from "@/components/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { passwordSchema } from "@/lib/validations/zod"
-import { resolvePostSignInPath } from "@/config/nav.config"
+import { resolveSignInRedirect } from "@/config/nav.config"
 
 const signInFormSchema = z.object({
   identifier: z.string().min(1, "Email or username is required"),
@@ -46,7 +46,10 @@ function SignInFormContent() {
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
-      router.replace(callbackUrl || resolvePostSignInPath(session.user.role))
+      // Role-aware: a callbackUrl from another role's area (e.g. left over
+      // from someone else's expired session) is ignored in favour of this
+      // user's own dashboard.
+      router.replace(resolveSignInRedirect(session.user.role, callbackUrl))
     }
   }, [callbackUrl, router, status, session])
 
@@ -107,7 +110,7 @@ function SignInFormContent() {
         </div>
         <div className="hidden sm:block">
           <p className="text-xs font-semibold tracking-[0.18em] text-primary uppercase">
-            Redeemer's University of Nigeria Portal
+            Redeemer&apos;s University of Nigeria Portal
           </p>
           <p className="text-[11px] text-muted-foreground">
             Knowledge • Innovation • Service

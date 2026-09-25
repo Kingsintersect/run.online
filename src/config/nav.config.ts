@@ -1206,3 +1206,49 @@ export function resolvePostSignInPath(role: UserRole): string {
   }
   return roleDashboardPath[role]
 }
+
+// First path segment, e.g. "/manager/grades/results?x=1" -> "manager".
+const firstSegment = (path: string): string =>
+  path.split(/[?#]/)[0].split("/").filter(Boolean)[0] ?? ""
+
+function collectHrefs(items: NavItem[]): string[] {
+  return items.flatMap((i) => [
+    ...(i.href ? [i.href] : []),
+    ...collectHrefs(i.children ?? []),
+  ])
+}
+
+/**
+ * Role-aware post-sign-in destination. A `callbackUrl` (e.g. the page a user
+ * was on when their session ended) is honoured only when it is a same-site
+ * path inside the signed-in role's own area — the top-level route segments
+ * its nav tree and dashboard use (DEAN: /manager and /tutor; ADMIN: /manager;
+ * …). Conservative by design: an area a role can open but has no nav link to
+ * (e.g. SUPER_ADMIN on /director) also falls back to the role's own page. Anything else — another role's area, an auth
+ * page, an absolute or protocol-relative URL — falls back to the role's own
+ * landing page, so a user is never sent to a route their role can't open.
+ */
+export function resolveSignInRedirect(
+  role: UserRole,
+  callbackUrl: string | null | undefined
+): string {
+  const home = resolvePostSignInPath(role)
+  if (
+    !callbackUrl ||
+    !callbackUrl.startsWith("/") ||
+    callbackUrl.startsWith("//")
+  )
+    return home
+  const segment = firstSegment(callbackUrl)
+  if (!segment || segment === "auth") return home
+  const allowed = new Set(
+    [
+      ...collectHrefs(navConfig[role].flatMap((g) => g.items)),
+      home,
+      roleDashboardPath[role],
+    ]
+      .map(firstSegment)
+      .filter(Boolean)
+  )
+  return allowed.has(segment) ? callbackUrl : home
+}
