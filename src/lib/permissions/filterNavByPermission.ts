@@ -11,7 +11,12 @@ function filterItems(
 ): NavItem[] {
   const out: NavItem[] = []
   for (const item of items) {
-    if (item.permission && !can(item.permission)) continue
+    if (item.permission) {
+      const checks = Array.isArray(item.permission)
+        ? item.permission
+        : [item.permission]
+      if (!checks.some(can)) continue
+    }
     const children = item.children ? filterItems(item.children, can) : undefined
     if (item.children && !item.href && (!children || children.length === 0))
       continue

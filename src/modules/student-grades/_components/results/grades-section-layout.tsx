@@ -18,7 +18,10 @@ import {
   usePermissions,
   type PermissionCheck,
 } from "@/lib/permissions/usePermissions"
-import { RESULTS_PERMISSIONS as P } from "../../lib/results-permissions"
+import {
+  ANALYTICS_PERMISSIONS,
+  RESULTS_PERMISSIONS as P,
+} from "../../lib/results-permissions"
 
 interface SectionTab {
   label: string
@@ -39,7 +42,7 @@ const TABS: SectionTab[] = [
     label: "Summary",
     segment: "summary",
     Icon: BarChart2,
-    anyOf: [P.analyticsView],
+    anyOf: ANALYTICS_PERMISSIONS,
   },
   {
     label: "Adjustment approvals",

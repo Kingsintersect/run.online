@@ -19,6 +19,12 @@ import { NotAvailableNotice } from "./not-available-notice"
 interface MoodlePullPanelProps {
   semesterId: number | null
   selectedOfferingIds: number[]
+  /**
+   * Newest `lastPullJobId` among the sheets on screen (A45 CR2). Used as a
+   * last resort to resume a pull someone else started; shown only while
+   * that job is still running.
+   */
+  recentJobId?: number | null
   onStarted?: () => void
 }
 
@@ -43,6 +49,7 @@ const STATUS_LABEL = {
 export function MoodlePullPanel({
   semesterId,
   selectedOfferingIds,
+  recentJobId = null,
   onStarted,
 }: MoodlePullPanelProps) {
   const router = useRouter()
@@ -66,7 +73,8 @@ export function MoodlePullPanel({
   const resumedId = activeJobs.data?.available
     ? (activeJobs.data.data.data[0]?.id ?? null)
     : null
-  const candidate = urlJobId ?? resumedId
+  const candidate = urlJobId ?? resumedId ?? recentJobId
+  const fromRecentOnly = urlJobId == null && resumedId == null
   const jobId =
     candidate != null && candidate !== dismissedId ? candidate : null
 
@@ -79,7 +87,13 @@ export function MoodlePullPanel({
   }
 
   const job = usePullJob(jobId)
-  const jobData = job.data?.available ? job.data.data : null
+  const fetchedJob = job.data?.available ? job.data.data : null
+  // A finished job found only via a sheet's lastPullJobId is history, not a
+  // pull in progress — don't resurface it.
+  const jobData =
+    fetchedJob && fromRecentOnly && isTerminalPull(fetchedJob.status)
+      ? null
+      : fetchedJob
 
   // A URL job that no longer exists or isn't visible to this user (real 404,
   // not a missing route) is dropped from the URL rather than kept forever.

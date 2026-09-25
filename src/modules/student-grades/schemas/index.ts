@@ -78,11 +78,18 @@ export const ResultSheetSummarySchema = z.object({
   withheldCount: z.number(),
   lastPulledAt: z.string().nullable(),
   lecturers: z.array(z.object({ id: z.number(), name: z.string() })),
-  // Contract v1.1, not live yet (A46). Optional so today's responses parse;
-  // when absent the UI says nothing about weights (never inferred).
+  // Contract v1.1 (A46), live 2026-09-26. Still optional, so an older
+  // deployment parses; when absent the UI says nothing about weights.
   caWeight: decimalOrNull.optional(),
   examWeight: decimalOrNull.optional(),
   weightSource: WeightSourceSchema.optional(),
+  // A45 CR2 / CR1, live 2026-09-26 (optional for the same reason).
+  lastPullJobId: z.number().nullable().optional(),
+  submittedBy: z
+    .object({ id: z.number(), name: z.string() })
+    .nullable()
+    .optional(),
+  submittedAt: z.string().nullable().optional(),
 })
 
 export const SheetRowItemSchema = z.object({
@@ -230,6 +237,8 @@ export const AdjustmentBatchSchema = z.object({
   affected: z.number(),
   capped: z.number(),
   createdBy: z.string(),
+  // A45 CR1: lets the UI hide Approve from the batch's creator.
+  createdById: z.number().optional(),
   creatorRole: z.string(),
   approvedBy: z.string().nullable(),
   approvedAt: z.string().nullable(),

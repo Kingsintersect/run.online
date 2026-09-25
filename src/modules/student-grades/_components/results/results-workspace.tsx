@@ -83,6 +83,10 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
   const sheets = useResultSheets(filters)
   const notAvailable = sheets.data?.available === false
   const page = sheets.data?.available ? sheets.data.data : null
+  const recentJobIds = (page?.data ?? [])
+    .map((r) => r.lastPullJobId)
+    .filter((id): id is number => id != null)
+  const recentJobId = recentJobIds.length ? Math.max(...recentJobIds) : null
 
   return (
     <div className="space-y-5">
@@ -205,6 +209,7 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
           <MoodlePullPanel
             semesterId={w.semesterId}
             selectedOfferingIds={selectedIds}
+            recentJobId={recentJobId}
             onStarted={() => setSelectedIds([])}
           />
         </Suspense>

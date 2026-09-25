@@ -62,11 +62,14 @@ export interface NavItem {
   href?: string
   icon: LucideIcon
   /**
-   * Hides the item unless the session holds this permission (filtered in
+   * Hides the item unless the session holds this permission, or any one of
+   * a list of them (filtered in
    * Sidebar.tsx). Lets roles that share routes (TUTOR/HOD/DEAN on /tutor)
    * see only what their permissions allow, instead of a role check.
    */
-  permission?: { resource: string; action: string }
+  permission?:
+    | { resource: string; action: string }
+    | { resource: string; action: string }[]
   badge?: string | number
   badgeVariant?: string
   matchExactOnly?: boolean
@@ -516,7 +519,10 @@ const adminNav: NavGroup[] = [
         href: "/manager/grades/summary",
         matchExactOnly: true,
         icon: BarChart,
-        permission: { resource: "grades-summary", action: "view" },
+        permission: [
+          { resource: "results", action: "analytics.view" },
+          { resource: "grades-summary", action: "view" },
+        ],
       },
       {
         title: "Course Results",
@@ -852,7 +858,10 @@ const superAdminNav: NavGroup[] = [
         href: "/admin/grades/summary",
         matchExactOnly: true,
         icon: BarChart,
-        permission: { resource: "grades-summary", action: "view" },
+        permission: [
+          { resource: "results", action: "analytics.view" },
+          { resource: "grades-summary", action: "view" },
+        ],
       },
       {
         title: "Course Results",

@@ -80,7 +80,11 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
         </div>
       </div>
 
-      {s.weightSource === "NONE" && (
+      {/* Before the first pull the backend reports NONE for every sheet
+          (nothing has been read from Moodle yet), so the blocking alert only
+          appears once the sheet has been pulled. Open question in A46:
+          confirm NONE-before-pull means "not known yet". */}
+      {s.weightSource === "NONE" && s.lastPulledAt != null && (
         <div
           role="alert"
           className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5"

@@ -10,7 +10,10 @@ import { ResultSheetView } from "../results/result-sheet-view"
 import { AdjustmentApprovalsQueue } from "../results/adjustment-approvals-queue"
 import { PublishResultsPanel } from "../results/publish-results-panel"
 import { ResultConfiguration } from "../results/result-configuration"
-import { RESULTS_PERMISSIONS as P } from "../../lib/results-permissions"
+import {
+  ANALYTICS_PERMISSIONS,
+  RESULTS_PERMISSIONS as P,
+} from "../../lib/results-permissions"
 
 // Every results screen is gated by the contract C6 permissions in
 // RESULTS_PERMISSIONS — never by role. Route pages wrap these shells in
@@ -22,13 +25,18 @@ import { RESULTS_PERMISSIONS as P } from "../../lib/results-permissions"
 
 // ========== GRADE SUMMARY (analytics) ==========
 // Was gated on my-results.view (a student permission) — corrected to the
-// analytics permission (grades-summary.view, C6 results.analytics.view).
+// analytics permission: C6 results.analytics.view, or the older
+// grades-summary.view (either is accepted).
 export function GradeSummaryShell() {
-  const { can } = usePermissions()
+  const { canAny } = usePermissions()
   return (
     <div className="space-y-8">
-      <PermissionGate require={P.analyticsView} denyBehavior="screen">
-        <GradesSummaryPage canView={can(P.analyticsView)} />
+      <PermissionGate
+        require={ANALYTICS_PERMISSIONS}
+        mode="any"
+        denyBehavior="screen"
+      >
+        <GradesSummaryPage canView={canAny(...ANALYTICS_PERMISSIONS)} />
       </PermissionGate>
     </div>
   )

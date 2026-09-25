@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useAdjustmentQueue } from "../../hooks/use-results"
 import { useDecideBatch } from "../../hooks/use-results-mutations"
 import { BatchApproveSchema, BatchRejectSchema } from "../../schemas"
+import { useCurrentUserId } from "../../hooks/use-current-user-id"
 import { NotAvailableNotice } from "./not-available-notice"
 import { ReasonDialog } from "./reason-dialog"
 import { SemesterPicker } from "./semester-picker"
@@ -19,9 +20,9 @@ const PAGE_SIZE = 20
 
 // Screen C — PENDING_APPROVAL batches (HOD/DEAN adjustments above the major
 // program's threshold). Gate results.adjust.approve at the page. The creator
-// of a batch can't approve it — enforced server-side; the batch only carries
-// the creator's name, not id, so the UI can't hide it reliably (contract
-// change request logged in BACKEND_DEVIATIONS).
+// of a batch can't approve it: enforced server-side (403
+// SEPARATION_OF_DUTIES), and since 2026-09-26 batches carry `createdById`,
+// so Approve is hidden on your own batches too.
 export function AdjustmentApprovalsQueue() {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const [semesterId, setSemesterId] = useState<number | null>(null)
@@ -38,6 +39,7 @@ export function AdjustmentApprovalsQueue() {
     limit: PAGE_SIZE,
   })
   const decide = useDecideBatch()
+  const currentUserId = useCurrentUserId()
   const data = queue.data?.available ? queue.data.data : null
   const totalPages = data
     ? (data.meta.totalPages ??
@@ -112,15 +114,21 @@ export function AdjustmentApprovalsQueue() {
                   </p>
                   <p className="text-xs text-foreground/80">“{b.reason}”</p>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      setDeciding({ batch: b, decision: "approve" })
-                    }
-                  >
-                    <ShieldCheck className="size-3.5" aria-hidden /> Approve
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {currentUserId != null && b.createdById === currentUserId ? (
+                    <span className="text-xs text-muted-foreground">
+                      Your adjustment — someone else must approve it.
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        setDeciding({ batch: b, decision: "approve" })
+                      }
+                    >
+                      <ShieldCheck className="size-3.5" aria-hidden /> Approve
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="destructive"

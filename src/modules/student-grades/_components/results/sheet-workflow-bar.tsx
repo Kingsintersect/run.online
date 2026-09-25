@@ -18,6 +18,7 @@ import {
 } from "../../hooks/use-results-mutations"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
 import { toResultsApiError } from "../../lib/results-errors"
+import { useCurrentUserId } from "../../hooks/use-current-user-id"
 import { ReasonDialog } from "./reason-dialog"
 import type { ResultSheetSummary } from "../../types"
 
@@ -27,8 +28,10 @@ type Dialog = "approve" | "reject" | "reopen" | null
 // Buttons appear by permission AND the sheet's state; the server remains the
 // authority and its 409 message ("2 unmapped items", "pending adjustment
 // approval", …) is shown as-is. Separation of duties (the submitter can't
-// approve) is enforced server-side — the sheet summary doesn't carry the
-// submitter's id yet (contract change request, see BACKEND_DEVIATIONS).
+// approve) is enforced server-side (403 SEPARATION_OF_DUTIES); since
+// 2026-09-26 the summary carries `submittedBy`, so Approve is also hidden
+// from the submitter. Reject stays available — the contract only forbids
+// approving your own submission.
 export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
   const id = sheet.offeringId
   const submit = useSubmitSheet(id)
@@ -36,6 +39,9 @@ export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
   const reject = useRejectSheet(id)
   const reopen = useReopenSheet(id)
   const [dialog, setDialog] = useState<Dialog>(null)
+  const currentUserId = useCurrentUserId()
+  const isSubmitter =
+    currentUserId != null && sheet.submittedBy?.id === currentUserId
 
   const onSubmit = async () => {
     try {
@@ -67,9 +73,15 @@ export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
       )}
       {status === "SUBMITTED" && (
         <PermissionGate require={RESULTS_PERMISSIONS.approve}>
-          <Button onClick={() => setDialog("approve")}>
-            <ShieldCheck className="size-4" aria-hidden /> Approve
-          </Button>
+          {isSubmitter ? (
+            <span className="text-xs text-muted-foreground">
+              You submitted this sheet — someone else must approve it.
+            </span>
+          ) : (
+            <Button onClick={() => setDialog("approve")}>
+              <ShieldCheck className="size-4" aria-hidden /> Approve
+            </Button>
+          )}
           <Button variant="destructive" onClick={() => setDialog("reject")}>
             <XCircle className="size-4" aria-hidden /> Reject
           </Button>
