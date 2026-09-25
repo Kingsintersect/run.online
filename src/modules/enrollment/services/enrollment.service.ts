@@ -53,11 +53,23 @@ const AUTH = { access_token: true } as const
 interface RawEnrollment {
   id: number
   studentId: number
-  offeringId: number
-  semesterId: number
+  offeringId?: number
+  semesterId?: number
   status: EnrollmentStatus
-  enrolledAt: string
-  droppedAt: string | null
+  enrolledAt?: string
+  droppedAt?: string | null
+  // Confirmed live 2026-09-24 (GET /enrollments/offering/:id): the real
+  // response is flat — {id, studentId, matricNumber, name, status}, no
+  // `offeringId`/`semesterId`/`enrolledAt`/`droppedAt`, and no nested
+  // `student` object at all. The nested-`student.user` shape this file's own
+  // header called "best-effort — By-Offering nests `student`" was wrong;
+  // that assumption silently produced blank names/matric numbers on every
+  // screen using this endpoint (Attendance, and Submit Results' roster).
+  // Kept as a fallback below in case a richer/nested shape shows up on a
+  // different endpoint that shares this type, per this file's own defensive
+  // multi-shape convention.
+  name?: string
+  matricNumber?: string
   offering?: {
     course?: { code?: string; title?: string; creditUnits?: number }
     lecturers?: {
@@ -138,23 +150,34 @@ function fullName(
 function mapEnrollment(
   raw: RawEnrollment,
   offeringsById: Map<number, CourseOffering>,
-  studentsById: Map<number, Student>
+  studentsById: Map<number, Student>,
+  // The real By-Offering response doesn't echo `offeringId` back on each row
+  // (see RawEnrollment's own note) — the caller already knows it, since it's
+  // what was passed to the request in the first place.
+  fallbackOfferingId?: number
 ): EnrollmentRecord {
-  const offering = offeringsById.get(raw.offeringId)
+  const offeringId = raw.offeringId ?? fallbackOfferingId ?? 0
+  const offering = offeringsById.get(offeringId)
   const student = studentsById.get(raw.studentId)
   const lecturerUser = raw.offering?.lecturers?.[0]?.lecturer?.user
   return {
     id: raw.id,
     studentId: raw.studentId,
-    offeringId: raw.offeringId,
-    semesterId: raw.semesterId,
+    offeringId,
+    semesterId: raw.semesterId ?? offering?.semester_id ?? 0,
     status: raw.status,
-    enrolledAt: raw.enrolledAt,
-    droppedAt: raw.droppedAt,
-    studentName: raw.student?.user
-      ? fullName(raw.student.user)
-      : fullName(student?.user),
-    studentMatric: raw.student?.matricNumber ?? student?.matric_number ?? "—",
+    enrolledAt: raw.enrolledAt ?? "",
+    droppedAt: raw.droppedAt ?? null,
+    studentName:
+      raw.name ??
+      (raw.student?.user
+        ? fullName(raw.student.user)
+        : fullName(student?.user)),
+    studentMatric:
+      raw.matricNumber ??
+      raw.student?.matricNumber ??
+      student?.matric_number ??
+      "—",
     courseCode: raw.offering?.course?.code ?? offering?.course_code ?? "—",
     courseTitle: raw.offering?.course?.title ?? offering?.course_title ?? "—",
     creditUnits:
@@ -239,7 +262,9 @@ export const enrollmentApi = {
       ),
       buildLookups(),
     ])
-    return res.data.map((r) => mapEnrollment(r, offeringsById, studentsById))
+    return res.data.map((r) =>
+      mapEnrollment(r, offeringsById, studentsById, offeringId)
+    )
   },
 
   // Rejects on duplicate enrollment, closed offering, capacity, registration
