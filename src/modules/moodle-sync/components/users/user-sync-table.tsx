@@ -13,9 +13,10 @@ import { usePushUser } from "../../hooks/use-sync-mutations"
 import { useMoodleSyncUiStore } from "../../store/moodle-sync-ui.store"
 import { SyncStatusBadge } from "../shared/sync-status-badge"
 import { UserBulkPushToolbar } from "./user-bulk-push-toolbar"
+import { describeSyncError } from "../../lib/sync-error"
 
 export function UserSyncTable() {
-  const { data = [], isLoading, isError } = useSyncUsers()
+  const { data = [], isLoading, isError, error } = useSyncUsers()
   const pushUser = usePushUser()
   const selectedUserIds = useMoodleSyncUiStore((s) => s.selectedUserIds)
   const toggleUserSelected = useMoodleSyncUiStore((s) => s.toggleUserSelected)
@@ -43,7 +44,7 @@ export function UserSyncTable() {
     return (
       <EmptyState
         title="Couldn't load user sync mappings"
-        description="Please try again."
+        description={describeSyncError(error).description}
       />
     )
   }

@@ -20,6 +20,7 @@ import {
   type ResolveDriftMode,
 } from "./resolve-drift-dialog"
 import type { EnrollmentDriftFilters, EnrollmentDriftItem } from "../../types"
+import { describeSyncError } from "../../lib/sync-error"
 
 // Enrollment drift — sandbox/moodle-sync-reconciliation/ENROLLMENT_DRIFT.md.
 // The portal is the authority: this
@@ -283,7 +284,7 @@ export function EnrollmentDriftPanel() {
       ) : drift.isError ? (
         <EmptyState
           title="Couldn't load enrollment drift"
-          description="Something went wrong loading the drift report. Try again shortly."
+          description={describeSyncError(drift.error).description}
         />
       ) : items.length === 0 ? (
         <EmptyState

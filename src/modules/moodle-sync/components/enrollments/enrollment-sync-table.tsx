@@ -13,9 +13,10 @@ import {
 } from "../../hooks/use-sync-mutations"
 import { SyncStatusBadge } from "../shared/sync-status-badge"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
+import { describeSyncError } from "../../lib/sync-error"
 
 export function EnrollmentSyncTable() {
-  const { data = [], isLoading, isError } = useSyncEnrollments()
+  const { data = [], isLoading, isError, error } = useSyncEnrollments()
   const pushEnrollment = usePushEnrollment()
   const pushAll = usePushAllEnrollments()
 
@@ -53,7 +54,7 @@ export function EnrollmentSyncTable() {
     return (
       <EmptyState
         title="Couldn't load enrollment sync records"
-        description="Please try again."
+        description={describeSyncError(error).description}
       />
     )
   }

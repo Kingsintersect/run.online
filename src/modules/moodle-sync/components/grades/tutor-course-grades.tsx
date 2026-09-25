@@ -9,6 +9,7 @@ import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import { useSyncGradesByCourse } from "../../hooks/use-sync-grades"
 import type { CourseOffering } from "@/types/school"
 import type { GradeResponse } from "../../types"
+import { describeSyncError } from "../../lib/sync-error"
 
 function fullName(user: {
   firstName?: string | null
@@ -70,7 +71,7 @@ export function TutorCourseMoodleGrades() {
   const offeringsLoading = lecturerIdLoading || offeringsQueryLoading
   const offerings = offeringsRes?.data ?? []
 
-  const { data, isLoading, isError } = useSyncGradesByCourse(
+  const { data, isLoading, isError, error } = useSyncGradesByCourse(
     selectedOffering?.id ?? 0
   )
   const items = useMemo(() => data?.data ?? [], [data])
@@ -142,7 +143,7 @@ export function TutorCourseMoodleGrades() {
       ) : isError ? (
         <EmptyState
           title="Couldn't load Moodle grades"
-          description="Please try again."
+          description={describeSyncError(error).description}
         />
       ) : items.length === 0 ? (
         <EmptyState

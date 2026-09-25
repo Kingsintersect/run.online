@@ -7,9 +7,10 @@ import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { useSyncEnrollmentErrors } from "../../hooks/use-sync-enrollments"
 import { usePushEnrollment } from "../../hooks/use-sync-mutations"
+import { describeSyncError } from "../../lib/sync-error"
 
 export function EnrollmentErrorsPanel() {
-  const { data = [], isLoading, isError } = useSyncEnrollmentErrors()
+  const { data = [], isLoading, isError, error } = useSyncEnrollmentErrors()
   const retry = usePushEnrollment()
 
   const handleRetry = async (enrollmentId: number) => {
@@ -35,7 +36,7 @@ export function EnrollmentErrorsPanel() {
     return (
       <EmptyState
         title="Couldn't load enrollment errors"
-        description="Please try again."
+        description={describeSyncError(error).description}
       />
     )
   }

@@ -22,6 +22,7 @@ import { useMoodleSyncUiStore } from "../../store/moodle-sync-ui.store"
 import { SyncStatusBadge } from "../shared/sync-status-badge"
 import { SyncDirectionBadge } from "../shared/sync-direction-badge"
 import type { CategorySyncResponse } from "../../types"
+import { describeSyncError } from "../../lib/sync-error"
 
 // Known seeded type codes get a dedicated icon; any other code (a custom
 // type an admin added, e.g. "COHORT") falls back to a generic icon — the
@@ -189,6 +190,7 @@ export function CategoryTree({ majorProgramId = null }: CategoryTreeProps) {
     data = [],
     isLoading,
     isError,
+    error,
   } = useSyncCategories(majorProgramId != null ? { majorProgramId } : undefined)
 
   if (isLoading) {
@@ -205,7 +207,7 @@ export function CategoryTree({ majorProgramId = null }: CategoryTreeProps) {
     return (
       <EmptyState
         title="Couldn't load the category hierarchy"
-        description="Please try again."
+        description={describeSyncError(error).description}
       />
     )
   }

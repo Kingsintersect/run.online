@@ -12,6 +12,7 @@ import { usePushCourse } from "../../hooks/use-sync-mutations"
 import { useMoodleSyncUiStore } from "../../store/moodle-sync-ui.store"
 import { SyncStatusBadge } from "../shared/sync-status-badge"
 import { CourseBulkPushToolbar } from "./course-bulk-push-toolbar"
+import { describeSyncError } from "../../lib/sync-error"
 
 interface CourseSyncTableProps {
   /** Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
@@ -28,6 +29,7 @@ export function CourseSyncTable({
     data = [],
     isLoading,
     isError,
+    error,
   } = useSyncCourses(majorProgramId != null ? { majorProgramId } : undefined)
   const pushCourse = usePushCourse()
   const selectedCourseOfferingIds = useMoodleSyncUiStore(
@@ -60,7 +62,7 @@ export function CourseSyncTable({
     return (
       <EmptyState
         title="Couldn't load course sync mappings"
-        description="Please try again."
+        description={describeSyncError(error).description}
       />
     )
   }

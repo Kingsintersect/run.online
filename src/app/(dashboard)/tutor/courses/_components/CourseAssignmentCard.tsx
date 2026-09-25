@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { ScheduleEditorModal } from "./ScheduleEditorModal"
+import { describeMoodleLaunchError } from "@/lib/moodle/launch-error"
 import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import {
   useSyncSchedule,
@@ -92,10 +93,11 @@ export function CourseAssignmentCard({
       onSuccess: (result) => {
         window.open(result.redirectUrl, "_blank", "noopener,noreferrer")
       },
-      onError: () => {
-        toast.error(
-          "Moodle access for tutors isn't set up yet for this course — ask an admin."
-        )
+      // Explains which set-up step is missing (or what else went wrong)
+      // instead of one generic message for every failure.
+      onError: (error) => {
+        const { title, description } = describeMoodleLaunchError(error, "tutor")
+        toast.error(title, { description })
       },
     })
   }

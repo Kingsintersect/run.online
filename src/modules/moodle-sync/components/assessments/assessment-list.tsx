@@ -11,6 +11,7 @@ import { PushPullToolbar } from "../shared/push-pull-toolbar"
 import { ResetSyncButton } from "../shared/reset-sync-dialog"
 import { stripHtmlToText } from "../../lib/strip-html"
 import type { AssessmentType } from "../../types"
+import { describeSyncError } from "../../lib/sync-error"
 
 const TYPES: { value: AssessmentType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -31,7 +32,7 @@ function formatDue(dueDate: string | null): string {
 
 export function AssessmentList() {
   const [type, setType] = useState<AssessmentType | "all">("all")
-  const { data, isLoading, isError } = useSyncAssessments(
+  const { data, isLoading, isError, error } = useSyncAssessments(
     type === "all" ? undefined : { type }
   )
   const pullAll = usePullAllAssessments()
@@ -93,7 +94,7 @@ export function AssessmentList() {
       ) : isError ? (
         <EmptyState
           title="Couldn't load assessments"
-          description="Please try again."
+          description={describeSyncError(error).description}
         />
       ) : items.length === 0 ? (
         <EmptyState

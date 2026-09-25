@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { toast } from "sonner"
 import { BookOpen, Clock, ExternalLink, Loader2, User } from "lucide-react"
+import { describeMoodleLaunchError } from "@/lib/moodle/launch-error"
 import { useLaunchMoodleCourse } from "../hooks/use-enrollment-mutations"
 import type { EnrollmentRecord } from "../types"
 
@@ -27,8 +28,12 @@ export function MyCourseLaunchCard({
       onSuccess: (result) => {
         window.location.href = result.redirectUrl
       },
-      onError: () => {
-        toast.error("This course isn't set up on Moodle yet — check back soon.")
+      onError: (error) => {
+        const { title, description } = describeMoodleLaunchError(
+          error,
+          "student"
+        )
+        toast.error(title, { description })
       },
     })
   }

@@ -7,9 +7,10 @@ import { useSyncGrades } from "../../hooks/use-sync-grades"
 import { usePullAllGrades } from "../../hooks/use-sync-mutations"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
 import { ResetSyncButton } from "../shared/reset-sync-dialog"
+import { describeSyncError } from "../../lib/sync-error"
 
 export function GradeList() {
-  const { data, isLoading, isError } = useSyncGrades()
+  const { data, isLoading, isError, error } = useSyncGrades()
   const pullAll = usePullAllGrades()
 
   const handlePullAll = async () => {
@@ -52,7 +53,7 @@ export function GradeList() {
       ) : isError ? (
         <EmptyState
           title="Couldn't load grades"
-          description="Please try again."
+          description={describeSyncError(error).description}
         />
       ) : items.length === 0 ? (
         <EmptyState

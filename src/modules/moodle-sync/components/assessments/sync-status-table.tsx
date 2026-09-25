@@ -18,6 +18,7 @@ import {
   useRetryAssessmentSync,
   usePullAllAssessments,
 } from "../../hooks/use-sync-mutations"
+import { describeSyncError } from "../../lib/sync-error"
 
 type SyncStatus = "PENDING" | "SYNCED" | "FAILED" | "STALE"
 
@@ -91,7 +92,7 @@ function SummaryTile({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SyncStatusTable() {
-  const { data, isLoading, isError, refetch, isFetching } =
+  const { data, isLoading, isError, error, refetch, isFetching } =
     useAssessmentSyncStatus()
   const syncCourse = usePullAssessments()
   const retryCourse = useRetryAssessmentSync()
@@ -110,8 +111,11 @@ export function SyncStatusTable() {
   if (isError || !data) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16">
-        <p className="text-sm text-muted-foreground">
-          Failed to load sync status.
+        <p className="text-sm font-medium text-foreground">
+          Couldn&apos;t load sync status
+        </p>
+        <p className="max-w-md text-center text-sm text-muted-foreground">
+          {describeSyncError(error).description}
         </p>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw size={14} className="mr-2" /> Retry
