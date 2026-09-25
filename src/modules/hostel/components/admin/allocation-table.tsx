@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { useStudentMajorProgramMap } from "@/hooks/use-student-major-program-map"
 import { useHostels } from "../../hooks/use-hostels"
@@ -26,7 +26,8 @@ import { AllocationCreateDialog } from "./allocation-create-dialog"
 
 export function AllocationTable() {
   const [createOpen, setCreateOpen] = useState(false)
-  const { data: sessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const { data: hostels = [] } = useHostels()
 
   const sessionId = useHostelUiStore((s) => s.allocationSessionId)
@@ -90,14 +91,17 @@ export function AllocationTable() {
               setSessionId(v === "_ALL_" ? undefined : Number(v))
             }
           >
-            <SelectTrigger className="h-8 w-44 text-xs">
+            <SelectTrigger
+              className="h-8 w-64 text-xs"
+              aria-label="Academic session"
+            >
               <SelectValue placeholder="All sessions" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_ALL_">All sessions</SelectItem>
-              {sessions?.map((s) => (
-                <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.name}
+              {sessionOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>

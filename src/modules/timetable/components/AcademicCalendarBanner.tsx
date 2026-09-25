@@ -24,9 +24,14 @@ export function AcademicCalendarBanner() {
   // synthesized "previous/next" year labels via regex on the current
   // session's name, which don't correspond to real sessions and would
   // silently show nothing if selected.
-  const academicYearOptions =
-    sessions?.map((s) => s.name) ??
-    (data?.session?.name ? [data.session.name] : [])
+  // Deduped by name: several major programs run identically named sessions
+  // (e.g. three "2026/2027"s), and this endpoint omits `majorProgramId`, so
+  // they can't be told apart here — and name is the option value anyway.
+  const academicYearOptions = sessions
+    ? [...new Set(sessions.map((s) => s.name))]
+    : data?.session?.name
+      ? [data.session.name]
+      : []
   // Defaults to the current session until the user picks a different one —
   // derived directly from render rather than synced via an effect.
   const selectedAcademicYear =

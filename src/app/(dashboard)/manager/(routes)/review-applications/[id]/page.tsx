@@ -46,6 +46,7 @@ import {
   useCohorts,
 } from "@/hooks/useCourseStructure"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import {
   createAdmissionOfferSchema,
   type CreateAdmissionOfferFormValues,
@@ -109,6 +110,8 @@ export default function ApplicationDetailPage() {
   const { data: programs } = useAllPrograms()
   const { data: levelsData } = useLevels()
   const { data: sessions } = useAcademicSessions()
+  // Picker options labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const levels = levelsData?.data ?? []
 
   // There's no real "does this application already have an offer" lookup
@@ -984,9 +987,9 @@ export default function ApplicationDetailPage() {
                     className="w-full rounded-xl border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">Select session</option>
-                    {(sessions ?? []).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
+                    {sessionOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </select>

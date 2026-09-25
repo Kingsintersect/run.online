@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import {
   useSyncCohorts,
   usePushCohort,
@@ -41,7 +41,8 @@ const STATUS_VARIANT: Record<
 export default function MoodleSyncCohortsPage() {
   const { data: cohorts, isLoading } = useSyncCohorts()
   const { data: programsRes } = useAllPrograms()
-  const { data: sessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const { data: levelsRes } = useLevels()
   const programs = programsRes?.data ?? []
   const levels = levelsRes?.data ?? []
@@ -123,13 +124,13 @@ export default function MoodleSyncCohortsPage() {
               value={academicSessionId}
               onValueChange={setAcademicSessionId}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Academic session">
                 <SelectValue placeholder="Academic session" />
               </SelectTrigger>
               <SelectContent>
-                {(sessions ?? []).map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.name}
+                {sessionOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -151,7 +152,9 @@ export default function MoodleSyncCohortsPage() {
             <Button
               size="sm"
               onClick={handlePush}
-              disabled={!programId || !academicSessionId || pushCohort.isPending}
+              disabled={
+                !programId || !academicSessionId || pushCohort.isPending
+              }
             >
               {pushCohort.isPending && (
                 <Loader2 size={14} className="animate-spin" />

@@ -13,7 +13,7 @@ import {
   GradeRadarChart,
   StatusBadge,
 } from "@/modules/director"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { useSemesters } from "@/hooks/useSemesters"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
@@ -47,7 +47,8 @@ export default function GradeReportsPage() {
   } = useDirectorGrades()
 
   const [sessionId, setSessionId] = useState<number | null>(null)
-  const { data: sessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const { data: semesters = [] } = useSemesters(sessionId)
   // byProgram has no program id, only a display name — the real filter is
   // majorProgramId sent to the endpoint (A15, unconfirmed). Meanwhile,
@@ -153,9 +154,9 @@ export default function GradeReportsPage() {
               }}
             >
               <option value="">All sessions</option>
-              {(sessions ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+              {sessionOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>

@@ -34,6 +34,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { formatSessionLabel } from "@/lib/academic/session-label"
 
 interface AdmissionsPageProps {
   canManage?: boolean
@@ -278,7 +279,7 @@ export default function AdmissionsPage({
                   )
                   .map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} — {majorProgramName(s.majorProgramId)}
+                      {formatSessionLabel(s, majorProgramsRes?.data)}
                       {s.isActive ? " (Active)" : ""}
                     </option>
                   ))}

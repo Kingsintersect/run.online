@@ -104,10 +104,13 @@ export function useFieldOptions(
       }
     case "SESSIONS":
       return {
-        options: (sessions.data ?? []).map((s) => ({
-          value: s.name,
-          label: s.name,
-        })),
+        // Stored by name, and several major programs run identically named
+        // sessions (e.g. three "2026/2027"s) — one option per distinct name,
+        // since the stored answer can't tell them apart anyway (and
+        // duplicate values collide as React keys / Select values).
+        options: [...new Set((sessions.data ?? []).map((s) => s.name))].map(
+          (name) => ({ value: name, label: name })
+        ),
         isLoading: sessions.isLoading,
       }
     case "ENTRY_MODES":

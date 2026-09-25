@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { useHostels } from "../../hooks/use-hostels"
 import { useAvailableRooms } from "../../hooks/use-rooms"
 import { useCreateAllocation } from "../../hooks/use-hostel-mutations"
@@ -33,7 +33,9 @@ export function AllocationCreateDialog({
   const [hostelId, setHostelId] = useState<number | undefined>()
   const [roomId, setRoomId] = useState<number | undefined>()
 
-  const { data: sessions, isLoading: loadingSessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions, isLoading: loadingSessions } =
+    useSessionOptions()
   const { data: hostels = [] } = useHostels()
   const { data: availableRooms = [], isLoading: loadingRooms } =
     useAvailableRooms(sessionId ? { sessionId, hostelId } : null)
@@ -120,7 +122,7 @@ export function AllocationCreateDialog({
               setRoomId(undefined)
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Academic session">
               <SelectValue
                 placeholder={
                   loadingSessions ? "Loading sessions…" : "Select session"
@@ -128,9 +130,9 @@ export function AllocationCreateDialog({
               />
             </SelectTrigger>
             <SelectContent>
-              {sessions?.map((s) => (
-                <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.name}
+              {sessionOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>

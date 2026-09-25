@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useCollectionsSummary } from "../../hooks/use-fee-reports"
 
@@ -28,7 +28,8 @@ const ALL = "_ALL_" as const
 export function CollectionsReport() {
   const [sessionId, setSessionId] = useState<number | undefined>(undefined)
 
-  const { data: sessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const { data, isLoading, refetch } = useCollectionsSummary(
     sessionId ? { sessionId } : undefined
   )
@@ -64,15 +65,18 @@ export function CollectionsReport() {
           value={sessionId?.toString() ?? ALL}
           onValueChange={(v) => setSessionId(v === ALL ? undefined : Number(v))}
         >
-          <SelectTrigger className="h-9 w-52 rounded-xl border-transparent bg-muted text-sm">
+          <SelectTrigger
+            className="h-9 w-full rounded-xl border-transparent bg-muted text-sm sm:w-80"
+            aria-label="Academic session"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All sessions</SelectItem>
-            {sessions?.map((s) => (
-              <SelectItem key={s.id} value={s.id.toString()}>
-                {s.name}
-                {s.isActive && (
+            {sessionOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+                {o.session.isActive && (
                   <span className="ml-1.5 text-xs text-green-600 dark:text-green-400">
                     (Active)
                   </span>

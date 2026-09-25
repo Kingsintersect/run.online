@@ -27,7 +27,7 @@ import {
   useRemoveSchedule,
 } from "@/hooks/useCourseOfferings"
 import { useCourses } from "@/hooks/useCourseManagement"
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { useSemesters } from "@/hooks/useSemesters"
 import { useTutors } from "@/modules/user-management/hooks/useUsersData"
 import { formatOfferingCategory } from "@/lib/academic/course-offering-enrichment"
@@ -86,7 +86,8 @@ interface OfferingsManagerProps {
 }
 
 export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
-  const { data: sessions } = useAcademicSessions()
+  // Sessions labelled with their major program — identical names otherwise.
+  const { options: sessionOptions } = useSessionOptions()
   const [sessionId, setSessionId] = useState<number | null>(null)
   const { data: semesters } = useSemesters(sessionId)
   const [semesterId, setSemesterId] = useState<number | null>(null)
@@ -205,14 +206,17 @@ export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
                 setSemesterId(null)
               }}
             >
-              <SelectTrigger className="h-10 w-full rounded-xl border-transparent bg-muted">
+              <SelectTrigger
+                className="h-10 w-full rounded-xl border-transparent bg-muted"
+                aria-label="Academic session"
+              >
                 <SelectValue placeholder="Select session" />
               </SelectTrigger>
               <SelectContent>
-                {(sessions ?? []).map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.name}
-                    {s.isActive ? " (Active)" : ""}
+                {sessionOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                    {o.session.isActive ? " (Active)" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

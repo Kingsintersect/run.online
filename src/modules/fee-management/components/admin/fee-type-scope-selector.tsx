@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { formatSessionLabel } from "@/lib/academic/session-label"
 import { useLevels, useMajorPrograms } from "@/hooks/useCourseStructure"
 import { courseStructureQueryOptions } from "@/services/courseStructureApi"
 import { useEligibleCount } from "../../hooks/use-fee-types"
@@ -265,7 +266,8 @@ export function FeeTypeScopeSelector() {
                     </SelectItem>
                     {scopedSessions.map((s) => (
                       <SelectItem key={s.id} value={s.id.toString()}>
-                        {s.name}
+                        {/* Names its major program — several run identically named sessions. */}
+                        {formatSessionLabel(s, majorProgramsRes?.data)}
                         {s.isActive && (
                           <span className="ml-1.5 text-xs text-green-600 dark:text-green-400">
                             (Active)

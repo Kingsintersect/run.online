@@ -1,6 +1,6 @@
 "use client"
 
-import { useAcademicSessions } from "@/hooks/useAcademicSessions"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { useSemesters } from "@/hooks/useSemesters"
 import { SelectField, toId } from "./select-field"
 
@@ -20,8 +20,11 @@ export function SemesterPicker({
   onSessionChange,
   onSemesterChange,
 }: SemesterPickerProps) {
-  const { data: sessions = [], isLoading: loadingSessions } =
-    useAcademicSessions()
+  // Each option names its major program ("2026/2027 — Part-Time
+  // Programmes") — several programmes run identically named sessions — and
+  // a scoped admin only sees their own programmes' (plus institution-wide).
+  const { options: sessionOptions, isLoading: loadingSessions } =
+    useSessionOptions()
   const { data: semesters = [], isLoading: loadingSemesters } =
     useSemesters(sessionId)
 
@@ -33,7 +36,7 @@ export function SemesterPicker({
         value={sessionId ? String(sessionId) : ""}
         onChange={(v) => onSessionChange(toId(v))}
         placeholder={loadingSessions ? "Loading…" : "All sessions"}
-        options={sessions.map((s) => ({ value: String(s.id), label: s.name }))}
+        options={sessionOptions}
       />
       <SelectField
         id={`${idPrefix}-semester`}
