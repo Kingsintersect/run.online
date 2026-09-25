@@ -8,6 +8,45 @@ import type { ResultSheet } from "../../types"
 export const MOODLE_SETUP_NOTE =
   "In the Moodle gradebook, create two categories with ID numbers CA and EXAM and put every activity inside one of them (or give each item an ID number starting with CA or EXAM). Course-total and category-total items are ignored."
 
+const COMPOSITION_LABEL = {
+  CA: "CA",
+  EXAM: "Exam",
+  EXCLUDED: "Excluded",
+  UNMAPPED: "Unmapped",
+} as const
+
+// Which Moodle items feed CA and Exam, straight from the server's per-row
+// `items` (every row of an offering carries the same item list). Display
+// grouping only: no weight or score is derived here.
+function ComponentComposition({ sheet }: { sheet: ResultSheet }) {
+  const items = sheet.rows.find((r) => r.items && r.items.length > 0)?.items
+  if (!items) return null
+  const groups = (
+    Object.keys(COMPOSITION_LABEL) as (keyof typeof COMPOSITION_LABEL)[]
+  )
+    .map((component) => ({
+      component,
+      list: items.filter((i) => i.component === component),
+    }))
+    .filter((g) => g.list.length > 0)
+
+  return (
+    <p className="text-xs text-muted-foreground">
+      {groups.map((g, idx) => (
+        <span key={g.component}>
+          {idx > 0 && " · "}
+          <span className="font-medium text-foreground">
+            {COMPOSITION_LABEL[g.component]}:
+          </span>{" "}
+          {g.list
+            .map((i) => `${i.name} (out of ${fmtScore(i.max)})`)
+            .join(", ")}
+        </span>
+      ))}
+    </p>
+  )
+}
+
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="min-w-0">
@@ -60,7 +99,14 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
           {/* Contract v1.1 (A46). Shown only when the backend sends a
               source — never inferred from the scheme or the scores. */}
           {(s.weightSource === "MOODLE" || s.weightSource === "SCHEME") && (
-            <p className="text-xs font-medium text-foreground">
+            <p
+              className="text-xs font-medium text-foreground"
+              title={
+                s.weightSource === "MOODLE"
+                  ? "The CA and exam items' combined weights in this course's Moodle gradebook (its course total). To change the split, change the item or category weights in Moodle and pull again."
+                  : undefined
+              }
+            >
               CA {fmtScore(s.caWeight)} / Exam {fmtScore(s.examWeight)}
               <span className="font-normal text-muted-foreground">
                 {s.weightSource === "MOODLE"
@@ -69,6 +115,7 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
               </span>
             </p>
           )}
+          <ComponentComposition sheet={sheet} />
         </div>
         <div className="grid grid-cols-3 gap-x-6 gap-y-2 sm:grid-cols-6">
           <Stat label="Students" value={s.studentCount} />

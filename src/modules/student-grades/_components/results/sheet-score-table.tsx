@@ -18,7 +18,24 @@ import {
 import { FLAG_META, RowFlagChips } from "./row-flag-chips"
 import { SelectField } from "./select-field"
 import { fmtScore, fmtSigned } from "./format"
-import type { ResultSheetRow } from "../../types"
+import { COMPONENT_STYLE } from "./grade-item-mapping-panel"
+import type { ItemComponent, ResultSheetRow } from "../../types"
+
+type SheetRowItem = NonNullable<ResultSheetRow["items"]>[number]
+
+// Groups the expanded row's Moodle items as CA, then Exam, then the rest,
+// so the items behind each raw column read together. Order only.
+const COMPONENT_ORDER: Record<ItemComponent, number> = {
+  CA: 0,
+  EXAM: 1,
+  EXCLUDED: 2,
+  UNMAPPED: 3,
+}
+function sortByComponent(items: SheetRowItem[]): SheetRowItem[] {
+  return [...items].sort(
+    (a, b) => COMPONENT_ORDER[a.component] - COMPONENT_ORDER[b.component]
+  )
+}
 
 // C8's sheet endpoint returns every row at once (no server pagination), so
 // large offerings are paged client-side — 50 rows at a time keeps the DOM
@@ -169,11 +186,19 @@ export function SheetScoreTable({
                 <th scope="col" className="px-2 py-2.5">
                   Program
                 </th>
-                <th scope="col" className="px-2 py-2.5 text-right">
-                  Raw CA
+                <th
+                  scope="col"
+                  className="px-2 py-2.5 text-right"
+                  title="The CA items' Moodle marks, scaled by the server to the CA weight. Expand a row to see which items count as CA."
+                >
+                  Raw CA (Moodle)
                 </th>
-                <th scope="col" className="px-2 py-2.5 text-right">
-                  Raw exam
+                <th
+                  scope="col"
+                  className="px-2 py-2.5 text-right"
+                  title="The exam items' Moodle marks, scaled by the server to the exam weight. Expand a row to see which items count as exam."
+                >
+                  Raw exam (Moodle)
                 </th>
                 {hasEffective && (
                   <>
@@ -330,19 +355,33 @@ export function SheetScoreTable({
                         <td />
                         <td colSpan={colCount - 1} className="px-2 py-2">
                           <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-                            {r.items.map((item) => (
+                            {sortByComponent(r.items).map((item) => (
                               <li
                                 key={item.moodleGradeItemId}
                                 className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background px-2 py-1"
                               >
                                 <span className="truncate">
-                                  <span className="mr-1 rounded bg-muted px-1 text-[9px] font-semibold text-muted-foreground">
+                                  <span
+                                    className={cn(
+                                      "mr-1 rounded px-1 text-[9px] font-semibold",
+                                      COMPONENT_STYLE[item.component]
+                                    )}
+                                  >
                                     {item.component}
                                   </span>
                                   {item.name}
                                 </span>
-                                <span className="shrink-0 tabular-nums">
-                                  {fmtScore(item.earned)} / {fmtScore(item.max)}
+                                <span
+                                  className={cn(
+                                    "shrink-0 tabular-nums",
+                                    item.earned == null &&
+                                      "text-amber-700 dark:text-amber-300"
+                                  )}
+                                >
+                                  {item.earned == null
+                                    ? "not graded"
+                                    : fmtScore(item.earned)}{" "}
+                                  / {fmtScore(item.max)}
                                 </span>
                               </li>
                             ))}
@@ -350,7 +389,7 @@ export function SheetScoreTable({
                           {r.missingItems.length > 0 && (
                             <p className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">
                               No grade in Moodle for:{" "}
-                              {r.missingItems.join(", ")}
+                              {r.missingItems.join(", ")} (counted as 0)
                             </p>
                           )}
                         </td>

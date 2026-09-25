@@ -13,7 +13,7 @@ import { MOODLE_SETUP_NOTE } from "./sheet-summary-header"
 import { fmtScore } from "./format"
 import type { GradeItemMapping, ItemComponent } from "../../types"
 
-const COMPONENT_STYLE: Record<ItemComponent, string> = {
+export const COMPONENT_STYLE: Record<ItemComponent, string> = {
   CA: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
   EXAM: "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
   EXCLUDED:
@@ -77,7 +77,10 @@ export function GradeItemMappingPanel({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Items are classified automatically from Moodle. {MOODLE_SETUP_NOTE}
+        Items are classified automatically from Moodle. {MOODLE_SETUP_NOTE} The
+        sheet&apos;s CA / exam split is these items&apos; combined weights in
+        the Moodle gradebook, so it changes only when the Moodle weights (or
+        this mapping) change.
         {canMap &&
           " You can override any item here without editing Moodle; the draft rows are recomputed."}
       </p>

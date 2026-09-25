@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useOfferingEnrolmentCounts } from "../../hooks/use-offering-enrolment-counts"
 import { ResultStatusBadge } from "./result-status-badge"
 import type { PaginationMeta, ResultSheetSummary } from "../../types"
 
@@ -60,6 +61,36 @@ export function formatDateTime(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
 }
 
+// The sheet's studentCount only counts rows a Moodle pull created, so a
+// never-pulled sheet reads 0 even with students enrolled. Show the enrolment
+// (from the offerings list) and say plainly when nothing has been pulled.
+function StudentsCell({
+  studentCount,
+  enrolled,
+  pulled,
+}: {
+  studentCount: number
+  enrolled: number | undefined
+  pulled: boolean
+}) {
+  if (!pulled)
+    return (
+      <span className="text-xs whitespace-nowrap text-muted-foreground">
+        {enrolled != null ? `${enrolled} enrolled · ` : ""}not pulled yet
+      </span>
+    )
+  return (
+    <span className="whitespace-nowrap">
+      <span className="font-medium tabular-nums">{studentCount}</span>
+      {enrolled != null && enrolled !== studentCount && (
+        <span className="block text-[11px] text-muted-foreground">
+          of {enrolled} enrolled
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function OfferingsTable({
   rows,
   meta,
@@ -71,6 +102,7 @@ export function OfferingsTable({
   onPage,
   isFetching,
 }: OfferingsTableProps) {
+  const enrolled = useOfferingEnrolmentCounts()
   const totalPages =
     meta.totalPages ?? Math.max(1, Math.ceil(meta.total / meta.limit))
   const pageIds = rows.map((r) => r.offeringId)
@@ -168,8 +200,12 @@ export function OfferingsTable({
                 <td className="px-3 py-2.5">
                   <ResultStatusBadge status={r.status} />
                 </td>
-                <td className="px-3 py-2.5 text-right tabular-nums">
-                  {r.studentCount}
+                <td className="px-3 py-2.5 text-right">
+                  <StudentsCell
+                    studentCount={r.studentCount}
+                    enrolled={enrolled.get(r.offeringId)}
+                    pulled={r.lastPulledAt != null}
+                  />
                 </td>
                 <td className="px-3 py-2.5">
                   <div className="flex max-w-[280px] flex-wrap gap-1">
