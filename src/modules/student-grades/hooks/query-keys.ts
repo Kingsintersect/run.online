@@ -67,19 +67,25 @@ export const resultsKeys = {
   sheetsAll: () => [...resultsKeys.all, "sheets"] as const,
   sheets: (filters: ResultSheetFilters) =>
     [...resultsKeys.sheetsAll(), filters] as const,
+  // `*All()` prefixes match every offering's entry (used after a Moodle
+  // pull, which can touch any sheet).
+  sheetDetailAll: () => [...resultsKeys.all, "sheet"] as const,
   sheet: (offeringId: number) =>
-    [...resultsKeys.all, "sheet", offeringId] as const,
+    [...resultsKeys.sheetDetailAll(), offeringId] as const,
+  gradeItemsAll: () => [...resultsKeys.all, "grade-items"] as const,
   gradeItems: (offeringId: number) =>
-    [...resultsKeys.all, "grade-items", offeringId] as const,
+    [...resultsKeys.gradeItemsAll(), offeringId] as const,
+  adjustmentsAll: () => [...resultsKeys.all, "adjustments"] as const,
   adjustments: (offeringId: number) =>
-    [...resultsKeys.all, "adjustments", offeringId] as const,
+    [...resultsKeys.adjustmentsAll(), offeringId] as const,
   adjustmentQueueAll: () => [...resultsKeys.all, "adjustment-queue"] as const,
   adjustmentQueue: (filters: AdjustmentQueueFilters) =>
     [...resultsKeys.adjustmentQueueAll(), filters] as const,
 
   pullJob: (id: number) => [...resultsKeys.all, "pull-job", id] as const,
+  pullJobsAll: () => [...resultsKeys.all, "pull-jobs"] as const,
   pullJobs: (filters: PullJobFilters) =>
-    [...resultsKeys.all, "pull-jobs", filters] as const,
+    [...resultsKeys.pullJobsAll(), filters] as const,
 
   publishPreviewAll: () => [...resultsKeys.all, "publish-preview"] as const,
   publishPreview: (semesterId: number, majorProgramId: number | null) =>

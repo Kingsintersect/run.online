@@ -85,10 +85,30 @@ export function isTerminalPull(status: PullJobStatus): boolean {
   return TERMINAL.includes(status)
 }
 
-// Polls every 3 s until the job reaches a terminal status (C7). On the
-// running → terminal transition it refreshes the offerings list, the same
-// pattern as moodle-sync's useDriftScanStatus.
-export function usePullJob(jobId: number | null) {
+// A terminal job whose finishedAt is this recent still counts as "just
+// finished" (covers a pull another tab/user started moments ago).
+const FRESH_PULL_MS = 2 * 60 * 1000
+
+interface UsePullJobOptions {
+  /** True when this page started `jobId` itself in this session. */
+  startedHere?: boolean
+}
+
+// Polls every 3 s until the job reaches a terminal status (C7), then
+// refreshes everything a pull writes: the offerings list, every sheet /
+// grade-items / adjustments entry, the pull-jobs lists and the publish
+// preview.
+//
+// Refresh rule — once per job id, and only for a pull that just happened:
+// when the job is terminal AND (we saw it QUEUED/RUNNING, OR this page
+// started it, OR its finishedAt is < 2 min old). The backend can finish a
+// job before the first poll (QUEUE_CONNECTION=sync), so "saw it running"
+// alone misses real pulls; the other two cover that without refreshing on a
+// reload that has an old, long-finished `?pullJob=` in the URL.
+export function usePullJob(
+  jobId: number | null,
+  { startedHere = false }: UsePullJobOptions = {}
+) {
   const qc = useQueryClient()
   const query = useQuery({
     ...createApiQueryOptions({
@@ -103,19 +123,34 @@ export function usePullJob(jobId: number | null) {
     },
   })
 
-  const status = query.data?.available ? query.data.data.status : undefined
-  const previous = useRef(status)
+  const job = query.data?.available ? query.data.data : null
+  const observedId = job?.id ?? null
+  const status = job?.status
+  const finishedAt = job?.finishedAt ?? null
+  const seenRunning = useRef(new Set<number>())
+  const refreshed = useRef(new Set<number>())
   useEffect(() => {
-    if (
-      previous.current &&
-      !isTerminalPull(previous.current) &&
-      status &&
-      isTerminalPull(status)
-    ) {
-      void qc.invalidateQueries({ queryKey: resultsKeys.sheetsAll() })
+    if (observedId == null || !status) return
+    if (!isTerminalPull(status)) {
+      seenRunning.current.add(observedId)
+      return
     }
-    previous.current = status
-  }, [status, qc])
+    if (refreshed.current.has(observedId)) return
+    const finishedMs = finishedAt ? Date.parse(finishedAt) : NaN
+    const justFinished =
+      Number.isFinite(finishedMs) && Date.now() - finishedMs < FRESH_PULL_MS
+    if (!seenRunning.current.has(observedId) && !startedHere && !justFinished)
+      return
+    refreshed.current.add(observedId)
+    void Promise.all([
+      qc.invalidateQueries({ queryKey: resultsKeys.sheetsAll() }),
+      qc.invalidateQueries({ queryKey: resultsKeys.sheetDetailAll() }),
+      qc.invalidateQueries({ queryKey: resultsKeys.gradeItemsAll() }),
+      qc.invalidateQueries({ queryKey: resultsKeys.adjustmentsAll() }),
+      qc.invalidateQueries({ queryKey: resultsKeys.pullJobsAll() }),
+      qc.invalidateQueries({ queryKey: resultsKeys.publishPreviewAll() }),
+    ])
+  }, [observedId, status, finishedAt, startedHere, qc])
 
   return query
 }

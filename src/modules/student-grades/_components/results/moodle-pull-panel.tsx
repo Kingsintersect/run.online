@@ -25,6 +25,11 @@ interface MoodlePullPanelProps {
    * that job is still running.
    */
   recentJobId?: number | null
+  /**
+   * DOM ids of the session and semester filters. When Pull is clicked with
+   * no semester chosen, focus moves to whichever one still needs picking.
+   */
+  filterFieldIds?: { session: string; semester: string }
   onStarted?: () => void
 }
 
@@ -50,6 +55,7 @@ export function MoodlePullPanel({
   semesterId,
   selectedOfferingIds,
   recentJobId = null,
+  filterFieldIds,
   onStarted,
 }: MoodlePullPanelProps) {
   const router = useRouter()
@@ -58,6 +64,10 @@ export function MoodlePullPanel({
   const urlJobId = Number(searchParams.get("pullJob")) || null
   const [dismissedId, setDismissedId] = useState<number | null>(null)
   const [notAvailable, setNotAvailable] = useState(false)
+  const [startedJobId, setStartedJobId] = useState<number | null>(null)
+  // Set when Pull is clicked before a semester is chosen; cleared once one is.
+  const [askedForSemester, setAskedForSemester] = useState(false)
+  const needsSemester = askedForSemester && !semesterId
   const startPull = useStartPull()
 
   // Only looked up when the URL doesn't already name a job.
@@ -86,7 +96,11 @@ export function MoodlePullPanel({
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
   }
 
-  const job = usePullJob(jobId)
+  // Tells usePullJob this pull is ours, so it refreshes the sheets even if
+  // the very first poll already comes back COMPLETED.
+  const job = usePullJob(jobId, {
+    startedHere: jobId != null && jobId === startedJobId,
+  })
   const fetchedJob = job.data?.available ? job.data.data : null
   // A finished job found only via a sheet's lastPullJobId is history, not a
   // pull in progress — don't resurface it.
@@ -116,12 +130,24 @@ export function MoodlePullPanel({
         : undefined,
     })
     if (!body.success) {
-      toast.error("Choose a semester to pull.")
+      // Stay clickable and say exactly what's missing instead of a silently
+      // greyed-out button: point the user at the filter to fill in.
+      setAskedForSemester(true)
+      if (filterFieldIds && typeof document !== "undefined") {
+        const semesterField = document.getElementById(filterFieldIds.semester)
+        const target =
+          semesterField instanceof HTMLSelectElement && !semesterField.disabled
+            ? semesterField
+            : document.getElementById(filterFieldIds.session)
+        target?.focus()
+      }
       return
     }
+    setAskedForSemester(false)
     try {
       const res = await startPull.mutateAsync(body.data)
       setDismissedId(null)
+      setStartedJobId(res.jobId)
       setUrlJob(res.jobId)
       setNotAvailable(false)
       onStarted?.()
@@ -159,12 +185,15 @@ export function MoodlePullPanel({
               ? `${selectedOfferingIds.length} selected offering${selectedOfferingIds.length === 1 ? "" : "s"} in the chosen semester.`
               : semesterId
                 ? "Every offering in the chosen semester (select rows below to narrow it)."
-                : "Choose a semester in the filters first."}
+                : "Pulls one semester at a time. Choose the academic session and semester in the filters above."}
           </p>
         </div>
         <Button
           onClick={start}
-          disabled={!semesterId || startPull.isPending || running}
+          disabled={startPull.isPending || running}
+          aria-describedby={
+            needsSemester ? "moodle-pull-needs-semester" : undefined
+          }
         >
           {startPull.isPending || running ? (
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -174,6 +203,18 @@ export function MoodlePullPanel({
           Pull from Moodle
         </Button>
       </div>
+
+      {needsSemester && (
+        <p
+          id="moodle-pull-needs-semester"
+          role="alert"
+          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200"
+        >
+          Pick the <strong>academic session</strong> and then the{" "}
+          <strong>semester</strong> you want to pull (for example 2026/2027 ·
+          First Semester), then click Pull from Moodle again.
+        </p>
+      )}
 
       {notAvailable && (
         <NotAvailableNotice title="Moodle pull isn't available on the server yet" />

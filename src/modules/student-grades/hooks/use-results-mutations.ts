@@ -40,9 +40,15 @@ function useInvalidateSheet(offeringId: number) {
 
 // ─── Moodle pull ──────────────────────────────────────────────────────────────
 
+// Only the pull-jobs lists change at start (so the panel's resume lookup
+// sees the new job). Sheet data is refreshed by usePullJob once the job
+// reaches a terminal status.
 export function useStartPull() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: PullRequest) => resultsApi.startPull(body),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: resultsKeys.pullJobsAll() }),
   })
 }
 

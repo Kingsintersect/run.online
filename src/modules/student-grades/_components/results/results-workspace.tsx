@@ -210,6 +210,7 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
             semesterId={w.semesterId}
             selectedOfferingIds={selectedIds}
             recentJobId={recentJobId}
+            filterFieldIds={{ session: "ws-session", semester: "ws-semester" }}
             onStarted={() => setSelectedIds([])}
           />
         </Suspense>
