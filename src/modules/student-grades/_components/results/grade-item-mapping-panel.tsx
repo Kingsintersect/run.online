@@ -73,6 +73,35 @@ export function GradeItemMappingPanel({
 
   const list = items.data?.data ?? []
   const unmapped = list.filter((i) => i.component === "UNMAPPED")
+  // Every item mapped to CA is added into one CA total, numbered CA1, CA2…
+  // in gradebook order (e.g. CA1 = assignment, CA2 = quiz); the same for Exam.
+  const caItems = list.filter((i) => i.component === "CA")
+  const examItems = list.filter((i) => i.component === "EXAM")
+  const excluded = list.filter((i) => i.component === "EXCLUDED")
+  const caLabel = (item: GradeItemMapping) => {
+    const at = caItems.findIndex(
+      (i) => i.moodleGradeItemId === item.moodleGradeItemId
+    )
+    return `CA${at >= 0 ? at + 1 : caItems.length + 1}`
+  }
+  const examLabel = (item: GradeItemMapping) => {
+    const at = examItems.findIndex(
+      (i) => i.moodleGradeItemId === item.moodleGradeItemId
+    )
+    const n = at >= 0 ? at + 1 : examItems.length + 1
+    return examItems.length > 1 || (at < 0 && examItems.length > 0)
+      ? `Exam ${n}`
+      : "Exam"
+  }
+  const total = (group: GradeItemMapping[]) =>
+    group.reduce((sum, i) => sum + (i.gradeMax ?? 0), 0)
+  const describe = (
+    group: GradeItemMapping[],
+    label: (i: GradeItemMapping) => string
+  ) =>
+    group
+      .map((i) => `${label(i)} ${i.itemName} (/${fmtScore(i.gradeMax)})`)
+      .join(" + ")
 
   return (
     <div className="space-y-3">
@@ -92,6 +121,47 @@ export function GradeItemMappingPanel({
           {unmapped.length} unmapped item{unmapped.length === 1 ? "" : "s"}{" "}
           block this sheet: {unmapped.map((i) => i.itemName).join(", ")}.
         </p>
+      )}
+      {list.length > 0 && (
+        <dl
+          aria-label="How this sheet's CA and exam are made up"
+          className="grid gap-2 rounded-xl border border-border bg-muted/20 p-3 text-xs sm:grid-cols-2 dark:bg-muted/10"
+        >
+          <div>
+            <dt className="font-semibold text-blue-700 dark:text-blue-300">
+              CA = /{fmtScore(total(caItems))}
+            </dt>
+            <dd className="text-muted-foreground">
+              {caItems.length
+                ? describe(caItems, caLabel)
+                : "No items mapped to CA yet. Map each assignment, quiz or test to CA; they are added together."}
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-violet-700 dark:text-violet-300">
+              Exam = /{fmtScore(total(examItems))}
+            </dt>
+            <dd className="text-muted-foreground">
+              {examItems.length
+                ? describe(examItems, examLabel)
+                : "No item mapped to Exam yet."}
+            </dd>
+          </div>
+          {excluded.length > 0 && (
+            <div className="sm:col-span-2">
+              <dt className="sr-only">Excluded</dt>
+              <dd className="text-muted-foreground">
+                Not counted: {excluded.map((i) => i.itemName).join(", ")}.
+              </dd>
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground sm:col-span-2">
+            Marks are added within CA and within Exam, then scaled to the
+            sheet&apos;s CA / exam weights: the Moodle gradebook weights, or the
+            grading scheme&apos;s fallback weights in Result configuration when
+            Moodle has none.
+          </p>
+        </dl>
       )}
       {list.length === 0 ? (
         <EmptyState
@@ -169,9 +239,15 @@ export function GradeItemMappingPanel({
                             <option value="" disabled>
                               Unmapped — choose…
                             </option>
-                            <option value="CA">CA</option>
-                            <option value="EXAM">Exam</option>
-                            <option value="EXCLUDED">Excluded</option>
+                            <option value="CA">
+                              {caLabel(item)} · adds to CA
+                            </option>
+                            <option value="EXAM">
+                              {examLabel(item)} · adds to Exam
+                            </option>
+                            <option value="EXCLUDED">
+                              Excluded · not counted
+                            </option>
                           </select>
                           {pending && (
                             <Loader2
@@ -187,7 +263,11 @@ export function GradeItemMappingPanel({
                             COMPONENT_STYLE[item.component]
                           )}
                         >
-                          {item.component}
+                          {item.component === "CA"
+                            ? caLabel(item)
+                            : item.component === "EXAM"
+                              ? examLabel(item)
+                              : item.component}
                         </span>
                       )}
                     </td>
