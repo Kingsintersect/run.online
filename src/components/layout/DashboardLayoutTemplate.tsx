@@ -27,7 +27,12 @@ export default function DashboardLayoutTemplate({
   if (!hydrated || !isAuthenticated) return null
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    // Pinned to the viewport (fixed inset-0) rather than sized with h-screen in
+    // normal flow: anything else on the page that adds height (a portal, an
+    // injected widget, a devtools panel) would otherwise let the document
+    // scroll, carrying the header and sidebar up and leaving a blank band
+    // below. Only <main> scrolls.
+    <div className="fixed inset-0 flex overflow-hidden bg-background">
       {/* Mobile overlay */}
       <AnimatePresence>
         {mobileOpen && (
@@ -42,7 +47,7 @@ export default function DashboardLayoutTemplate({
       </AnimatePresence>
 
       {/* Desktop sidebar */}
-      <div className="hidden h-screen shrink-0 lg:flex">
+      <div className="hidden h-full shrink-0 lg:flex">
         <Sidebar />
       </div>
 

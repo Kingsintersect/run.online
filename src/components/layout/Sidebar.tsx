@@ -355,7 +355,7 @@ export default function Sidebar() {
     <motion.aside
       animate={{ width: collapsed ? 68 : 264 }}
       transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
-      className="relative flex h-screen shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar will-change-[width]"
+      className="relative flex h-full shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar will-change-[width]"
     >
       {/* Logo */}
       <div
