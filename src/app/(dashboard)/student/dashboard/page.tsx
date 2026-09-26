@@ -12,6 +12,7 @@ import {
 import Link from "next/link"
 import { useAppStore } from "@/store"
 import { useStudentDashboardData } from "@/hooks/useStudentDashboard"
+import { useStudentAcademicHome } from "@/hooks/use-student-academic-home"
 import { useMyStudent } from "@/hooks/use-my-student-id"
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications"
 import { RegistrationOpenBanner } from "@/modules/enrollment/components/registration-open-banner"
@@ -97,9 +98,18 @@ export default function StudentDashboardPage() {
   // (`GET /users/students/me`, already resolved once via useStudentDashboardData
   // → useMyStudentId, so this adds no request), not the auth session — which
   // never carries them, which is why these read "—" before.
+  // Resolved through program → department → faculty when the record lacks
+  // them (useStudentAcademicHome).
+  const home = useStudentAcademicHome()
   const dashboardProfile = {
-    department: student?.department_name || "—",
-    faculty: student?.faculty_name || "—",
+    department:
+      home.department ??
+      (home.isLoading
+        ? "…"
+        : home.ownedBy === "faculty"
+          ? "None · under the faculty"
+          : "Not set"),
+    faculty: home.faculty ?? (home.isLoading ? "…" : "Not set"),
     level: student?.current_level ? `${student.current_level} Level` : "—",
   }
 
