@@ -7,7 +7,10 @@ import { ResultsWorkspaceShell } from "@/modules/student-grades/_components/shel
 export default function CourseResultsPage() {
   return (
     <RoleGuard role={[UserRole.ADMIN]} permissions={["results.view"]}>
-      <ResultsWorkspaceShell sheetBasePath="/manager/grades/results" />
+      <ResultsWorkspaceShell
+        sheetBasePath="/manager/grades/results"
+        majorProgramFirst
+      />
     </RoleGuard>
   )
 }

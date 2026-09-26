@@ -54,6 +54,9 @@ export interface CourseOfferingEnrichment {
   owning_faculty_name: string | null
   programs: CourseProgramLink[]
   category_path: CourseCategoryNode[]
+  // The offering's true owning major programs (live on GET /courses/offerings
+  // as `majorProgramIds`, e.g. [4]). Empty when the backend omits it.
+  major_program_ids: number[]
 }
 
 // ── wire (camelCase subset of the raw offering item) ──────────────────────────
@@ -92,6 +95,7 @@ export interface WireOfferingEnrichmentInput {
   session?: { id: number; name: string }
   semester?: { id: number; name: string }
   enrolledCount?: number
+  majorProgramIds?: number[]
   course?: WireEnrichedCourseFields
 }
 
@@ -172,6 +176,7 @@ export function mapCourseOfferingEnrichment(
       name: c.name,
       moodle_category_id: c.moodleCategoryId ?? null,
     })),
+    major_program_ids: o.majorProgramIds ?? [],
   }
 }
 

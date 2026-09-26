@@ -14,24 +14,56 @@ import {
   useQueryClient,
 } from "@tanstack/react-query"
 import { createApiQueryOptions } from "@/lib/clients/apiClient"
+import {
+  fetchScopedOfferingIds,
+  fetchScopedSheetPage,
+} from "../lib/offering-scope"
 import { live, resultsApi } from "../services/results.service"
 import { resultsKeys } from "./query-keys"
 import type {
   AdjustmentQueueFilters,
   PullJobFilters,
   PullJobStatus,
+  ResultScopeSelection,
   ResultSheetFilters,
 } from "../types"
 
 // ─── Sheets ───────────────────────────────────────────────────────────────────
 
-export function useResultSheets(filters: ResultSheetFilters) {
+// With `majorProgramId` set, rows are verified against each offering's real
+// owning major program and fall back to a client-side narrowing while the
+// server misapplies that filter (lib/offering-scope.ts). Same result shape
+// either way.
+export function useResultSheets(filters: ResultSheetFilters, enabled = true) {
+  const qc = useQueryClient()
   return useQuery({
     ...createApiQueryOptions({
       queryKey: resultsKeys.sheets(filters),
-      queryFn: () => live(() => resultsApi.listSheets(filters)),
+      queryFn: () => live(() => fetchScopedSheetPage(qc, filters)),
     }),
+    enabled,
     placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  })
+}
+
+// The offering ids a Moodle pull for this selection covers — every matching
+// offering, not only the page on screen. `null` selection = nothing to scope.
+export function useResultPullScope(selection: ResultScopeSelection | null) {
+  const qc = useQueryClient()
+  return useQuery({
+    ...createApiQueryOptions({
+      queryKey: resultsKeys.pullScope(
+        selection ?? { semesterId: 0, majorProgramId: 0 }
+      ),
+      queryFn: () =>
+        live(() =>
+          selection
+            ? fetchScopedOfferingIds(qc, selection)
+            : Promise.resolve<number[]>([])
+        ),
+    }),
+    enabled: selection != null,
     staleTime: 30 * 1000,
   })
 }

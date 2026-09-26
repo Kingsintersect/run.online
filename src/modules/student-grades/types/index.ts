@@ -104,6 +104,12 @@ export type ResultPolicyForm = z.infer<typeof ResultPolicyFormSchema>
 
 export interface ResultSheetFilters {
   semesterId?: number
+  /**
+   * Always sent. As of 2026-09-26 the server filters it against the
+   * session's major program rather than the offering's owner, so
+   * `useResultSheets` verifies it (see offering-scope.ts).
+   */
+  majorProgramId?: number
   programId?: number
   departmentId?: number
   status?: SheetStatus
@@ -112,6 +118,14 @@ export interface ResultSheetFilters {
   mine?: boolean
   page: number
   limit: number
+}
+
+/** The scope a Moodle pull covers: major program › structure · semester. */
+export interface ResultScopeSelection {
+  semesterId: number
+  majorProgramId: number
+  departmentId?: number
+  programId?: number
 }
 
 export interface AdjustmentQueueFilters {

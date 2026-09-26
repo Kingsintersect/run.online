@@ -6,6 +6,7 @@ import type {
 import type {
   AdjustmentQueueFilters,
   PullJobFilters,
+  ResultScopeSelection,
   ResultSheetFilters,
 } from "../types"
 
@@ -67,6 +68,13 @@ export const resultsKeys = {
   sheetsAll: () => [...resultsKeys.all, "sheets"] as const,
   sheets: (filters: ResultSheetFilters) =>
     [...resultsKeys.sheetsAll(), filters] as const,
+  // Every page of a filtered list, fetched whole (the major-program
+  // fallback and the pull scope — see offering-scope.ts). Under sheetsAll()
+  // so a pull's invalidation refreshes it too.
+  sheetsFullList: (filters: Omit<ResultSheetFilters, "page" | "limit">) =>
+    [...resultsKeys.sheetsAll(), "full-list", filters] as const,
+  pullScope: (selection: ResultScopeSelection) =>
+    [...resultsKeys.sheetsAll(), "pull-scope", selection] as const,
   // `*All()` prefixes match every offering's entry (used after a Moodle
   // pull, which can touch any sheet).
   sheetDetailAll: () => [...resultsKeys.all, "sheet"] as const,

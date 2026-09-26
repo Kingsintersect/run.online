@@ -69,12 +69,18 @@ export function AllGradesShell() {
 // ========== RESULTS WORKSPACE (screen A) ==========
 export function ResultsWorkspaceShell({
   sheetBasePath,
+  majorProgramFirst = false,
 }: {
   sheetBasePath: string
+  /** Admin/manager: major program → structure → session → semester. */
+  majorProgramFirst?: boolean
 }) {
   return (
     <PermissionGate require={P.view} denyBehavior="screen">
-      <ResultsWorkspace sheetBasePath={sheetBasePath} />
+      <ResultsWorkspace
+        sheetBasePath={sheetBasePath}
+        majorProgramFirst={majorProgramFirst}
+      />
     </PermissionGate>
   )
 }

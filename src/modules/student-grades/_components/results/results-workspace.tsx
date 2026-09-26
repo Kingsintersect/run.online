@@ -1,47 +1,37 @@
 "use client"
 
 import { Suspense, useMemo, useState } from "react"
-import { ClipboardList, Info, RotateCcw, Search } from "lucide-react"
+import { ClipboardList, Info, Layers } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { useAllDepartments, useAllPrograms } from "@/hooks/useCourseStructure"
 import { TutorCourseMoodleGrades } from "@/modules/moodle-sync/components/grades/tutor-course-grades"
 import { useResultSheets } from "../../hooks/use-results"
+import { useResultsScope } from "../../hooks/use-results-scope"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
 import { useResultsUiStore } from "../../store/results-ui.store"
 import { MoodlePullPanel } from "./moodle-pull-panel"
 import { NotAvailableNotice } from "./not-available-notice"
 import { OfferingsTable } from "./offerings-table"
+import { ResultsRefineFilters } from "./results-refine-filters"
+import { ResultsScopeFilters, SCOPE_FIELD_IDS } from "./results-scope-filters"
 import { SelectField, toId } from "./select-field"
 import { SemesterPicker } from "./semester-picker"
-import type { ResultSheetFilters, SheetStatus } from "../../types"
+import type { ResultSheetFilters } from "../../types"
 
 const PAGE_SIZE = 20
-
-const STATUS_OPTIONS: { value: SheetStatus; label: string }[] = [
-  { value: "DRAFT", label: "Draft" },
-  { value: "SUBMITTED", label: "Submitted" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "PUBLISHED", label: "Published" },
-]
-
-const FLAG_OPTIONS: {
-  value: NonNullable<ResultSheetFilters["flag"]>
-  label: string
-}[] = [
-  { value: "MISSING_CA", label: "Missing CA" },
-  { value: "MISSING_EXAM", label: "Missing exam" },
-  { value: "MOODLE_DRIFT", label: "Moodle drift" },
-  { value: "SCHEME_UNRESOLVED", label: "No grading scheme" },
-  { value: "ADJUSTMENT_SUPERSEDED", label: "Adjustment superseded" },
-]
 
 interface ResultsWorkspaceProps {
   /** Route prefix of the sheet page for this role, e.g. "/tutor/results". */
   sheetBasePath: string
+  /**
+   * Admin/manager layout: major program first, then its structure, session
+   * and semester, cascading. The tutor route keeps the flat filters (its
+   * list is already scoped to the caller's own offerings by the backend).
+   */
+  majorProgramFirst?: boolean
 }
 
 // Screen A — one shared workspace for every role that works with results
@@ -49,9 +39,11 @@ interface ResultsWorkspaceProps {
 // /admin). What each user can do is decided by permissions, never by role:
 // a tutor holds only results.view, and the backend scopes the list to their
 // own offerings with raw fields only (C6).
-export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
-  const { can, canAny } = usePermissions()
-  const canSync = can(RESULTS_PERMISSIONS.sync)
+export function ResultsWorkspace({
+  sheetBasePath,
+  majorProgramFirst = false,
+}: ResultsWorkspaceProps) {
+  const { canAny } = usePermissions()
   // Anyone who works on results beyond viewing them. A tutor holds only
   // results.view and gets a read-only, Moodle-oriented intro instead.
   const isResultsStaff = canAny(
@@ -61,32 +53,6 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
     RESULTS_PERMISSIONS.approve,
     RESULTS_PERMISSIONS.publish
   )
-  const { workspace: w, setWorkspace, resetWorkspace } = useResultsUiStore()
-  const [selectedIds, setSelectedIds] = useState<number[]>([])
-
-  const { data: programsRes } = useAllPrograms()
-  const { data: departmentsRes } = useAllDepartments()
-
-  const filters: ResultSheetFilters = useMemo(
-    () => ({
-      semesterId: w.semesterId ?? undefined,
-      programId: w.programId ?? undefined,
-      departmentId: w.departmentId ?? undefined,
-      status: w.status ?? undefined,
-      flag: w.flag ?? undefined,
-      search: w.search.trim() || undefined,
-      page: w.page,
-      limit: PAGE_SIZE,
-    }),
-    [w]
-  )
-  const sheets = useResultSheets(filters)
-  const notAvailable = sheets.data?.available === false
-  const page = sheets.data?.available ? sheets.data.data : null
-  const recentJobIds = (page?.data ?? [])
-    .map((r) => r.lastPullJobId)
-    .filter((id): id is number => id != null)
-  const recentJobId = recentJobIds.length ? Math.max(...recentJobIds) : null
 
   return (
     <div className="space-y-5">
@@ -97,9 +63,9 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
           </h2>
           {isResultsStaff ? (
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Marks come from Moodle. Pull them in, check missing or unmapped
-              items, normalize where needed, then submit for approval and
-              publishing.
+              {majorProgramFirst
+                ? "Choose a major program and work down its structure to a semester. Then pull that selection's marks from Moodle, check missing or unmapped items, normalize where needed, and submit for approval and publishing."
+                : "Marks come from Moodle. Pull them in, check missing or unmapped items, normalize where needed, then submit for approval and publishing."}
             </p>
           ) : (
             <div className="max-w-2xl space-y-1 text-sm text-muted-foreground">
@@ -118,6 +84,133 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
         </div>
       </header>
 
+      {majorProgramFirst ? (
+        <MajorProgramWorkspace sheetBasePath={sheetBasePath} />
+      ) : (
+        <FlatWorkspace sheetBasePath={sheetBasePath} />
+      )}
+    </div>
+  )
+}
+
+// Clears hand-picked rows whenever the scope they were picked in changes, so
+// a pull never carries offerings from a previous selection.
+function useScopedSelection(scopeKey: string) {
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [key, setKey] = useState(scopeKey)
+  if (key !== scopeKey) {
+    setKey(scopeKey)
+    setSelectedIds([])
+  }
+  return [selectedIds, setSelectedIds] as const
+}
+
+function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
+  const w = useResultsUiStore((s) => s.workspace)
+  const scope = useResultsScope()
+  const hasMajorProgram = w.majorProgramId != null
+
+  const filters: ResultSheetFilters = useMemo(
+    () => ({
+      majorProgramId: w.majorProgramId ?? undefined,
+      semesterId: w.semesterId ?? undefined,
+      programId: w.programId ?? undefined,
+      departmentId: w.departmentId ?? undefined,
+      status: w.status ?? undefined,
+      flag: w.flag ?? undefined,
+      search: w.search.trim() || undefined,
+      page: w.page,
+      limit: PAGE_SIZE,
+    }),
+    [w]
+  )
+  const sheets = useResultSheets(filters, hasMajorProgram)
+  const [selectedIds, setSelectedIds] = useScopedSelection(
+    [w.majorProgramId, w.departmentId, w.programId, w.semesterId].join(":")
+  )
+
+  return (
+    <>
+      <section
+        aria-label="Filters"
+        className="space-y-4 rounded-2xl border border-border bg-card p-4"
+      >
+        <ResultsScopeFilters scope={scope} />
+        <fieldset
+          className="min-w-0 border-t border-border pt-3"
+          disabled={!hasMajorProgram}
+        >
+          <legend className="sr-only">Refine the list</legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ResultsRefineFilters disabled={!hasMajorProgram} />
+          </div>
+        </fieldset>
+      </section>
+
+      <PermissionGate require={RESULTS_PERMISSIONS.sync}>
+        {/* The panel reads ?pullJob= via useSearchParams. */}
+        <Suspense fallback={null}>
+          <MoodlePullPanel
+            semesterId={w.semesterId}
+            selectedOfferingIds={selectedIds}
+            recentJobId={recentPullJobId(sheets.data)}
+            filterFieldIds={SCOPE_FIELD_IDS}
+            scope={{
+              hasMajorProgram,
+              label: scope.scopeLabel,
+              offeringIds: scope.pull.offeringIds,
+              isLoading: scope.pull.isLoading,
+              isError: scope.pull.isError,
+            }}
+            onStarted={() => setSelectedIds([])}
+          />
+        </Suspense>
+      </PermissionGate>
+
+      {!hasMajorProgram ? (
+        <EmptyState
+          icon={Layers}
+          title="Choose a major program"
+          description="Results are worked on one major program at a time. Pick one above to load its structure, sessions and course offerings."
+        />
+      ) : (
+        <SheetsList
+          sheets={sheets}
+          sheetBasePath={sheetBasePath}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
+          emptyDescription={`No course offerings in ${scope.scopeLabel ?? "this selection"} match. Try another semester or clear the status, warning and search filters.`}
+        />
+      )}
+    </>
+  )
+}
+
+function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
+  const { workspace: w, setWorkspace } = useResultsUiStore()
+  const { data: programsRes } = useAllPrograms()
+  const { data: departmentsRes } = useAllDepartments()
+
+  const filters: ResultSheetFilters = useMemo(
+    () => ({
+      semesterId: w.semesterId ?? undefined,
+      programId: w.programId ?? undefined,
+      departmentId: w.departmentId ?? undefined,
+      status: w.status ?? undefined,
+      flag: w.flag ?? undefined,
+      search: w.search.trim() || undefined,
+      page: w.page,
+      limit: PAGE_SIZE,
+    }),
+    [w]
+  )
+  const sheets = useResultSheets(filters)
+  const [selectedIds, setSelectedIds] = useScopedSelection(
+    [w.departmentId, w.programId, w.semesterId].join(":")
+  )
+
+  return (
+    <>
       <section
         aria-label="Filters"
         className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -151,56 +244,7 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
             label: d.name,
           }))}
         />
-        <SelectField
-          id="ws-status"
-          label="Status"
-          value={w.status ?? ""}
-          onChange={(v) =>
-            setWorkspace({
-              status: STATUS_OPTIONS.find((o) => o.value === v)?.value ?? null,
-            })
-          }
-          placeholder="Any status"
-          options={STATUS_OPTIONS}
-        />
-        <SelectField
-          id="ws-flag"
-          label="Warning"
-          value={w.flag ?? ""}
-          onChange={(v) =>
-            setWorkspace({
-              flag: FLAG_OPTIONS.find((o) => o.value === v)?.value ?? null,
-            })
-          }
-          placeholder="Any"
-          options={FLAG_OPTIONS}
-        />
-        <div className="space-y-1 sm:col-span-2 lg:col-span-1">
-          <label
-            htmlFor="ws-search"
-            className="text-[11px] font-medium text-muted-foreground"
-          >
-            Search
-          </label>
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              id="ws-search"
-              value={w.search}
-              onChange={(e) => setWorkspace({ search: e.target.value })}
-              placeholder="Course code or title"
-              className="h-9 pl-8"
-            />
-          </div>
-        </div>
-        <div className="flex items-end">
-          <Button variant="ghost" size="sm" onClick={resetWorkspace}>
-            <RotateCcw className="size-3.5" aria-hidden /> Reset filters
-          </Button>
-        </div>
+        <ResultsRefineFilters />
       </section>
 
       <PermissionGate require={RESULTS_PERMISSIONS.sync}>
@@ -209,64 +253,103 @@ export function ResultsWorkspace({ sheetBasePath }: ResultsWorkspaceProps) {
           <MoodlePullPanel
             semesterId={w.semesterId}
             selectedOfferingIds={selectedIds}
-            recentJobId={recentJobId}
+            recentJobId={recentPullJobId(sheets.data)}
             filterFieldIds={{ session: "ws-session", semester: "ws-semester" }}
             onStarted={() => setSelectedIds([])}
           />
         </Suspense>
       </PermissionGate>
 
-      {sheets.isLoading ? (
-        <div className="space-y-2" aria-busy>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-14 animate-pulse rounded-xl bg-muted/40"
-            />
-          ))}
-        </div>
-      ) : sheets.isError ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Couldn't load result sheets"
-          description={sheets.error.message}
-          action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => sheets.refetch()}
-            >
-              Try again
-            </Button>
-          }
-        />
-      ) : notAvailable ? (
-        <NotAvailableNotice title="Result sheets aren't available on the server yet">
-          <TutorCourseMoodleGrades />
-        </NotAvailableNotice>
-      ) : page && page.data.length === 0 ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="No result sheets match"
-          description="Try another semester or clear the filters. Sheets appear once marks are pulled from Moodle."
-        />
-      ) : page ? (
-        <OfferingsTable
-          rows={page.data}
-          meta={page.meta}
-          sheetBasePath={sheetBasePath}
-          selectable={canSync}
-          selectedIds={selectedIds}
-          onToggle={(id) =>
-            setSelectedIds((ids) =>
-              ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
-            )
-          }
-          onToggleAll={setSelectedIds}
-          onPage={(p) => setWorkspace({ page: p })}
-          isFetching={sheets.isFetching}
-        />
-      ) : null}
-    </div>
+      <SheetsList
+        sheets={sheets}
+        sheetBasePath={sheetBasePath}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
+        emptyDescription="Try another semester or clear the filters. Sheets appear once marks are pulled from Moodle."
+      />
+    </>
+  )
+}
+
+type SheetsQuery = ReturnType<typeof useResultSheets>
+
+function recentPullJobId(data: SheetsQuery["data"]): number | null {
+  const ids = (data?.available ? data.data.data : [])
+    .map((r) => r.lastPullJobId)
+    .filter((id): id is number => id != null)
+  return ids.length ? Math.max(...ids) : null
+}
+
+interface SheetsListProps {
+  sheets: SheetsQuery
+  sheetBasePath: string
+  selectedIds: number[]
+  setSelectedIds: (update: (ids: number[]) => number[]) => void
+  emptyDescription: string
+}
+
+function SheetsList({
+  sheets,
+  sheetBasePath,
+  selectedIds,
+  setSelectedIds,
+  emptyDescription,
+}: SheetsListProps) {
+  const { can } = usePermissions()
+  const setWorkspace = useResultsUiStore((s) => s.setWorkspace)
+  const page = sheets.data?.available ? sheets.data.data : null
+
+  if (sheets.isLoading)
+    return (
+      <div className="space-y-2" aria-busy>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-muted/40" />
+        ))}
+      </div>
+    )
+  if (sheets.isError)
+    return (
+      <EmptyState
+        icon={ClipboardList}
+        title="Couldn't load result sheets"
+        description={sheets.error.message}
+        action={
+          <Button size="sm" variant="outline" onClick={() => sheets.refetch()}>
+            Try again
+          </Button>
+        }
+      />
+    )
+  if (sheets.data?.available === false)
+    return (
+      <NotAvailableNotice title="Result sheets aren't available on the server yet">
+        <TutorCourseMoodleGrades />
+      </NotAvailableNotice>
+    )
+  if (!page) return null
+  if (page.data.length === 0)
+    return (
+      <EmptyState
+        icon={ClipboardList}
+        title="No result sheets match"
+        description={emptyDescription}
+      />
+    )
+  return (
+    <OfferingsTable
+      rows={page.data}
+      meta={page.meta}
+      sheetBasePath={sheetBasePath}
+      selectable={can(RESULTS_PERMISSIONS.sync)}
+      selectedIds={selectedIds}
+      onToggle={(id) =>
+        setSelectedIds((ids) =>
+          ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
+        )
+      }
+      onToggleAll={(ids) => setSelectedIds(() => ids)}
+      onPage={(p) => setWorkspace({ page: p })}
+      isFetching={sheets.isFetching}
+    />
   )
 }

@@ -143,6 +143,7 @@ export async function live<T>(call: () => Promise<T>): Promise<Live<T>> {
 function sheetParams(f: ResultSheetFilters): Params {
   return {
     semesterId: f.semesterId,
+    majorProgramId: f.majorProgramId,
     programId: f.programId,
     departmentId: f.departmentId,
     status: f.status,
