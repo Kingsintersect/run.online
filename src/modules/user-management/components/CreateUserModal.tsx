@@ -20,6 +20,7 @@ import { rolesQueryOptions } from "@/services/rolesApi"
 import { usersKeys } from "@/services/usersApi"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { getErrorMessage, getFieldValidationMessage } from "@/lib/errors"
+import { UNSCOPED_ROLE_NAME_PATTERN } from "../lib/role-scope"
 
 interface CreateUserModalProps {
   onClose: () => void
@@ -32,7 +33,9 @@ interface CreateUserModalProps {
 // display name rather than a fixed slug, since the live catalog's exact
 // slug spelling for these two roles isn't guaranteed — see
 // sandbox/major-program-scoping/FRONTEND_IMPLEMENTATION_PLAN.md §2.
-const UNSCOPABLE_ROLE_NAME_PATTERN = /student|super\s*admin/i
+// Since 2026-09-26 the cross-program teaching roles (tutor, HOD, dean) are
+// unscoped too: see lib/role-scope.ts.
+const UNSCOPABLE_ROLE_NAME_PATTERN = UNSCOPED_ROLE_NAME_PATTERN
 
 export function CreateUserModal({ onClose }: CreateUserModalProps) {
   const { data: roles, isLoading: rolesLoading } = useQuery(

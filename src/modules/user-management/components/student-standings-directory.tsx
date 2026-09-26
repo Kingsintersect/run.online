@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { ChevronRight, GraduationCap, Loader2, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { cn } from "@/lib/utils"
+import { TeachingScopeSelect } from "@/components/teaching-scope-select"
+import { useMyTeachingScope } from "@/hooks/use-my-teaching-scope"
 import { RunPagination } from "@/modules/progression/components/run-pagination"
 import { QueryError } from "@/modules/progression/components/standing-states"
 import { NotAvailableNotice } from "@/modules/student-grades/_components/results/not-available-notice"
@@ -34,10 +36,32 @@ const statusVariant: Record<
 // Read-only student directory for HOD (and anyone else holding
 // standings.view on the /tutor routes). Search and paging are server-side;
 // selecting a student opens their academic standing in a side drawer.
+//
+// Scoped to where the user teaches or heads (useMyTeachingScope): they pick
+// one of those major programs, then a program, and only those students load.
+// Nothing loads before a major program is chosen, and programs they neither
+// teach in nor head are never offered.
 export function StudentStandingsDirectory() {
+  const scope = useMyTeachingScope()
+  const [page, setPage] = useState(1)
+  const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
+  const [programId, setProgramId] = useState<number | null>(null)
+  const heads =
+    scope.majorPrograms
+      .find((mp) => mp.id === majorProgramId)
+      ?.reasons.includes("heads") ?? false
+  // Where the user only teaches, a program must be chosen.
+  const ready = majorProgramId != null && (heads || programId != null)
+  const changeScope = useCallback(
+    (next: { majorProgramId: number | null; programId: number | null }) => {
+      setMajorProgramId(next.majorProgramId)
+      setProgramId(next.programId)
+      setPage(1)
+    },
+    []
+  )
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1)
   const [limit, setLimit] = useState<number>(PAGE_SIZES[0])
   const [selected, setSelected] = useState<Student | null>(null)
 
@@ -50,7 +74,13 @@ export function StudentStandingsDirectory() {
     return () => clearTimeout(t)
   }, [searchInput, search])
 
-  const query = useStudentDirectory({ search, page, limit })
+  const query = useStudentDirectory({
+    search,
+    page,
+    limit,
+    majorProgramId: ready ? majorProgramId : null,
+    programId,
+  })
   const result = query.data
   const unavailable = result?.available === false
 
@@ -75,7 +105,7 @@ export function StudentStandingsDirectory() {
             </p>
           </div>
         </div>
-        {!unavailable && (
+        {!unavailable && ready && (
           <div className="relative w-full sm:w-72">
             <Search
               size={14}
@@ -101,16 +131,46 @@ export function StudentStandingsDirectory() {
         )}
       </header>
 
-      <DirectoryBody
-        isLoading={query.isLoading}
-        isError={query.isError}
-        onRetry={() => query.refetch()}
-        result={result}
-        search={search}
-        onSelect={setSelected}
-      />
+      <section
+        aria-label="Your programs"
+        className="rounded-2xl border border-border bg-card p-4 dark:bg-card/60"
+      >
+        <TeachingScopeSelect
+          idPrefix="students"
+          scope={scope}
+          majorProgramId={majorProgramId}
+          programId={programId}
+          onChange={changeScope}
+        />
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Only the major programs and programs you teach in or head are listed.
+        </p>
+      </section>
 
-      {result?.available && (
+      {scope.isEmpty ? (
+        <p className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-muted/20">
+          You don&apos;t teach in or head any program yet, so there are no
+          students to show. Programs appear here once you&apos;re assigned a
+          course or made head of a department.
+        </p>
+      ) : !ready ? (
+        <p className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-muted/20">
+          {majorProgramId == null
+            ? "Choose one of your major programs to see its students."
+            : "Choose one of your programs to see its students."}
+        </p>
+      ) : (
+        <DirectoryBody
+          isLoading={query.isLoading}
+          isError={query.isError}
+          onRetry={() => query.refetch()}
+          result={result}
+          search={search}
+          onSelect={setSelected}
+        />
+      )}
+
+      {ready && result?.available && (
         <RunPagination
           meta={{
             page,

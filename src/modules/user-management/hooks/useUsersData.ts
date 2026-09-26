@@ -198,12 +198,16 @@ export function useUpdateMyOnboarding() {
 
 /* ── Course Assignments ── */
 
-export function useCourseOfferings(filters?: {
-  majorProgramId?: number | null
-}) {
+export function useCourseOfferings(
+  filters?: {
+    majorProgramId?: number | null
+  },
+  { enabled = true }: { enabled?: boolean } = {}
+) {
   return useQuery({
     ...usersQueryOptions.courseOfferings(filters),
     staleTime: 1000 * 60 * 5,
+    enabled,
   })
 }
 

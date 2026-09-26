@@ -13,6 +13,8 @@ import {
 } from "lucide-react"
 import { CourseAssignmentCard } from "./_components/CourseAssignmentCard"
 import { useAssignedCourses } from "@/modules/tutor-courses/hooks/use-tutor-courses"
+import { useCourseMajorPrograms } from "@/modules/tutor-courses/hooks/use-course-major-programs"
+import { cn } from "@/lib/utils"
 
 // ─── Summary pill ─────────────────────────────────────────────────────────────
 
@@ -62,6 +64,9 @@ function SkeletonCard() {
 export default function CourseAssignmentPage() {
   const { courses, loading, error } = useAssignedCourses()
   const [search, setSearch] = useState("")
+  // "all", or one major program's id (null = owner unknown).
+  const [majorProgram, setMajorProgram] = useState<number | null | "all">("all")
+  const allGroups = useCourseMajorPrograms(courses)
 
   const filtered = courses.filter(
     (c) =>
@@ -208,14 +213,87 @@ export default function CourseAssignmentPage() {
         </div>
       )}
 
-      {/* Course cards grid */}
-      {!loading && filtered.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((course, i) => (
-            <CourseAssignmentCard key={course.id} course={course} index={i} />
+      {/* A tutor can teach in several major programs: filter by one. */}
+      {!loading && allGroups.length > 1 && (
+        <div
+          role="group"
+          aria-label="Filter by major program"
+          className="flex flex-wrap gap-2"
+        >
+          {[
+            { key: "all" as const, label: "All", count: courses.length },
+            ...allGroups.map((g) => ({
+              key: g.majorProgramId,
+              label: g.name,
+              count: g.courses.length,
+            })),
+          ].map((chip) => (
+            <button
+              key={String(chip.key)}
+              type="button"
+              aria-pressed={majorProgram === chip.key}
+              onClick={() => setMajorProgram(chip.key)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+                majorProgram === chip.key
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {chip.label} · {chip.count}
+            </button>
           ))}
         </div>
       )}
+
+      {/* Course cards, one section per major program when there are several */}
+      {!loading &&
+        filtered.length > 0 &&
+        (() => {
+          const visible = new Set(filtered.map((c) => c.id))
+          const groups = allGroups
+            .filter(
+              (g) => majorProgram === "all" || g.majorProgramId === majorProgram
+            )
+            .map((g) => ({
+              ...g,
+              courses: g.courses.filter((c) => visible.has(c.id)),
+            }))
+            .filter((g) => g.courses.length > 0)
+          const titled = allGroups.length > 1
+          if (groups.length === 0)
+            return (
+              <p className="py-10 text-center text-xs text-muted-foreground">
+                No courses match in this major program.
+              </p>
+            )
+          return (
+            <div className="space-y-6">
+              {groups.map((g) => (
+                <section
+                  key={String(g.majorProgramId)}
+                  aria-label={titled ? g.name : undefined}
+                  className="space-y-3"
+                >
+                  {titled && (
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                      {g.name} · {g.courses.length}
+                    </h3>
+                  )}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {g.courses.map((course, i) => (
+                      <CourseAssignmentCard
+                        key={`${g.majorProgramId}-${course.id}`}
+                        course={course}
+                        index={i}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )
+        })()}
 
       {/* Empty search state */}
       {!loading && courses.length > 0 && filtered.length === 0 && (

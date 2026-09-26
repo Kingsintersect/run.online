@@ -49,6 +49,8 @@ export interface Student {
   program_name: string
   department_name: string
   faculty_name: string
+  /** What owns the student's program: a department, or a faculty directly. */
+  program_owned_by?: "department" | "faculty" | null
   // Nullable — sandbox/program-structure-depth/SCHEMA_CHANGES.md
   // §2: null for a FOUNDATIONAL or CERTIFICATE student, neither of which
   // has a Level concept. A CERTIFICATE student has `current_cohort_id`
@@ -190,7 +192,11 @@ export interface CreateTutorPayload {
   // one to pick from — see CreateTutorForm.
   faculty_id?: number
   department_id?: number
-  major_program_id: number
+  // Optional (cross-program teaching, 2026-09-26): a tutor can teach in any
+  // major program, so none is chosen up front. Sent only while the backend
+  // still requires one (the form asks when a create is rejected for it).
+  // sandbox/cross-program-teaching/API_CONTRACTS.md.
+  major_program_id?: number
   designation: string
   specialization?: string
   office_location?: string
@@ -214,10 +220,14 @@ export interface CreateStaffPayload {
   phone_number?: string
   staff_number: string
   department_id?: number
-  // Major-Program Scoping — A27: Staff is one of the 7 roles scoped to
-  // exactly one major program at creation (required, not nullable), same as
-  // CreateTutorPayload.major_program_id.
-  major_program_id: number
+  // Faculty a dean leads (sent as facultyId; proposed in
+  // sandbox/cross-program-teaching, ignored by the backend until it ships).
+  faculty_id?: number
+  // Major-Program Scoping — A27: staff roles are scoped to one major program
+  // at creation. Optional since 2026-09-26 for the cross-program roles (HOD,
+  // dean), which are identified by the department/faculty they lead instead;
+  // still chosen for every other staff role.
+  major_program_id?: number
   designation: string
   job_title: string
   role_id: number // selected staff role (e.g. Staff, Registrar, HOD, Bursary)

@@ -5,7 +5,7 @@ import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useSemesters } from "@/hooks/useSemesters"
 import { useResultsUiStore } from "../store/results-ui.store"
-import { useMajorProgramStructure } from "./use-major-program-structure"
+import { useMajorProgramStructure } from "@/hooks/use-major-program-structure"
 import { useResultPullScope } from "./use-results"
 import type { ResultScopeSelection } from "../types"
 

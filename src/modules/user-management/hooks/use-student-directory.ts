@@ -9,6 +9,9 @@ export interface StudentDirectoryFilters {
   search: string
   page: number
   limit: number
+  /** Required: the list never loads outside a chosen major program. */
+  majorProgramId: number | null
+  programId: number | null
 }
 
 export type StudentDirectoryResult =
@@ -36,6 +39,8 @@ export function useStudentDirectory(filters: StudentDirectoryFilters) {
     search: filters.search.trim() || undefined,
     page: filters.page,
     limit: filters.limit,
+    major_program_id: filters.majorProgramId ?? undefined,
+    program_id: filters.programId ?? undefined,
   }
   return useQuery({
     // Own suffix: the result shape differs from useStudents(), so the cache
@@ -62,5 +67,6 @@ export function useStudentDirectory(filters: StudentDirectoryFilters) {
     placeholderData: keepPreviousData,
     staleTime: 1000 * 60 * 2,
     retry: false,
+    enabled: filters.majorProgramId != null,
   })
 }

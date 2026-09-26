@@ -1,12 +1,13 @@
 "use client"
 
-import { Suspense, useMemo, useState } from "react"
+import { TeachingScopeSelect } from "@/components/teaching-scope-select"
+import { useMyTeachingScope } from "@/hooks/use-my-teaching-scope"
+import { Suspense, useMemo, useState, useCallback } from "react"
 import { ClipboardList, Info, Layers } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import { useAllDepartments, useAllPrograms } from "@/hooks/useCourseStructure"
 import { TutorCourseMoodleGrades } from "@/modules/moodle-sync/components/grades/tutor-course-grades"
 import { useResultSheets } from "../../hooks/use-results"
 import { useResultsScope } from "../../hooks/use-results-scope"
@@ -17,7 +18,6 @@ import { NotAvailableNotice } from "./not-available-notice"
 import { OfferingsTable } from "./offerings-table"
 import { ResultsRefineFilters } from "./results-refine-filters"
 import { ResultsScopeFilters, SCOPE_FIELD_IDS } from "./results-scope-filters"
-import { SelectField, toId } from "./select-field"
 import { SemesterPicker } from "./semester-picker"
 import type { ResultSheetFilters } from "../../types"
 
@@ -186,16 +186,32 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   )
 }
 
+// Tutor/HOD/dean list (already limited to the caller's own offerings by the
+// backend). A lecturer can teach in several major programs, so the list is
+// scoped the same way as their Students page: they pick one of the major
+// programs, then programs, they teach in or head (useMyTeachingScope), and
+// nothing loads before that. The session picker then shows that major
+// program's sessions, and rows are checked against each offering's real
+// owners (fetchScopedSheetPage).
 function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   const { workspace: w, setWorkspace } = useResultsUiStore()
-  const { data: programsRes } = useAllPrograms()
-  const { data: departmentsRes } = useAllDepartments()
+  const scope = useMyTeachingScope()
+  const heads =
+    scope.majorPrograms
+      .find((mp) => mp.id === w.majorProgramId)
+      ?.reasons.includes("heads") ?? false
+  const ready = w.majorProgramId != null && (heads || w.programId != null)
+  const changeScope = useCallback(
+    (next: { majorProgramId: number | null; programId: number | null }) =>
+      setWorkspace(next),
+    [setWorkspace]
+  )
 
   const filters: ResultSheetFilters = useMemo(
     () => ({
+      majorProgramId: w.majorProgramId ?? undefined,
       semesterId: w.semesterId ?? undefined,
       programId: w.programId ?? undefined,
-      departmentId: w.departmentId ?? undefined,
       status: w.status ?? undefined,
       flag: w.flag ?? undefined,
       search: w.search.trim() || undefined,
@@ -204,9 +220,9 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
     }),
     [w]
   )
-  const sheets = useResultSheets(filters)
+  const sheets = useResultSheets(filters, ready)
   const [selectedIds, setSelectedIds] = useScopedSelection(
-    [w.departmentId, w.programId, w.semesterId].join(":")
+    [w.majorProgramId, w.programId, w.semesterId].join(":")
   )
 
   return (
@@ -215,34 +231,21 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         aria-label="Filters"
         className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4"
       >
+        <TeachingScopeSelect
+          idPrefix="ws"
+          scope={scope}
+          majorProgramId={w.majorProgramId}
+          programId={w.programId}
+          onChange={changeScope}
+          className="sm:col-span-2"
+        />
         <SemesterPicker
           idPrefix="ws"
+          majorProgramId={w.majorProgramId}
           sessionId={w.sessionId}
           semesterId={w.semesterId}
           onSessionChange={(sessionId) => setWorkspace({ sessionId })}
           onSemesterChange={(semesterId) => setWorkspace({ semesterId })}
-        />
-        <SelectField
-          id="ws-program"
-          label="Program"
-          value={w.programId ? String(w.programId) : ""}
-          onChange={(v) => setWorkspace({ programId: toId(v) })}
-          placeholder="All programs"
-          options={(programsRes?.data ?? []).map((p) => ({
-            value: String(p.id),
-            label: p.name,
-          }))}
-        />
-        <SelectField
-          id="ws-department"
-          label="Department"
-          value={w.departmentId ? String(w.departmentId) : ""}
-          onChange={(v) => setWorkspace({ departmentId: toId(v) })}
-          placeholder="All departments"
-          options={(departmentsRes?.data ?? []).map((d) => ({
-            value: String(d.id),
-            label: d.name,
-          }))}
         />
         <ResultsRefineFilters />
       </section>
@@ -260,13 +263,31 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         </Suspense>
       </PermissionGate>
 
-      <SheetsList
-        sheets={sheets}
-        sheetBasePath={sheetBasePath}
-        selectedIds={selectedIds}
-        setSelectedIds={setSelectedIds}
-        emptyDescription="Try another semester or clear the filters. Sheets appear once marks are pulled from Moodle."
-      />
+      {scope.isEmpty ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="No programs in your scope yet"
+          description="Results appear here for the major programs and programs you teach in or head. Ask an administrator to assign you a course."
+        />
+      ) : !ready ? (
+        <EmptyState
+          icon={ClipboardList}
+          title={
+            w.majorProgramId == null
+              ? "Choose one of your major programs"
+              : "Choose one of your programs"
+          }
+          description="Only the programs you teach in or head are listed."
+        />
+      ) : (
+        <SheetsList
+          sheets={sheets}
+          sheetBasePath={sheetBasePath}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
+          emptyDescription="Try another semester or clear the filters. Sheets appear once marks are pulled from Moodle."
+        />
+      )}
     </>
   )
 }

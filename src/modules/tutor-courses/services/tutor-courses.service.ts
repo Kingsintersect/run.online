@@ -44,6 +44,7 @@ export const tutorCoursesService = {
             isRequired: p.is_required,
           })),
           categoryPath: offering.category_path.map((c) => c.name),
+          majorProgramIds: offering.major_program_ids,
           // All of the above are `null` / `[]` until the enriched
           // GET /courses/offerings response ships (see AssignedCourse and
           // sandbox/course/missing_course_offering_enrichment.readme.md).

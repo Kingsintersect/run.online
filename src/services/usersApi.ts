@@ -115,6 +115,9 @@ interface WireStudent {
   user: WireUserRef
   program?: WireRelationRef & {
     department?: WireRelationRef & { faculty?: WireRelationRef }
+    // A program owned directly by a faculty (no department). Proposed in
+    // BACKEND_DEVIATIONS B22; read as soon as the backend sends it.
+    faculty?: WireRelationRef
   }
   currentLevel?: WireRelationRef & { numericValue: number }
 }
@@ -252,8 +255,16 @@ const mapStudent = (s: WireStudent): Student => ({
   matric_number: s.matricNumber,
   program_id: s.programId,
   program_name: s.program?.name ?? "—",
+  // A program is owned by a department (and through it a faculty) or
+  // directly by a faculty; both shapes occur in one institution.
   department_name: s.program?.department?.name ?? "—",
-  faculty_name: s.program?.department?.faculty?.name ?? "—",
+  faculty_name:
+    s.program?.department?.faculty?.name ?? s.program?.faculty?.name ?? "—",
+  program_owned_by: s.program?.department
+    ? "department"
+    : s.program?.faculty
+      ? "faculty"
+      : null,
   // Nullable — sandbox/program-structure-depth/. `0` was
   // previously used as a "no level" sentinel; `null` is the correct
   // representation now that FOUNDATIONAL/CERTIFICATE students genuinely
@@ -578,7 +589,8 @@ export const usersApi = {
         // tolerant of a placeholder value.
         facultyId: payload.faculty_id || undefined,
         departmentId: payload.department_id || undefined,
-        majorProgramId: payload.major_program_id,
+        // Omitted when not chosen: tutors aren't scoped to one major program.
+        majorProgramId: payload.major_program_id || undefined,
         designation: payload.designation,
         specialization: payload.specialization,
         officeLocation: payload.office_location,
@@ -687,7 +699,9 @@ export const usersApi = {
         phoneNumber: payload.phone_number,
         staffNumber: payload.staff_number,
         departmentId: payload.department_id,
-        majorProgramId: payload.major_program_id,
+        facultyId: payload.faculty_id,
+        // Omitted for HOD/dean (cross-program roles) unless the server asks.
+        majorProgramId: payload.major_program_id || undefined,
         designation: payload.designation,
         jobTitle: payload.job_title,
         roleId: payload.role_id,

@@ -13,6 +13,7 @@ import {
   useRevokeUserRole,
 } from "@/hooks/useUserRoles"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import { UNSCOPED_ROLE_NAME_PATTERN } from "../lib/role-scope"
 
 interface ManageRolesModalProps {
   userId: number
@@ -20,9 +21,9 @@ interface ManageRolesModalProps {
   onClose: () => void
 }
 
-// Same pattern as CreateUserModal's UNSCOPABLE_ROLE_NAME_PATTERN — see
-// sandbox/major-program-scoping/FRONTEND_IMPLEMENTATION_PLAN.md §2.
-const UNSCOPABLE_ROLE_NAME_PATTERN = /student|super\s*admin/i
+// Roles granted without a major program: students, super admins, and the
+// cross-program teaching roles (tutor, HOD, dean). See lib/role-scope.ts.
+const UNSCOPABLE_ROLE_NAME_PATTERN = UNSCOPED_ROLE_NAME_PATTERN
 
 export function ManageRolesModal({
   userId,

@@ -25,7 +25,13 @@ import {
   useSetUserActive,
 } from "../hooks/useUsersData"
 import { usePermissions } from "@/lib/permissions/usePermissions"
-import { useMajorPrograms } from "@/hooks/useCourseStructure"
+import {
+  useMajorPrograms,
+  useFaculties,
+  useDepartments,
+} from "@/hooks/useCourseStructure"
+import { isCrossProgramRole, isDeanRole, isHodRole } from "../lib/role-scope"
+import { isMajorProgramRequiredError } from "../lib/major-program-required"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { toast } from "sonner"
 import type {
@@ -364,19 +370,57 @@ function CreateStaffForm({
     designation: "",
     job_title: "",
     role_id: 0,
-    major_program_id: 0,
+    major_program_id: undefined,
   })
 
-  const update = (key: keyof CreateStaffPayload, value: string | number) =>
-    setForm((prev) => ({ ...prev, [key]: value }))
+  // HOD and dean lead across major programs (lib/role-scope.ts): an HOD is
+  // identified by the department they head, a dean by the faculty they lead.
+  // Every other staff role still gets a major program. If the server still
+  // insists on one for HOD/dean, the field appears with a note.
+  const roleName = eligibleRoles.find((r) => r.id === form.role_id)?.name
+  const crossProgram = isCrossProgramRole(roleName)
+  const [needsMajorProgram, setNeedsMajorProgram] = useState(false)
+  const showMajorProgram = !crossProgram || needsMajorProgram
+  const hod = isHodRole(roleName)
+  const dean = isDeanRole(roleName)
+
+  const { data: facultiesRes } = useFaculties()
+  const faculties = (facultiesRes?.data ?? []).filter((f) => f.isActive)
+  const { data: departmentsRes, isFetching: loadingDepartments } =
+    useDepartments(hod ? form.faculty_id || null : null)
+  const departments = (departmentsRes?.data ?? []).filter((d) => d.isActive)
+
+  const update = (
+    key: keyof CreateStaffPayload,
+    value: string | number | undefined
+  ) => setForm((prev) => ({ ...prev, [key]: value }))
+
+  const changeRole = (roleId: number) =>
+    setForm((prev) => ({
+      ...prev,
+      role_id: roleId,
+      faculty_id: undefined,
+      department_id: undefined,
+    }))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.major_program_id) {
+    if (showMajorProgram && !form.major_program_id) {
       toast.error("Please select a major program.")
       return
     }
-    void onSubmit(form).catch(() => {})
+    const payload: CreateStaffPayload = {
+      ...form,
+      major_program_id: showMajorProgram ? form.major_program_id : undefined,
+      // The faculty is only sent for a dean; for an HOD it just narrows the
+      // department list.
+      faculty_id: dean ? form.faculty_id : undefined,
+      department_id: form.department_id,
+    }
+    void onSubmit(payload).catch((error: Error) => {
+      if (crossProgram && isMajorProgramRequiredError(error))
+        setNeedsMajorProgram(true)
+    })
   }
 
   const inputCls =
@@ -416,7 +460,7 @@ function CreateStaffForm({
             className={selectCls}
             required
             value={form.role_id || ""}
-            onChange={(e) => update("role_id", parseInt(e.target.value) || 0)}
+            onChange={(e) => changeRole(parseInt(e.target.value) || 0)}
           >
             <option value="">Select a role…</option>
             {eligibleRoles.map((r) => (
@@ -431,24 +475,104 @@ function CreateStaffForm({
             </p>
           )}
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">
-            Major Program *
-          </label>
-          <select
-            className={selectCls}
-            required
-            value={form.major_program_id || ""}
-            onChange={(e) => update("major_program_id", Number(e.target.value))}
-          >
-            <option value="">Select a major program…</option>
-            {majorPrograms.map((mp) => (
-              <option key={mp.id} value={mp.id}>
-                {mp.name}
+        {showMajorProgram && (
+          <div>
+            <label
+              htmlFor="staff-major-program"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Major Program *
+            </label>
+            <select
+              id="staff-major-program"
+              className={selectCls}
+              required
+              value={form.major_program_id || ""}
+              onChange={(e) =>
+                update("major_program_id", Number(e.target.value))
+              }
+            >
+              <option value="">Select a major program…</option>
+              {majorPrograms.map((mp) => (
+                <option key={mp.id} value={mp.id}>
+                  {mp.name}
+                </option>
+              ))}
+            </select>
+            {crossProgram && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                The server still asks for one for this role. It doesn&apos;t
+                limit them: {roleName} work across major programs.
+              </p>
+            )}
+          </div>
+        )}
+        {(hod || dean) && (
+          <div>
+            <label
+              htmlFor="staff-faculty"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              {dean ? "Faculty they lead" : "Faculty"}
+            </label>
+            <select
+              id="staff-faculty"
+              className={selectCls}
+              value={form.faculty_id || ""}
+              onChange={(e) => {
+                const id = Number(e.target.value) || undefined
+                setForm((prev) => ({
+                  ...prev,
+                  faculty_id: id,
+                  department_id: undefined,
+                }))
+              }}
+            >
+              <option value="">
+                {faculties.length ? "Select a faculty…" : "No faculties yet"}
               </option>
-            ))}
-          </select>
-        </div>
+              {faculties.map((fac) => (
+                <option key={fac.id} value={fac.id}>
+                  {fac.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {hod && (
+          <div>
+            <label
+              htmlFor="staff-department"
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              Department they head
+            </label>
+            <select
+              id="staff-department"
+              className={selectCls}
+              value={form.department_id || ""}
+              disabled={!form.faculty_id || loadingDepartments}
+              onChange={(e) =>
+                update("department_id", Number(e.target.value) || undefined)
+              }
+            >
+              <option value="">
+                {!form.faculty_id
+                  ? "Select a faculty first"
+                  : loadingDepartments
+                    ? "Loading…"
+                    : departments.length
+                      ? "Select a department…"
+                      : "This faculty has no departments"}
+              </option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs font-medium text-foreground">
             Staff Number *
