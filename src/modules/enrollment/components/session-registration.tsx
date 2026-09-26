@@ -60,6 +60,19 @@ export function SessionRegistration() {
     )
   }
 
+  if (query.noSemester) {
+    return (
+      <div className="space-y-6">
+        <FallbackNotice>
+          No semester is active for your programme right now, so there&apos;s no
+          session registration to show. Any open course offerings are listed
+          below.
+        </FallbackNotice>
+        <CourseRegistration />
+      </div>
+    )
+  }
+
   if (!query.data?.available) {
     return (
       <div className="space-y-6">

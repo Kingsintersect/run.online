@@ -138,25 +138,24 @@ export const LevelRefSchema = z.object({
 // (snake-cased by the service before parsing). A Laravel paginator meta
 // (`current_page` / `per_page` / `last_page`) is accepted too and normalised
 // to the same output shape, so either backend choice just works.
+// The live promotion-runs route sends `{total, page, perPage}`, so page/limit
+// may each come under either name.
 export const PaginationMetaSchema = z
-  .union([
-    z.object({
-      total: z.number(),
-      page: z.number(),
-      limit: z.number(),
-      total_pages: z.number().optional(),
-    }),
-    z.object({
-      total: z.number(),
-      current_page: z.number(),
-      per_page: z.number(),
-      last_page: z.number().optional(),
-    }),
-  ])
+  .object({
+    total: z.number(),
+    page: z.number().optional(),
+    current_page: z.number().optional(),
+    limit: z.number().optional(),
+    per_page: z.number().optional(),
+    total_pages: z.number().optional(),
+    last_page: z.number().optional(),
+  })
+  .refine((m) => (m.page ?? m.current_page) != null, "page is required")
+  .refine((m) => (m.limit ?? m.per_page) != null, "limit is required")
   .transform((m) => {
-    const page = "page" in m ? m.page : m.current_page
-    const limit = "limit" in m ? m.limit : m.per_page
-    const explicit = "page" in m ? m.total_pages : m.last_page
+    const page = m.page ?? m.current_page ?? 1
+    const limit = m.limit ?? m.per_page ?? 1
+    const explicit = m.total_pages ?? m.last_page
     return {
       total: m.total,
       page,
@@ -287,7 +286,14 @@ export const ReadinessIssueSchema = z.object({
   code: z.string(),
   message: z.string(),
   count: z.number().nullable().optional(),
-  context: z.record(z.string(), ContextValueSchema).nullable().optional(),
+  // Laravel serialises an empty associative array as `[]`, so an empty list
+  // means "no context".
+  context: z
+    .preprocess(
+      (v) => (Array.isArray(v) && v.length === 0 ? null : v),
+      z.record(z.string(), ContextValueSchema).nullable()
+    )
+    .optional(),
 })
 
 export const ReadinessSchema = z.object({

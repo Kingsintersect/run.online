@@ -82,6 +82,24 @@ export function toProgressionApiError(error: Error): ProgressionApiError {
       readiness: readinessFromError(error),
     }
   }
+  // A response that doesn't match the contract surfaces as a ZodError, whose
+  // message is a raw JSON issue list. Show plain words instead and log the
+  // detail for developers.
+  if (error instanceof z.ZodError) {
+    console.error(
+      "Progression response didn't match the contract",
+      error.issues
+    )
+    return {
+      status: null,
+      code: "UNEXPECTED_RESPONSE",
+      message:
+        "The server sent this information in an unexpected format, so it can't be shown right now. Please try again later or contact support.",
+      fieldErrors: {},
+      notAvailable: false,
+      readiness: null,
+    }
+  }
   return {
     status: null,
     code: null,

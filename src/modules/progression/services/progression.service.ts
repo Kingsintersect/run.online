@@ -67,8 +67,11 @@ async function getBody(url: string, params?: Params): Promise<Envelope> {
   return apiClient.get<Envelope>(url, { ...AUTH, params })
 }
 
+// Most resources are wrapped in `{data}`, but some live routes (the readiness
+// checklists) return the object bare, so a body without `data` is used as-is.
 function dataOf(body: Envelope): Json {
-  return snakeKeys(body?.data ?? null)
+  if (body == null) return null
+  return snakeKeys("data" in body ? (body.data ?? null) : (body as Json))
 }
 
 async function getOne<S extends z.ZodType>(

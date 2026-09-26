@@ -66,24 +66,29 @@ export function RegistrationCourseSelection({
       return next
     })
 
-  const carryoverUnits = context.carryover_courses
-    .filter((c) => isLocked(c) || isChosen(c.offering_id))
-    .reduce((sum, c) => sum + c.course.credit_units, 0)
-  const levelUnits = context.level_courses
-    .filter((c) => isChosen(c.offering_id))
-    .reduce((sum, c) => sum + c.course.credit_units, 0)
-  const units = carryoverUnits + levelUnits
+  // A course can come back both as a carryover and as one of this level's
+  // courses (seen live 2026-09-26), so each course's units count once.
+  const chosenUnits = new Map<number, number>()
+  for (const c of context.carryover_courses)
+    if (isLocked(c) || isChosen(c.offering_id))
+      chosenUnits.set(c.course.id, c.course.credit_units)
+  for (const c of context.level_courses)
+    if (isChosen(c.offering_id))
+      chosenUnits.set(c.course.id, c.course.credit_units)
+  const units = [...chosenUnits.values()].reduce((sum, u) => sum + u, 0)
 
   const missingOffering = context.carryover_courses.some(
     (c) => c.offering_missing
   )
   const toSubmit = [
-    ...context.carryover_courses
-      .filter((c) => isLocked(c) || isChosen(c.offering_id))
-      .map((c) => c.offering_id),
-    ...context.level_courses
-      .filter((c) => selected.has(c.offering_id))
-      .map((c) => c.offering_id),
+    ...new Set([
+      ...context.carryover_courses
+        .filter((c) => isLocked(c) || isChosen(c.offering_id))
+        .map((c) => c.offering_id),
+      ...context.level_courses
+        .filter((c) => selected.has(c.offering_id))
+        .map((c) => c.offering_id),
+    ]),
   ].filter((id): id is number => id !== null && !registered.has(id))
 
   const blockedReason = !context.semester.is_open

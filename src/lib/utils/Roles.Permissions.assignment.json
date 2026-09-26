@@ -309,6 +309,10 @@
     {
       "resource": "standings",
       "action": "view"
+    },
+    {
+      "resource": "students",
+      "action": "view"
     }
   ],
   "DEAN": [
