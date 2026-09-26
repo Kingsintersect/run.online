@@ -103,4 +103,6 @@ export const resultsKeys = {
     [...resultsKeys.all, "result-status", semesterId] as const,
   studentGrades: (studentId: number) =>
     [...resultsKeys.all, "student-grades", studentId] as const,
+  semesterSessionLinks: () =>
+    [...resultsKeys.all, "semester-session-links"] as const,
 } as const

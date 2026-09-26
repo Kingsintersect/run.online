@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import GradesResultsPage from "./Results"
@@ -128,7 +129,10 @@ export function ResultConfigurationShell() {
 export function StudentResultShell() {
   return (
     <PermissionGate require={P.viewOwn} denyBehavior="modal">
-      <StudentResultsPage />
+      {/* StudentResultsPage reads ?session= via useSearchParams. */}
+      <Suspense fallback={null}>
+        <StudentResultsPage />
+      </Suspense>
     </PermissionGate>
   )
 }

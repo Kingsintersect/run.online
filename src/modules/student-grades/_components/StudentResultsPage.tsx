@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import {
@@ -12,7 +13,9 @@ import {
   Hourglass,
   Loader2,
   Wallet,
+  X,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useMyStudentId } from "@/hooks/use-my-student-id"
 import { useMyActiveSession } from "@/hooks/use-my-active-session"
 import { useProgram } from "@/hooks/useCourseStructure"
@@ -22,7 +25,12 @@ import {
   useDownloadSemesterResult,
 } from "../hooks/use-grades-data"
 import { useMyPublishedGrades, useMyResultStatus } from "../hooks/use-results"
+import {
+  useMyResultsSessionFilter,
+  type ResultsFilterItem,
+} from "../hooks/use-my-results-session-filter"
 import { TermResultsView } from "./TermResultsView"
+import { MyResultsSessionFilter } from "./my-results-session-filter"
 import { fmtScore } from "./results/format"
 import type { CgpaHistoryEntry } from "../types/grades.types"
 import type { StudentGrade } from "../types"
@@ -136,6 +144,39 @@ function ResultStatusBanner({ semesterId }: { semesterId: number | null }) {
   )
 }
 
+// ─── Empty state for a session/semester with nothing published ────────────────
+
+function FilteredEmptyState({
+  label,
+  onClear,
+}: {
+  label: string
+  onClear: () => void
+}) {
+  return (
+    <div
+      role="status"
+      className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-14 text-center text-muted-foreground"
+    >
+      <BookOpen size={32} className="opacity-30" aria-hidden />
+      <p className="text-sm">No published results for {label}.</p>
+      <p className="max-w-sm text-xs opacity-70">
+        Results for this session appear here once they&apos;re published.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onClear}
+        className="mt-2 gap-1.5 text-xs"
+      >
+        <X size={13} aria-hidden />
+        Show all sessions
+      </Button>
+    </div>
+  )
+}
+
 // ─── CGPA history mini-chart ───────────────────────────────────────────────────
 
 function CgpaHistorySection({ history }: { history: CgpaHistoryEntry[] }) {
@@ -214,9 +255,44 @@ export default function StudentResultsPage() {
     !programLoading && isSecondarySchool
   )
 
+  // Session/semester filter — kept in the URL (?session=<id>&semester=<id>)
+  // so the Academic History page can deep-link to one session.
+  const allGrades = gradesQuery.data
+  const filterItems = useMemo<ResultsFilterItem[]>(
+    () =>
+      isSecondarySchool
+        ? terms.map((t) => ({
+            semesterId: t.semesterId,
+            semesterName: t.semesterName,
+          }))
+        : (allGrades ?? []),
+    [isSecondarySchool, terms, allGrades]
+  )
+  const filter = useMyResultsSessionFilter(filterItems)
+  const filterLabel = [filter.sessionLabel, filter.semesterLabel]
+    .filter(Boolean)
+    .join(" · ")
+  const visibleTerms = terms.filter((t) =>
+    filter.matches({ semesterId: t.semesterId, semesterName: t.semesterName })
+  )
+  const cgpaHistory = cgpa.history.filter((h) =>
+    filter.matches({
+      semesterId: Number(h.semesterId),
+      semesterName: h.semesterName,
+      academicSession: h.academicYear,
+    })
+  )
+  const showCurrentStatus =
+    !filter.isFiltered ||
+    (currentSemester != null &&
+      filter.matches({
+        semesterId: currentSemester.id,
+        semesterName: currentSemester.name,
+      }))
+
   // Group published grades by semester (most recent first). The semester
   // GPA is the backend's own figure from cgpa_history — never recomputed here.
-  const grades = gradesQuery.data ?? []
+  const grades = (allGrades ?? []).filter(filter.matches)
   const bySemester = grades.reduce<Map<number, StudentGrade[]>>((acc, g) => {
     acc.set(g.semesterId, [...(acc.get(g.semesterId) ?? []), g])
     return acc
@@ -281,7 +357,12 @@ export default function StudentResultsPage() {
             Term Results
           </h2>
         </div>
-        <TermResultsView terms={terms} loading={termsLoading} />
+        <MyResultsSessionFilter filter={filter} />
+        {filter.isFiltered && visibleTerms.length === 0 ? (
+          <FilteredEmptyState label={filterLabel} onClear={filter.clear} />
+        ) : (
+          <TermResultsView terms={visibleTerms} loading={termsLoading} />
+        )}
       </div>
     )
   }
@@ -295,7 +376,11 @@ export default function StudentResultsPage() {
 
   return (
     <div className="space-y-6">
-      <ResultStatusBanner semesterId={currentSemester?.id ?? null} />
+      <MyResultsSessionFilter filter={filter} />
+
+      {showCurrentStatus && (
+        <ResultStatusBanner semesterId={currentSemester?.id ?? null} />
+      )}
 
       {/* Header stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -339,17 +424,24 @@ export default function StudentResultsPage() {
       </div>
 
       {/* CGPA history */}
-      <CgpaHistorySection history={cgpa.history} />
+      <CgpaHistorySection history={cgpaHistory} />
 
       {/* Grades by semester */}
       <div className="flex items-center gap-2 space-y-1">
         <TrendingUp size={15} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold text-foreground">
           Semester Results
+          {filter.isFiltered && (
+            <span className="ml-1.5 font-normal text-muted-foreground">
+              — {filterLabel}
+            </span>
+          )}
         </h2>
       </div>
 
-      {semesters.length === 0 ? (
+      {semesters.length === 0 && filter.isFiltered ? (
+        <FilteredEmptyState label={filterLabel} onClear={filter.clear} />
+      ) : semesters.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-16 text-muted-foreground">
           <BookOpen size={36} className="opacity-30" />
           <p className="text-sm">No results published yet.</p>

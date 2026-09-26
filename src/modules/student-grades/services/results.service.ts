@@ -29,6 +29,7 @@ import {
   ResultSheetSchema,
   ResultSheetSummarySchema,
   ResultStatusSchema,
+  SemesterSessionLinkSchema,
   SchemeGradeScaleSchema,
   SchemeResolutionSchema,
   StudentGradeSchema,
@@ -65,6 +66,7 @@ import type {
   ResultSheetFilters,
   ResultSheetSummary,
   ResultStatus,
+  SemesterSessionLink,
   RevertBody,
   SchemeGradeScale,
   SchemeResolution,
@@ -362,5 +364,17 @@ export const resultsApi = {
         gradePoint: row.gradePoint,
         publishedAt: null,
       }))
+  },
+
+  // GET /academic/semesters with no `academicSessionId` filter returns every
+  // semester (bruno/academic/Semesters - List.bru). Used to map a published
+  // grade's semesterId to its academic session for the student's session
+  // filter — StudentGrade carries the session's name, not its id, and names
+  // repeat across major programs.
+  listSemesterSessionLinks: async (): Promise<SemesterSessionLink[]> => {
+    const body = await apiClient.get<{
+      data: z.input<typeof SemesterSessionLinkSchema>[]
+    }>("/academic/semesters", AUTH)
+    return z.array(SemesterSessionLinkSchema).parse(body.data)
   },
 }

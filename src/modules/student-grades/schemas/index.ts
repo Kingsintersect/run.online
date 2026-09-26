@@ -400,6 +400,17 @@ export const LegacyStudentGradeRowSchema = z.object({
   gradeScale: z.object({ grade: z.string().optional() }).nullish(),
 })
 
+// One row of `GET /academic/semesters` (unfiltered — every semester, each
+// carrying its academicSessionId). The student results page uses it only to
+// resolve a published grade's semesterId to its academic session, since the
+// StudentGrade shape names the session but carries no session id.
+export const SemesterSessionLinkSchema = z.object({
+  id: z.number(),
+  academicSessionId: z.number(),
+  name: z.string(),
+  startDate: z.string().nullish(),
+})
+
 export const ResultStatusSchema = z.object({
   semesterId: z.number(),
   published: z.boolean(),

@@ -37,6 +37,7 @@ import type {
   ResultSheetSchema,
   ResultSheetSummarySchema,
   ResultStatusSchema,
+  SemesterSessionLinkSchema,
   RevertSchema,
   RowFlagSchema,
   SchemeGradeScaleSchema,
@@ -78,6 +79,7 @@ export type ResultPolicy = z.infer<typeof ResultPolicySchema>
 
 export type StudentGrade = z.infer<typeof StudentGradeSchema>
 export type ResultStatus = z.infer<typeof ResultStatusSchema>
+export type SemesterSessionLink = z.infer<typeof SemesterSessionLinkSchema>
 
 // Request bodies
 export type PullRequest = z.infer<typeof PullRequestSchema>
