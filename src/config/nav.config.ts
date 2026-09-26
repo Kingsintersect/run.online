@@ -1,5 +1,7 @@
 import {
   AppWindowIcon,
+  ArrowUpCircle,
+  History,
   Banknote,
   BarChart,
   CalendarCheck2,
@@ -166,6 +168,12 @@ const studentNav: NavGroup[] = [
         icon: CalendarDays,
       },
       {
+        title: "Academic History",
+        href: "/student/academic-history",
+        matchExactOnly: true,
+        icon: History,
+      },
+      {
         // No dedicated /student/profile route — the profile editor lives as a
         // tab on the Settings page.
         title: "Profile",
@@ -285,6 +293,13 @@ const tutorNav: NavGroup[] = [
         href: "/tutor/results",
         icon: ClipboardList,
         permission: { resource: "results", action: "view" },
+      },
+      // Read-only academic standing lookup; standings.view (HOD, not tutors).
+      {
+        title: "Students",
+        href: "/tutor/students",
+        icon: GraduationCap,
+        permission: { resource: "standings", action: "view" },
       },
       // REMOVED (2026-09-12): "Resources" -> "/tutor/resources" 404'd —
       // found via a full nav sweep, live-tested with a real TUTOR login.
@@ -555,6 +570,53 @@ const adminNav: NavGroup[] = [
         href: "/manager/grades/grading-schemes",
         matchExactOnly: true,
         icon: Settings2,
+      },
+    ],
+  },
+  {
+    // Session promotion (sandbox/session-promotion/). Each entry is gated by
+    // the contract's permission, so read-only roles sharing this nav (DEAN)
+    // only see what their session allows.
+    label: "Session Promotion",
+    items: [
+      {
+        title: "Promotion Runs",
+        href: "/manager/progression/runs",
+        icon: ArrowUpCircle,
+        permission: [
+          { resource: "progression", action: "run.view" },
+          { resource: "progression", action: "run.create" },
+        ],
+      },
+      {
+        title: "Session Close",
+        href: "/manager/progression/session-close",
+        matchExactOnly: true,
+        icon: ListChecks,
+        permission: [
+          { resource: "progression", action: "readiness.view" },
+          { resource: "progression", action: "session.lock" },
+        ],
+      },
+      {
+        title: "Semester Rollover",
+        href: "/manager/progression/rollover",
+        matchExactOnly: true,
+        icon: CalendarCheck,
+        permission: [
+          { resource: "progression", action: "readiness.view" },
+          { resource: "progression", action: "session.lock" },
+        ],
+      },
+      {
+        title: "Progression Policy",
+        href: "/manager/progression/policy",
+        matchExactOnly: true,
+        icon: Settings2,
+        permission: [
+          { resource: "progression", action: "policy.view" },
+          { resource: "progression", action: "policy.manage" },
+        ],
       },
     ],
   },
@@ -894,6 +956,53 @@ const superAdminNav: NavGroup[] = [
         href: "/admin/grades/grading-schemes",
         matchExactOnly: true,
         icon: Settings2,
+      },
+    ],
+  },
+  {
+    // Session promotion (sandbox/session-promotion/). Each entry is gated by
+    // the contract's permission, so read-only roles sharing this nav (DEAN)
+    // only see what their session allows.
+    label: "Session Promotion",
+    items: [
+      {
+        title: "Promotion Runs",
+        href: "/admin/progression/runs",
+        icon: ArrowUpCircle,
+        permission: [
+          { resource: "progression", action: "run.view" },
+          { resource: "progression", action: "run.create" },
+        ],
+      },
+      {
+        title: "Session Close",
+        href: "/admin/progression/session-close",
+        matchExactOnly: true,
+        icon: ListChecks,
+        permission: [
+          { resource: "progression", action: "readiness.view" },
+          { resource: "progression", action: "session.lock" },
+        ],
+      },
+      {
+        title: "Semester Rollover",
+        href: "/admin/progression/rollover",
+        matchExactOnly: true,
+        icon: CalendarCheck,
+        permission: [
+          { resource: "progression", action: "readiness.view" },
+          { resource: "progression", action: "session.lock" },
+        ],
+      },
+      {
+        title: "Progression Policy",
+        href: "/admin/progression/policy",
+        matchExactOnly: true,
+        icon: Settings2,
+        permission: [
+          { resource: "progression", action: "policy.view" },
+          { resource: "progression", action: "policy.manage" },
+        ],
       },
     ],
   },

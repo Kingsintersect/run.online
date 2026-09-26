@@ -305,6 +305,10 @@
     {
       "resource": "results",
       "action": "view"
+    },
+    {
+      "resource": "standings",
+      "action": "view"
     }
   ],
   "DEAN": [
@@ -471,6 +475,10 @@
     {
       "resource": "results",
       "action": "view.all"
+    },
+    {
+      "resource": "standings",
+      "action": "view"
     }
   ],
   "BURSARY": [
@@ -509,6 +517,10 @@
     {
       "resource": "account-settings",
       "action": "update"
+    },
+    {
+      "resource": "standings",
+      "action": "view"
     }
   ],
   "DIRECTOR": [
@@ -1119,6 +1131,54 @@
     {
       "resource": "results",
       "action": "view.all"
+    },
+    {
+      "resource": "progression",
+      "action": "policy.view"
+    },
+    {
+      "resource": "progression",
+      "action": "policy.manage"
+    },
+    {
+      "resource": "progression",
+      "action": "readiness.view"
+    },
+    {
+      "resource": "progression",
+      "action": "session.lock"
+    },
+    {
+      "resource": "progression",
+      "action": "run.view"
+    },
+    {
+      "resource": "progression",
+      "action": "run.create"
+    },
+    {
+      "resource": "progression",
+      "action": "run.override"
+    },
+    {
+      "resource": "progression",
+      "action": "run.commit"
+    },
+    {
+      "resource": "progression",
+      "action": "run.reverse"
+    },
+    {
+      "resource": "standings",
+      "action": "view"
+    },
+    {
+      "resource": "standings",
+      "action": "debt_override"
+    },
+    {
+      "resource": "fee-management",
+      "action": "waive"
     }
   ],
   "ADMIN": [
@@ -1381,6 +1441,54 @@
     {
       "resource": "results",
       "action": "view.all"
+    },
+    {
+      "resource": "progression",
+      "action": "policy.view"
+    },
+    {
+      "resource": "progression",
+      "action": "policy.manage"
+    },
+    {
+      "resource": "progression",
+      "action": "readiness.view"
+    },
+    {
+      "resource": "progression",
+      "action": "session.lock"
+    },
+    {
+      "resource": "progression",
+      "action": "run.view"
+    },
+    {
+      "resource": "progression",
+      "action": "run.create"
+    },
+    {
+      "resource": "progression",
+      "action": "run.override"
+    },
+    {
+      "resource": "progression",
+      "action": "run.commit"
+    },
+    {
+      "resource": "progression",
+      "action": "run.reverse"
+    },
+    {
+      "resource": "standings",
+      "action": "view"
+    },
+    {
+      "resource": "standings",
+      "action": "debt_override"
+    },
+    {
+      "resource": "fee-management",
+      "action": "waive"
     }
   ]
 }

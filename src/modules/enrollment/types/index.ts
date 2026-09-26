@@ -9,6 +9,16 @@ import {
   RecordAttendanceSchema,
   BulkAttendanceSchema,
   UpdateAttendanceSchema,
+  StandingOutcomeSchema,
+  RegistrationStatusSchema,
+  FinancialStatusSchema,
+  SessionStandingSchema,
+  RegistrationGateSchema,
+  RegistrationGateInvoiceSchema,
+  CarryoverCourseSchema,
+  LevelCourseSchema,
+  RegistrationContextSchema,
+  SubmitRegistrationSchema,
 } from "../schemas"
 
 export type EnrollmentStatus = z.infer<typeof EnrollmentStatusSchema>
@@ -67,7 +77,9 @@ export interface EnrollmentPage {
 
 export interface BulkEnrollResult {
   enrolled: { id: number; offeringId: number; status: EnrollmentStatus }[]
-  errors: { offeringId: number; message: string }[]
+  // `code` is the backend's error code (e.g. CREDIT_LOAD_EXCEEDED) when the
+  // rejection carried one — see lib/registration-copy.ts.
+  errors: { offeringId: number; message: string; code?: string | null }[]
 }
 
 export interface DropEnrollmentResult {
@@ -113,3 +125,18 @@ export interface AttendanceSummary {
   excused: number
   attendedPercent: number
 }
+
+// ─── Session registration (RegistrationContext) ─────────────────────────────
+
+export type StandingOutcome = z.infer<typeof StandingOutcomeSchema>
+export type RegistrationStatus = z.infer<typeof RegistrationStatusSchema>
+export type FinancialStatus = z.infer<typeof FinancialStatusSchema>
+export type SessionStanding = z.infer<typeof SessionStandingSchema>
+export type RegistrationGate = z.infer<typeof RegistrationGateSchema>
+export type RegistrationGateInvoice = z.infer<
+  typeof RegistrationGateInvoiceSchema
+>
+export type CarryoverCourse = z.infer<typeof CarryoverCourseSchema>
+export type LevelCourse = z.infer<typeof LevelCourseSchema>
+export type RegistrationContext = z.infer<typeof RegistrationContextSchema>
+export type SubmitRegistrationDto = z.infer<typeof SubmitRegistrationSchema>

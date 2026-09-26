@@ -13,7 +13,9 @@
 // lookups whenever an endpoint's own response doesn't carry the name fields
 // — the same defensive dual-lookup pattern used for Timetable's schedules.
 
+import { z } from "zod"
 import apiClient, {
+  ApiClientError,
   createApiMutationOptions,
   createApiQueryOptions,
 } from "@/lib/clients/apiClient"
@@ -42,8 +44,10 @@ import type {
   MoodleLaunchResult,
   MyCourseSummary,
   RecordAttendanceDto,
+  RegistrationContext,
   UpdateAttendanceDto,
 } from "../types"
+import { RegistrationContextSchema } from "../schemas"
 
 const BASE = "/enrollments"
 const AUTH = { access_token: true } as const
@@ -186,6 +190,14 @@ function mapEnrollment(
   }
 }
 
+// The backend's machine-readable error code (`{ code: "CREDIT_LOAD_EXCEEDED" }`)
+// from a rejected request, when it sent one.
+function errorCodeOf(reason: Error | undefined): string | null {
+  if (!(reason instanceof ApiClientError)) return null
+  const body = z.object({ code: z.string() }).safeParse(reason.data)
+  return body.success ? body.data.code : null
+}
+
 function mapAttendance(
   raw: RawAttendance,
   studentsById: Map<number, Student>
@@ -314,6 +326,7 @@ export const enrollmentApi = {
         errors.push({
           offeringId: items[i].offeringId,
           message: reason?.message ?? "Enrollment failed.",
+          code: errorCodeOf(r.reason),
         })
       }
     })
@@ -372,6 +385,24 @@ export const enrollmentApi = {
       semester: r.semester ?? null,
       moodleSynced: r.moodleSynced ?? false,
     }))
+  },
+
+  // GET /me/registration-context?semester_id= — Student, own records only.
+  // Session-promotion contract (sandbox/accademic-session-semester-migration/
+  // session-promotion-frontend-prompt.md). Omitting `semester_id` lets the
+  // backend pick the current registration semester. Validated against the
+  // contract schema so a shape drift surfaces as an error, not a wrong page.
+  async getRegistrationContext(
+    semesterId?: number
+  ): Promise<RegistrationContext> {
+    const res = await apiClient.get<
+      { data: RegistrationContext } | RegistrationContext
+    >("/me/registration-context", {
+      ...AUTH,
+      params: { semester_id: semesterId },
+    })
+    const body = "data" in res ? res.data : res
+    return RegistrationContextSchema.parse(body)
   },
 
   // ── Attendance ──────────────────────────────────────────────────────────

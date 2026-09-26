@@ -16,7 +16,9 @@ import type {
   VerifyPaymentResponse,
   PaymentHistoryResponse,
   PaymentDetailResponse,
+  WaiveInvoiceDto,
 } from "../types"
+import { WaiveInvoiceDtoSchema } from "../schemas/invoice.schema"
 
 // Real backend contract per bruno/fee/*.bru (the sole source of truth for
 // this module — see CLAUDE.md §13). Every route lives under /fees; response
@@ -176,8 +178,17 @@ export const feeManagementService = {
       AUTH
     ),
 
-  waiveInvoice: (id: number, reason: string) =>
-    apiClient.post<void>(`${BASE}/invoices/${id}/waive`, { reason }, AUTH),
+  // bruno/fee/Invoices - Waive.bru. The session-promotion contract lists
+  // this as POST /invoices/{id}/waive; this API's fee routes all live under
+  // /fees, which the contract says to keep. Validated before dispatch
+  // (CLAUDE.md §4). A 404 "route could not be found" here means the server
+  // doesn't expose it; the dialog reports that via isEndpointMissing().
+  waiveInvoice: (id: number, dto: WaiveInvoiceDto) =>
+    apiClient.post<void>(
+      `${BASE}/invoices/${id}/waive`,
+      WaiveInvoiceDtoSchema.parse(dto),
+      AUTH
+    ),
 
   cancelInvoice: (id: number) =>
     apiClient.post<void>(`${BASE}/invoices/${id}/cancel`, undefined, AUTH),

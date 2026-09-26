@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { UserCheck } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
-import { CourseRegistration } from "@/modules/enrollment/components/course-registration"
+import { SessionRegistration } from "@/modules/enrollment/components/session-registration"
 
 export default function StudentEnrollmentPage() {
   return (
@@ -23,12 +23,12 @@ export default function StudentEnrollmentPage() {
           <div>
             <h1 className="text-xl font-bold">Course Registration</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Register for open course offerings and manage your enrollment
+              Check your standing and register this semester&apos;s courses
             </p>
           </div>
         </motion.div>
 
-        <CourseRegistration />
+        <SessionRegistration />
       </div>
     </PermissionGate>
   )

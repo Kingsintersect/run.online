@@ -14,6 +14,7 @@ import { useAppStore } from "@/store"
 import { useStudentDashboardData } from "@/hooks/useStudentDashboard"
 import { useMyStudent } from "@/hooks/use-my-student-id"
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications"
+import { RegistrationOpenBanner } from "@/modules/enrollment/components/registration-open-banner"
 
 interface DashboardCardProps {
   title: string
@@ -135,6 +136,8 @@ export default function StudentDashboardPage() {
           <StatPill label="Level" value={dashboardProfile.level} />
         </div>
       </motion.div>
+
+      <RegistrationOpenBanner />
 
       {d.studentId === null && !d.isLoading && (
         <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4 text-xs text-muted-foreground">

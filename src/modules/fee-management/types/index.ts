@@ -32,6 +32,9 @@ export type ResolveInvoicesResponse = z.infer<
   typeof Invoice.ResolveInvoicesResponseSchema
 >
 export type WaiveInvoiceDto = z.infer<typeof Invoice.WaiveInvoiceDtoSchema>
+export type InvoiceWaiverActor = z.infer<
+  typeof Invoice.InvoiceWaiverActorSchema
+>
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 import type * as Payment from "../schemas/payment.schema"

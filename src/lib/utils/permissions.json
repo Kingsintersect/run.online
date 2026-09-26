@@ -688,5 +688,65 @@
         "description": "Create, edit, or deactivate clearance types"
       }
     ]
+  },
+  {
+    "module": "Session Promotion",
+    "permissions": [
+      {
+        "resource": "progression",
+        "action": "policy.view",
+        "description": "View a major program's promotion policy"
+      },
+      {
+        "resource": "progression",
+        "action": "policy.manage",
+        "description": "Edit a major program's promotion policy"
+      },
+      {
+        "resource": "progression",
+        "action": "readiness.view",
+        "description": "View semester rollover and session close readiness"
+      },
+      {
+        "resource": "progression",
+        "action": "session.lock",
+        "description": "Lock and activate semesters and academic sessions"
+      },
+      {
+        "resource": "progression",
+        "action": "run.view",
+        "description": "View promotion runs and their preview rows"
+      },
+      {
+        "resource": "progression",
+        "action": "run.create",
+        "description": "Create, refresh and discard promotion runs"
+      },
+      {
+        "resource": "progression",
+        "action": "run.override",
+        "description": "Override a student's promotion outcome in a run"
+      },
+      {
+        "resource": "progression",
+        "action": "run.commit",
+        "description": "Commit a promotion run"
+      },
+      {
+        "resource": "progression",
+        "action": "run.reverse",
+        "description": "Reverse a committed promotion run while reversible"
+      },
+      {
+        "resource": "standings",
+        "action": "view",
+        "description": "View students' session standings and outstanding courses"
+      },
+      {
+        "resource": "standings",
+        "action": "debt_override",
+        "description": "Allow or remove registration despite prior-session debt"
+      }
+    ]
   }
 ]

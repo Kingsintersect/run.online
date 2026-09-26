@@ -24,6 +24,9 @@ import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { StudentInvoicesPanel } from "@/modules/fee-management/components/admin/student-invoices-panel"
+import { StudentStandingPanel } from "@/modules/progression/components/standing-panel"
+import { useAppStore } from "@/store/appStore"
+import { UserRole } from "@/config/nav.config"
 import {
   useStudents,
   useStudentLookupByMatric,
@@ -139,6 +142,13 @@ export default function StudentsPage({
   const canCreate = canCreateProp ?? can(PERM.manageStudents)
   const canExport = canExportProp ?? can(PERM.manageDepts)
   const canViewInvoices = can(PERM.viewFees)
+  // DEAN shares this screen with ADMIN (via /manager) but gets standings
+  // read-only per the session-promotion spec. Role check, not permission,
+  // because standings.debt_override isn't in any live session yet, so no
+  // permission distinction between DEAN and ADMIN can be verified (CLAUDE.md
+  // §5 fallback). The panel itself still gates overrides by permission.
+  const activeRole = useAppStore((st) => st.activeRole ?? st.user?.role)
+  const standingReadOnly = activeRole === UserRole.DEAN
 
   const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
     null
@@ -356,7 +366,12 @@ export default function StudentsPage({
         subtitle={selected?.matric_number}
         size="lg"
       >
-        {selected && <StudentDetail student={selected} />}
+        {selected && (
+          <StudentDetail
+            student={selected}
+            standingReadOnly={standingReadOnly}
+          />
+        )}
       </Modal>
 
       {/* Invoices modal */}
@@ -429,7 +444,13 @@ export default function StudentsPage({
   )
 }
 
-function StudentDetail({ student }: { student: Student }) {
+function StudentDetail({
+  student,
+  standingReadOnly,
+}: {
+  student: Student
+  standingReadOnly: boolean
+}) {
   const sections = [
     {
       title: "Personal Information",
@@ -509,6 +530,12 @@ function StudentDetail({ student }: { student: Student }) {
           </div>
         </div>
       ))}
+      {/* Screen 6 — standings timeline, debt override and outstanding
+          courses (gated by standings.view inside the panel). */}
+      <StudentStandingPanel
+        studentId={student.id}
+        readOnly={standingReadOnly}
+      />
     </div>
   )
 }
