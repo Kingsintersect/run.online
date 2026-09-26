@@ -21,6 +21,7 @@ import { ActionBadge } from "./ActionBadge"
 import { AuditDetailModal } from "./AuditDetailModal"
 import { formatDateTime, formatRelativeTime } from "@/lib/utils/date.utils"
 import type { AuditEntityLog } from "../types/audit.types"
+import { categoryForEntityType, entityTypeLabel } from "../lib/audit-catalog"
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -179,8 +180,11 @@ export function AuditEntityTrailView({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-foreground">
-                    {entityType}
+                  <h1
+                    title={entityType}
+                    className="text-xl font-bold text-foreground"
+                  >
+                    {entityTypeLabel(entityType)}
                   </h1>
                   <Badge variant="outline">#{entityId}</Badge>
                 </div>
@@ -257,8 +261,13 @@ export function AuditEntityTrailView({
           <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card">
             <Inbox className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              No history found for {entityType} #{entityId}
+              No history found for {entityTypeLabel(entityType)} #{entityId}
             </p>
+            {categoryForEntityType(entityType) && (
+              <p className="max-w-md px-4 text-center text-xs text-muted-foreground">
+                {categoryForEntityType(entityType)?.notYetLogged}
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

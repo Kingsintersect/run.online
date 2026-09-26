@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, ClipboardList, SearchX } from "lucide-react"
+import { AuditTrailLink } from "@/components/audit-trail-link"
 import EmptyState from "@/components/custom/EmptyState"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -131,7 +132,14 @@ export function ResultSheetView({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {back}
-        {inScope && <SheetWorkflowBar sheet={sheet.summary} />}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* The sheet resource exposes no sheet id; result_sheets is 1:1
+              with the offering, so the backend is asked to log ResultSheet
+              rows with entityId = offeringId (session-promotion README,
+              "Audit logging requirements"). */}
+          <AuditTrailLink entityType="ResultSheet" entityId={offeringId} />
+          {inScope && <SheetWorkflowBar sheet={sheet.summary} />}
+        </div>
       </div>
 
       <SheetSummaryHeader sheet={sheet} />

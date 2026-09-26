@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ActionBadge } from "./ActionBadge"
 import { ExportMenu } from "./ExportMenu"
 import { AuditFilters } from "./AuditFilters"
+import { categoryForEntityType, entityTypeLabel } from "../lib/audit-catalog"
 
 // ─── Row ─────────────────────────────────────────────────────────────────────
 
@@ -91,8 +92,12 @@ function AuditRow({ log, index, isSelected, onToggle, onView }: AuditRowProps) {
       {/* Entity */}
       <td className="px-3 py-3">
         <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className="border-border text-[10px]">
-            {log.entityType}
+          <Badge
+            variant="outline"
+            title={log.entityType}
+            className="border-border text-[10px]"
+          >
+            {entityTypeLabel(log.entityType)}
           </Badge>
           <span className="text-xs text-muted-foreground">#{log.entityId}</span>
         </div>
@@ -250,6 +255,14 @@ export function AuditTable() {
                     <p className="mt-2 text-sm text-muted-foreground">
                       No audit logs found
                     </p>
+                    {categoryForEntityType(filters.entityType) && (
+                      <p className="mx-auto mt-1 max-w-md px-4 text-xs text-muted-foreground">
+                        {
+                          categoryForEntityType(filters.entityType)
+                            ?.notYetLogged
+                        }
+                      </p>
+                    )}
                   </td>
                 </tr>
               ) : (

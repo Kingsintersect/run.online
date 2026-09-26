@@ -21,6 +21,30 @@ export type AuditAction =
   | "PAYMENT_VERIFY"
   | "BULK_IMPORT"
   | "DEACTIVATE"
+  // Live on production (probed 2026-09-25) but missing from this union until
+  // now: FeeType ACTIVATE/GENERATE, Invoice CANCEL, Lecturer RESEND_INVITE.
+  | "ACTIVATE"
+  | "GENERATE"
+  | "CANCEL"
+  | "RESEND_INVITE"
+  // Results and session migration actions the backend is asked to log
+  // (sandbox/session-promotion/README.md, "Audit logging requirements").
+  // None of these is written yet; they are here so filters and badges are
+  // ready the day they are.
+  | "SUBMIT"
+  | "REOPEN"
+  | "PUBLISH"
+  | "AMEND"
+  | "REVERT"
+  | "LOCK"
+  | "REFRESH"
+  | "COMMIT"
+  | "REVERSE"
+  | "DISCARD"
+  | "OVERRIDE"
+  | "WAIVE"
+  | "DEBT_OVERRIDE"
+  | "DEBT_OVERRIDE_REMOVE"
 
 export type AuditEntityType =
   | "Student"
@@ -37,6 +61,23 @@ export type AuditEntityType =
   | "User"
   | "Setting"
   | "StudentEnrollment"
+  // Results (labels and grouping: lib/audit-catalog.ts)
+  | "ResultSheet"
+  | "GradeAdjustmentBatch"
+  | "GradeAdjustment"
+  | "GradePullJob"
+  | "MoodleGradeItemMapping"
+  | "MoodleSyncGrade"
+  | "GradingScheme"
+  | "GradeScale"
+  | "ResultPolicy"
+  // Session migration
+  | "AcademicSession"
+  | "Semester"
+  | "PromotionPolicy"
+  | "PromotionRun"
+  | "PromotionRunItem"
+  | "StudentSessionStanding"
 
 export interface AuditUser {
   firstName: string | null

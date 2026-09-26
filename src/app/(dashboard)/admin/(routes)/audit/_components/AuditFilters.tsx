@@ -15,38 +15,16 @@ import {
 import { useAuditStore } from "../store/audit.store"
 import { Badge } from "@/components/ui/badge"
 import type { AuditAction, AuditEntityType } from "../types/audit.types"
+import { ACTION_CONFIG } from "./ActionBadge"
+import { AUDIT_ENTITY_LABELS } from "../lib/audit-catalog"
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
-const ACTION_OPTIONS: AuditAction[] = [
-  "LOGIN",
-  "LOGOUT",
-  "CREATE",
-  "UPDATE",
-  "DELETE",
-  "APPROVE",
-  "REJECT",
-  "ENROLL",
-  "PAYMENT",
-  "SYNC",
-]
+// Every action and entity type the viewer knows, labelled once in
+// ACTION_CONFIG / AUDIT_ENTITY_LABELS.
+const ACTION_OPTIONS = Object.keys(ACTION_CONFIG) as AuditAction[]
 
-const ENTITY_OPTIONS: AuditEntityType[] = [
-  "Student",
-  "Grade",
-  "Invoice",
-  "Course",
-  "Tutor",
-  "Clearance",
-  "Payment",
-  "User",
-  "Setting",
-  "StudentEnrollment",
-  "Document",
-  "Announcement",
-  "MoodleUser",
-  "MoodleEnrollment",
-]
+const ENTITY_OPTIONS = Object.keys(AUDIT_ENTITY_LABELS) as AuditEntityType[]
 
 const ALL_ACTIONS_VALUE = "__all_actions"
 const ALL_ENTITIES_VALUE = "__all_entities"
@@ -163,7 +141,7 @@ export function AuditFilters() {
                       </SelectItem>
                       {ACTION_OPTIONS.map((a) => (
                         <SelectItem key={a} value={a}>
-                          {a}
+                          {ACTION_CONFIG[a].label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -196,7 +174,7 @@ export function AuditFilters() {
                       </SelectItem>
                       {ENTITY_OPTIONS.map((e) => (
                         <SelectItem key={e} value={e}>
-                          {e}
+                          {AUDIT_ENTITY_LABELS[e]}
                         </SelectItem>
                       ))}
                     </SelectContent>
