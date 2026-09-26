@@ -202,10 +202,18 @@ export const progressionApi = {
   },
 
   // Semester rollover ──────────────────────────────────────────────────────
-  getSemesterRolloverReadiness(semesterId: number): Promise<Readiness> {
+  // `major_program_id` scopes the checklist to the program being worked in.
+  // The live backend ignores it as of 2026-09-26 (counts every program in the
+  // semester, see BACKEND_DEVIATIONS B20), so it's sent now and takes effect
+  // the day the backend honours it.
+  getSemesterRolloverReadiness(
+    semesterId: number,
+    majorProgramId?: number | null
+  ): Promise<Readiness> {
     return getOne(
       `/semesters/${semesterId}/rollover-readiness`,
-      ReadinessSchema
+      ReadinessSchema,
+      { major_program_id: majorProgramId ?? undefined }
     )
   },
 
@@ -227,12 +235,16 @@ export const progressionApi = {
   // Session close ──────────────────────────────────────────────────────────
   getSessionCloseReadiness(
     sessionId: number,
-    targetSessionId: number
+    targetSessionId: number,
+    majorProgramId?: number | null
   ): Promise<Readiness> {
     return getOne(
       `/academic-sessions/${sessionId}/close-readiness`,
       ReadinessSchema,
-      { target_session_id: targetSessionId }
+      {
+        target_session_id: targetSessionId,
+        major_program_id: majorProgramId ?? undefined,
+      }
     )
   },
 

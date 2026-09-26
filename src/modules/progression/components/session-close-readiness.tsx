@@ -51,7 +51,11 @@ export function SessionCloseReadiness() {
   const effectiveTarget =
     targetId != null && targetId !== sourceId ? targetId : null
 
-  const readiness = useSessionCloseReadiness(sourceId, effectiveTarget)
+  const readiness = useSessionCloseReadiness(
+    sourceId,
+    effectiveTarget,
+    mp.majorProgramId
+  )
   const lock = useLockSession()
   const createRun = useCreatePromotionRun()
 

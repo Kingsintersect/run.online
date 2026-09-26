@@ -10,12 +10,22 @@ export const progressionKeys = {
     [...progressionKeys.policiesAll(), majorProgramId] as const,
 
   readinessAll: () => [...progressionKeys.all, "readiness"] as const,
-  semesterRollover: (semesterId: number) =>
-    [...progressionKeys.readinessAll(), "semester", semesterId] as const,
-  sessionClose: (sessionId: number, targetSessionId: number | null) =>
+  semesterRollover: (semesterId: number, majorProgramId: number | null) =>
+    [
+      ...progressionKeys.readinessAll(),
+      "semester",
+      semesterId,
+      majorProgramId,
+    ] as const,
+  sessionClose: (
+    sessionId: number,
+    targetSessionId: number | null,
+    majorProgramId: number | null
+  ) =>
     [
       ...progressionKeys.readinessAll(),
       "session",
+      majorProgramId,
       sessionId,
       targetSessionId,
     ] as const,

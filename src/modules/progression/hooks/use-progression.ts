@@ -64,13 +64,22 @@ export function usePromotionPolicy(majorProgramId: number | null) {
   })
 }
 
-export function useSemesterRolloverReadiness(semesterId: number | null) {
+export function useSemesterRolloverReadiness(
+  semesterId: number | null,
+  majorProgramId: number | null = null
+) {
   return useQuery({
     ...createApiQueryOptions({
-      queryKey: progressionKeys.semesterRollover(semesterId ?? 0),
+      queryKey: progressionKeys.semesterRollover(
+        semesterId ?? 0,
+        majorProgramId
+      ),
       queryFn: () =>
         live(() =>
-          progressionApi.getSemesterRolloverReadiness(semesterId ?? 0)
+          progressionApi.getSemesterRolloverReadiness(
+            semesterId ?? 0,
+            majorProgramId
+          )
         ),
     }),
     enabled: semesterId != null && semesterId > 0,
@@ -79,16 +88,22 @@ export function useSemesterRolloverReadiness(semesterId: number | null) {
 
 export function useSessionCloseReadiness(
   sessionId: number | null,
-  targetSessionId: number | null
+  targetSessionId: number | null,
+  majorProgramId: number | null = null
 ) {
   return useQuery({
     ...createApiQueryOptions({
-      queryKey: progressionKeys.sessionClose(sessionId ?? 0, targetSessionId),
+      queryKey: progressionKeys.sessionClose(
+        sessionId ?? 0,
+        targetSessionId,
+        majorProgramId
+      ),
       queryFn: () =>
         live(() =>
           progressionApi.getSessionCloseReadiness(
             sessionId ?? 0,
-            targetSessionId ?? 0
+            targetSessionId ?? 0,
+            majorProgramId
           )
         ),
     }),

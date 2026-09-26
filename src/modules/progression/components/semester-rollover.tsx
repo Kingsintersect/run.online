@@ -76,7 +76,7 @@ export function SemesterRollover() {
         : null
   const nextSemester = semesters.find((s) => s.id === nextId) ?? null
 
-  const readiness = useSemesterRolloverReadiness(semesterId)
+  const readiness = useSemesterRolloverReadiness(semesterId, mp.majorProgramId)
   const lock = useLockSemester()
   const activate = useActivateSemester()
   const liveReadiness = readiness.data?.available ? readiness.data.data : null
