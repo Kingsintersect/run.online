@@ -48,45 +48,42 @@ export function useResultsScope() {
       setWorkspace({ majorProgramId: onlyId })
   }, [onlyId, staleChoice, w.majorProgramId, setWorkspace])
 
-  const structure = useMajorProgramStructure(w.majorProgramId)
+  const structure = useMajorProgramStructure(w.majorProgramId, w.unitPath)
   const { data: semesters = [] } = useSemesters(w.sessionId)
 
-  const departments = useMemo(() => {
-    if (w.facultyId == null) return structure.departments
-    const ids = new Set(
-      structure.programs
-        .filter((p) => p.facultyId === w.facultyId)
-        .map((p) => p.departmentId)
-    )
-    return structure.departments.filter((d) => ids.has(d.id))
-  }, [structure, w.facultyId])
-
-  const programs = useMemo(
-    () =>
-      structure.programs.filter(
-        (p) =>
-          (w.facultyId == null || p.facultyId === w.facultyId) &&
-          (w.departmentId == null || p.departmentId === w.departmentId)
-      ),
-    [structure, w.facultyId, w.departmentId]
-  )
+  // Choosing a unit at one depth keeps the path above it and drops the rest;
+  // the department on the new path (if any) becomes the list's departmentId.
+  const selectUnit = (depth: number, unitId: number | null) => {
+    const path = [...w.unitPath.slice(0, depth)]
+    if (unitId != null) path.push(unitId)
+    const levelDept = (d: number, id: number) =>
+      structure.levels[d]?.options.find((o) => o.id === id)?.departmentId ??
+      null
+    let departmentId: number | null = null
+    path.forEach((id, d) => {
+      departmentId = levelDept(d, id) ?? departmentId
+    })
+    setWorkspace({ unitPath: path, departmentId })
+  }
 
   const majorProgram =
     majorPrograms.find((mp) => mp.id === w.majorProgramId) ?? null
-  const department =
-    structure.departments.find((d) => d.id === w.departmentId) ?? null
+  const chosenUnits = structure.levels
+    .map((l) => l.options.find((o) => o.id === l.selectedId)?.name)
+    .filter((n): n is string => Boolean(n))
   const program =
     structure.programs.find((p) => p.program.id === w.programId)?.program ??
     null
   const semester = semesters.find((s) => s.id === w.semesterId) ?? null
 
-  // What the list and a pull are actually narrowed by. /results/offerings has
-  // no faculty filter, so a faculty on its own only narrows the department
-  // and program pickers — it isn't part of the applied scope.
-  const facultyOnly =
-    w.facultyId != null && w.departmentId == null && w.programId == null
+  // What the list and a pull are actually narrowed by. /results/offerings
+  // filters by program or department only, so a unit that is neither (e.g. a
+  // faculty) narrows the program picker but not the rows until a program is
+  // picked.
+  const unitOnly =
+    w.unitPath.length > 0 && w.departmentId == null && w.programId == null
   const structureLabel = majorProgram
-    ? [majorProgram.name, department?.name, program?.name]
+    ? [majorProgram.name, ...chosenUnits, program?.name]
         .filter(Boolean)
         .join(" › ")
     : null
@@ -118,13 +115,12 @@ export function useResultsScope() {
     /** Hide the major-program picker's "choose" state when there's no choice. */
     singleMajorProgram: onlyId != null,
     structure,
-    facultyOptions: toOptions(structure.faculties),
-    departmentOptions: toOptions(departments),
-    programOptions: programs.map((p) => ({
+    selectUnit,
+    programOptions: structure.programs.map((p) => ({
       value: String(p.program.id),
       label: p.program.name,
     })),
-    facultyOnly,
+    unitOnly,
     scopeLabel,
     pull: {
       selection,

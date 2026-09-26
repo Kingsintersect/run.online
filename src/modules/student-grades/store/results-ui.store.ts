@@ -10,8 +10,11 @@ export type SheetTab = "scores" | "items" | "normalize" | "history"
 interface WorkspaceFilters {
   /** Admin/manager workspace: the first filter; everything cascades from it. */
   majorProgramId: number | null
-  /** Structure levels under the major program (only those that exist). */
-  facultyId: number | null
+  /**
+   * Academic units chosen below the major program, top-down (Faculty,
+   * Department, Stream… whatever its tree has). See useMajorProgramStructure.
+   */
+  unitPath: number[]
   sessionId: number | null
   semesterId: number | null
   programId: number | null
@@ -40,7 +43,7 @@ interface ResultsUiState {
 
 const DEFAULT_WORKSPACE: WorkspaceFilters = {
   majorProgramId: null,
-  facultyId: null,
+  unitPath: [],
   sessionId: null,
   semesterId: null,
   programId: null,
@@ -52,7 +55,7 @@ const DEFAULT_WORKSPACE: WorkspaceFilters = {
 }
 
 // Cascade: changing a level clears every level below it —
-// major program → faculty → department → program, and major program →
+// major program → structure units → program, and major program →
 // session → semester (sessions belong to a major program).
 function cascade(
   prev: WorkspaceFilters,
@@ -62,14 +65,17 @@ function cascade(
     k in patch && patch[k] !== prev[k]
   if (changed("majorProgramId"))
     return {
-      facultyId: null,
+      unitPath: [],
       departmentId: null,
       programId: null,
       sessionId: null,
       semesterId: null,
     }
   const reset: Partial<WorkspaceFilters> = {}
-  if (changed("facultyId")) {
+  if (
+    "unitPath" in patch &&
+    (patch.unitPath ?? []).join(",") !== prev.unitPath.join(",")
+  ) {
     reset.departmentId = null
     reset.programId = null
   }

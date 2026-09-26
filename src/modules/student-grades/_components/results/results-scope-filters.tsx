@@ -18,8 +18,8 @@ interface ResultsScopeFiltersProps {
   scope: ResultsScope
 }
 
-// Step 1 of the admin workspace: major program → its structure (only the
-// levels it actually has) → academic session → semester. Nothing below the
+// Step 1 of the admin workspace: major program → its structure (the levels
+// its academic-unit tree actually has) → academic session → semester. Nothing below the
 // major program is enabled until one is picked; each change clears the
 // levels below it (useResultsUiStore's cascade).
 export function ResultsScopeFilters({ scope }: ResultsScopeFiltersProps) {
@@ -46,26 +46,22 @@ export function ResultsScopeFilters({ scope }: ResultsScopeFiltersProps) {
           options={scope.majorProgramOptions}
           disabled={scope.singleMajorProgram}
         />
-        {structure.hasFaculties && (
+        {/* One picker per level this major program's tree actually has,
+            labelled with the tree's own unit type (Faculty, Department…). */}
+        {structure.levels.map((level) => (
           <SelectField
-            id="ws-faculty"
-            label="Faculty"
-            value={w.facultyId ? String(w.facultyId) : ""}
-            onChange={(v) => setWorkspace({ facultyId: toId(v) })}
-            placeholder="All faculties"
-            options={scope.facultyOptions}
+            key={`${w.majorProgramId}-${level.depth}`}
+            id={`ws-unit-${level.depth}`}
+            label={level.label}
+            value={level.selectedId ? String(level.selectedId) : ""}
+            onChange={(v) => scope.selectUnit(level.depth, toId(v))}
+            placeholder={`All (${level.options.length})`}
+            options={level.options.map((o) => ({
+              value: String(o.id),
+              label: o.name,
+            }))}
           />
-        )}
-        {structure.hasDepartments && (
-          <SelectField
-            id="ws-department"
-            label="Department"
-            value={w.departmentId ? String(w.departmentId) : ""}
-            onChange={(v) => setWorkspace({ departmentId: toId(v) })}
-            placeholder="All departments"
-            options={scope.departmentOptions}
-          />
-        )}
+        ))}
         <SelectField
           id="ws-program"
           label="Program"
@@ -93,12 +89,11 @@ export function ResultsScopeFilters({ scope }: ResultsScopeFiltersProps) {
           onSemesterChange={(semesterId) => setWorkspace({ semesterId })}
         />
       </div>
-      {scope.facultyOnly && (
+      {scope.unitOnly && (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          The faculty narrows the department and program lists. Pick a
-          department or program to narrow the offerings: the results list
-          can&apos;t filter by faculty yet.
+          This narrows the program list. Pick a program to narrow the offerings:
+          the results list can only filter by program or department.
         </p>
       )}
     </fieldset>
