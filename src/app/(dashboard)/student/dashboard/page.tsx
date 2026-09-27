@@ -13,6 +13,7 @@ import Link from "next/link"
 import { useAppStore } from "@/store"
 import { useStudentDashboardData } from "@/hooks/useStudentDashboard"
 import { useStudentAcademicHome } from "@/hooks/use-student-academic-home"
+import { cn } from "@/lib/utils"
 import { useMyStudent } from "@/hooks/use-my-student-id"
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications"
 import { RegistrationOpenBanner } from "@/modules/enrollment/components/registration-open-banner"
@@ -101,17 +102,22 @@ export default function StudentDashboardPage() {
   // Resolved through program → department → faculty when the record lacks
   // them (useStudentAcademicHome).
   const home = useStudentAcademicHome()
-  const dashboardProfile = {
-    department:
-      home.department ??
-      (home.isLoading
-        ? "…"
-        : home.ownedBy === "faculty"
-          ? "None · under the faculty"
-          : "Not set"),
-    faculty: home.faculty ?? (home.isLoading ? "…" : "Not set"),
-    level: student?.current_level ? `${student.current_level} Level` : "—",
-  }
+  // Only what is actually set: the programme always; its department and/or
+  // faculty depending on what owns it (a department, a faculty directly, or
+  // a department inside a faculty); then the level.
+  const programme =
+    student?.program_name && student.program_name !== "—"
+      ? student.program_name
+      : null
+  const profileTiles = [
+    { label: "Programme", value: programme ?? (home.isLoading ? "…" : null) },
+    { label: "Department", value: home.department },
+    { label: "Faculty", value: home.faculty },
+    {
+      label: "Level",
+      value: student?.current_level ? `${student.current_level} Level` : null,
+    },
+  ].filter((t): t is { label: string; value: string } => t.value != null)
 
   const greeting = () => {
     const h = new Date().getHours()
@@ -140,11 +146,22 @@ export default function StudentDashboardPage() {
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Your classes, courses, attendance, and results — all in one place.
         </p>
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatPill label="Department" value={dashboardProfile.department} />
-          <StatPill label="Faculty" value={dashboardProfile.faculty} />
-          <StatPill label="Level" value={dashboardProfile.level} />
-        </div>
+        {profileTiles.length > 0 && (
+          <div
+            className={cn(
+              "mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2",
+              profileTiles.length >= 4
+                ? "lg:grid-cols-4"
+                : profileTiles.length === 3
+                  ? "lg:grid-cols-3"
+                  : ""
+            )}
+          >
+            {profileTiles.map((t) => (
+              <StatPill key={t.label} label={t.label} value={t.value} />
+            ))}
+          </div>
+        )}
       </motion.div>
 
       <RegistrationOpenBanner />
