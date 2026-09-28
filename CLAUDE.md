@@ -408,3 +408,18 @@ before generating any code.**
   client-side stand-in that would be dishonest or perform badly (e.g. N+1-fetching a list from a
   bunch of single-record endpoints) — document the proposed contract and stop there, per this
   section's own fallback rule.
+
+---
+
+## 15. Split multi-part work across parallel agents
+
+- When a request has several independent parts (for example a set of backend contracts, separate
+  screens, or audit + build + docs), split it into separate tasks and run them in parallel with
+  subagents instead of doing them one after another.
+- Give each agent a self-contained brief: the goal, the exact files or folders it owns, the
+  rules from this file that apply, and what to report back. Agents start with no context.
+- Keep ownership disjoint: no two agents edit the same file. Anything shared (for example a
+  combined list, a commit, the final summary) is done by the main session after the agents
+  report.
+- The main session reviews each agent's output before committing, and still runs the browser
+  tests the work needs.

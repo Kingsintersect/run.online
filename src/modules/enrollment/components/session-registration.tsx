@@ -8,6 +8,7 @@ import { useRegistrationContext } from "../hooks/use-registration-context"
 import { CourseRegistration } from "./course-registration"
 import { RegistrationCourseSelection } from "./registration-course-selection"
 import { RegistrationDebtGate } from "./registration-debt-gate"
+import { RegistrationSlipCard } from "./registration-slip-card"
 import { RegistrationStandingCard } from "./registration-standing-card"
 
 function FallbackNotice({ children }: { children: ReactNode }) {
@@ -92,6 +93,7 @@ export function SessionRegistration() {
     <div className="space-y-6">
       <RegistrationStandingCard context={context} />
       <RegistrationDebtGate context={context} />
+      <RegistrationSlipCard context={context} />
       <RegistrationCourseSelection
         key={context.semester.id}
         context={context}
