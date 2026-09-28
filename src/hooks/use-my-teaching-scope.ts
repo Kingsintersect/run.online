@@ -7,6 +7,10 @@ import { useAllPrograms, useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useMyLecturerId } from "@/hooks/use-my-lecturer-id"
 import { courseManagementQueryOptions } from "@/services/courseManagementApi"
 import { usersQueryOptions } from "@/services/usersApi"
+import {
+  teachingScopeApi,
+  teachingScopeKeys,
+} from "@/services/teachingScopeApi"
 import { useAppStore } from "@/store"
 
 export type TeachingScopeReason = "teaches" | "heads"
@@ -54,15 +58,30 @@ const LEAD_ROLES = new Set<UserRole>([UserRole.HOD, UserRole.DEAN])
  *   An unscoped HOD/dean grant gives no "heads" scope, so they never see
  *   everything by default.
  *
+ * Source of truth: GET /me/teaching-scope, live since 2026-09-27. Whenever
+ * that route exists its answer is used as-is, even when empty (for example
+ * an HOD not yet recorded as any department's head sees nothing). The
+ * derivation above runs only when the route is missing (404/405), so the
+ * screens keep working against an older backend. Same interface either way.
+ *
  * A UI convenience only; the backend enforces access.
  */
 export function useMyTeachingScope(): MyTeachingScope {
   const activeRole = useAppStore((s) => s.activeRole)
   const grantScope = useAppStore((s) => s.user?.majorProgramScope)
+  const liveQ = useQuery({
+    queryKey: teachingScopeKeys.mine(),
+    queryFn: () => teachingScopeApi.getMine(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  // undefined = still loading; null = route missing, derive; array = live.
+  const live = liveQ.data
+  const derive = live === null || liveQ.isError
   const { lecturerId, isLoading: loadingLecturer } = useMyLecturerId()
   const assignmentsQ = useQuery({
     ...usersQueryOptions.tutors.courses(lecturerId ?? 0),
-    enabled: lecturerId != null,
+    enabled: derive && lecturerId != null,
     staleTime: 5 * 60 * 1000,
   })
   const { data: majorProgramsRes, isLoading: loadingMajorPrograms } =
@@ -93,7 +112,7 @@ export function useMyTeachingScope(): MyTeachingScope {
     [programsRes, teachingMajorProgramIds]
   )
   const curricula = useQueries({
-    queries: candidatePrograms.map((p) => ({
+    queries: (derive ? candidatePrograms : []).map((p) => ({
       ...courseManagementQueryOptions.programCourses.byProgram(p.id),
       staleTime: 5 * 60 * 1000,
     })),
@@ -180,19 +199,40 @@ export function useMyTeachingScope(): MyTeachingScope {
     leadMajorProgramIds,
   ])
 
+  const liveMajorPrograms = useMemo(() => {
+    if (!Array.isArray(live)) return null
+    const names = new Map(
+      (majorProgramsRes?.data ?? []).map((mp) => [mp.id, mp.name] as const)
+    )
+    return live
+      .map((e) => ({
+        id: e.majorProgramId,
+        name:
+          e.majorProgramName ??
+          names.get(e.majorProgramId) ??
+          `Major program #${e.majorProgramId}`,
+        reasons: e.reasons,
+        programs: [...e.programs].sort((a, b) => a.name.localeCompare(b.name)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [live, majorProgramsRes])
+
+  const scoped = liveMajorPrograms ?? majorPrograms
   const isLoading =
-    loadingLecturer ||
-    (lecturerId != null && assignmentsQ.isLoading) ||
-    loadingMajorPrograms ||
-    loadingPrograms ||
-    loadingCurricula
+    liveQ.isLoading ||
+    (derive &&
+      (loadingLecturer ||
+        (lecturerId != null && assignmentsQ.isLoading) ||
+        loadingMajorPrograms ||
+        loadingPrograms ||
+        loadingCurricula))
 
   return {
-    majorPrograms,
+    majorPrograms: scoped,
     isLoading,
-    isEmpty: !isLoading && majorPrograms.length === 0,
+    isEmpty: !isLoading && scoped.length === 0,
     programIdsIn: (majorProgramId) =>
-      majorPrograms
+      scoped
         .find((mp) => mp.id === majorProgramId)
         ?.programs.map((p) => p.id) ?? [],
   }
