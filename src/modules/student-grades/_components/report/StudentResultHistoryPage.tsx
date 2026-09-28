@@ -115,14 +115,15 @@ export default function StudentResultHistoryPage() {
     () => toReportCourses(filteredGrades),
     [filteredGrades]
   )
-  const authoritativeGpa = useMemo(() => {
+  // The backend's own GPA/CGPA for the semester; never recomputed here.
+  const official = useMemo(() => {
     if (!selectedSemesterId) return null
     const entry = cgpa.history.find((h) => h.semesterId === selectedSemesterId)
-    return entry?.gpa ?? null
+    return entry ? { gpa: entry.gpa, cgpa: entry.cgpa } : null
   }, [cgpa.history, selectedSemesterId])
   const reportSummary = useMemo(
-    () => calculateReportSummary(reportCourses, authoritativeGpa),
-    [reportCourses, authoritativeGpa]
+    () => calculateReportSummary(reportCourses, official),
+    [reportCourses, official]
   )
   const studentInfo = useMemo(() => {
     if (!grades) return null
@@ -137,7 +138,8 @@ export default function StudentResultHistoryPage() {
     studentInfo &&
     selectedAcademicYear &&
     selectedSemester &&
-    reportCourses.length > 0
+    reportCourses.length > 0 &&
+    official
   )
 
   async function handleDownload() {
@@ -189,8 +191,8 @@ export default function StudentResultHistoryPage() {
                 Student Grade Report
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                Review your published semester results, breakdown by course, and
-                export a branded official slip.
+                Review your published semester results by course, and download a
+                result slip once the registry has computed your GPA.
               </p>
             </div>
 
@@ -286,6 +288,17 @@ export default function StudentResultHistoryPage() {
               .
             </div>
           )}
+
+        {selectedSemester && reportCourses.length > 0 && !official && (
+          <p
+            role="status"
+            className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          >
+            Your GPA for this semester hasn&apos;t been computed by the registry
+            yet, so the result slip can&apos;t be downloaded. Your published
+            grades are shown below.
+          </p>
+        )}
 
         {selectedAcademicYear &&
           selectedSemester &&

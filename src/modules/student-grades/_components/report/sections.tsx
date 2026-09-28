@@ -5,9 +5,7 @@ import {
   Calendar,
   FileText,
   GraduationCap,
-  TrendingUp,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import type { ReportCourse, ReportStudentInfo, ReportSummary } from "./types"
 import { formatSemesterLabel } from "./utils"
 
@@ -42,27 +40,24 @@ export function StudentHeader({
           </div>
           <div>
             <p className="text-xs tracking-[0.2em] text-white/70 uppercase">
-              Official Result Slip
+              Result slip · student copy
             </p>
             <h1 className="mt-1 text-2xl font-bold">Student Grade Report</h1>
             <p className="mt-1 text-sm text-white/80">
               {formatSemesterLabel(semester)} · {academicYear}
-            </p>
-            <p className="text-xs text-white/60">
-              {institutionName} 5.00 grading system
             </p>
           </div>
         </div>
 
         <div className="rounded-2xl bg-white/10 p-4 text-right backdrop-blur-sm">
           <p className="text-xs tracking-[0.16em] text-white/65 uppercase">
-            Current GPA
+            Semester GPA
           </p>
           <p className="mt-1 text-3xl font-bold text-amber-300">
-            {summary.gpa.toFixed(2)}
+            {fmtPoint(summary.gpa)}
           </p>
           <p className="text-sm font-medium text-emerald-200">
-            {summary.degreeClass}
+            CGPA {fmtPoint(summary.cgpa)}
           </p>
           <div className="mt-3 space-y-1 text-xs text-white/75">
             <p>Total Credits (TCU): {summary.totalCredits}</p>
@@ -218,12 +213,8 @@ export function CourseTable({ courses }: { courses: ReportCourse[] }) {
 
       <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm text-slate-600">
         <p>
-          <strong>Formula:</strong> GPA = Total Quality Points (TQP) / Total
-          Credit Units (TCU)
-        </p>
-        <p className="mt-1">
           <strong>Quality Points:</strong> Grade Point × Credit Units for each
-          course.
+          course. GPA and CGPA are the registry&apos;s computed figures.
         </p>
       </div>
     </div>
@@ -252,18 +243,14 @@ export function GradeDistribution({ summary }: { summary: ReportSummary }) {
               {item.grade}
             </div>
             <div className="flex-1">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm text-slate-600">{item.label}</span>
-                <span className={cn("text-sm font-medium", item.textClass)}>
+              <div className="mb-1 flex items-center justify-end">
+                <span className="text-sm font-medium text-slate-700">
                   {item.count} ({item.percentage}%)
                 </span>
               </div>
               <div className="h-2 w-full rounded-full bg-slate-200">
                 <div
-                  className={cn(
-                    "h-2 rounded-full transition-all duration-500",
-                    item.colorClass
-                  )}
+                  className="h-2 rounded-full bg-blue-600 transition-all duration-500"
                   style={{ width: `${(item.count / maxCount) * 100}%` }}
                 />
               </div>
@@ -287,10 +274,12 @@ export function GradeDistribution({ summary }: { summary: ReportSummary }) {
   )
 }
 
-export function AcademicStanding({ summary }: { summary: ReportSummary }) {
-  const progressPercentage = Math.min((summary.gpa / 5) * 100, 100)
-  const nextTarget = getNextTarget(summary.gpa)
+/** "3.45", or "Not computed yet" while the backend hasn't computed it. */
+function fmtPoint(value: number | null) {
+  return value == null ? "Not computed yet" : value.toFixed(2)
+}
 
+export function AcademicStanding({ summary }: { summary: ReportSummary }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
@@ -298,116 +287,30 @@ export function AcademicStanding({ summary }: { summary: ReportSummary }) {
         <h4 className="font-semibold text-slate-800">Academic Performance</h4>
       </div>
 
-      <div className="space-y-4">
-        <div className="rounded-2xl bg-slate-50 p-4 text-center">
-          <div className="text-3xl font-bold text-slate-800">
-            {summary.gpa.toFixed(2)}
-          </div>
-          <div className="text-sm text-slate-600">Current GPA</div>
-          <div
-            className={cn(
-              "mt-2 inline-flex rounded-full px-3 py-1 text-sm font-medium",
-              summary.academicStanding.color,
-              summary.academicStanding.bgColor.replace("bg-", "bg-") + "/15"
-            )}
-          >
-            {summary.degreeClass}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-2 flex justify-between text-sm text-slate-600">
-            <span>Progress on 5.00 Scale</span>
-            <span>{progressPercentage.toFixed(1)}%</span>
-          </div>
-          <div className="h-3 w-full rounded-full bg-slate-200">
-            <div
-              className={cn(
-                "h-3 rounded-full",
-                summary.academicStanding.bgColor
-              )}
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-          <div className="mt-1 flex justify-between text-xs text-slate-500">
-            <span>0.00</span>
-            <span>2.50</span>
-            <span>5.00</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-          <ScaleLine
-            left="4.50-5.00"
-            right="First Class"
-            color="text-emerald-600"
-          />
-          <ScaleLine
-            left="1.50-2.39"
-            right="Third Class"
-            color="text-amber-600"
-          />
-          <ScaleLine
-            left="3.50-4.49"
-            right="2nd Class Upper"
-            color="text-blue-600"
-          />
-          <ScaleLine left="1.00-1.49" right="Pass" color="text-slate-600" />
-          <ScaleLine
-            left="2.40-3.49"
-            right="2nd Class Lower"
-            color="text-violet-600"
-          />
-          <ScaleLine left="Below 1.00" right="Fail" color="text-red-600" />
-        </div>
-
-        {nextTarget && (
-          <div className="rounded-2xl bg-blue-50 p-3">
-            <div className="mb-1 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-800">
-                Next Target
-              </span>
-            </div>
-            <div className="text-sm text-blue-700">
-              Achieve <strong>{nextTarget.target.toFixed(2)} GPA</strong> for{" "}
-              <strong>{nextTarget.label}</strong>
-            </div>
-            <div className="mt-1 text-xs text-blue-600">
-              Gap: {(nextTarget.target - summary.gpa).toFixed(2)} points
-            </div>
-          </div>
-        )}
+      <div className="grid grid-cols-2 gap-3">
+        <Figure label="Semester GPA" value={fmtPoint(summary.gpa)} />
+        <Figure label="CGPA" value={fmtPoint(summary.cgpa)} />
+        <Figure label="Credit units" value={String(summary.totalCredits)} />
+        <Figure
+          label="Quality points"
+          value={summary.totalQualityPoints.toFixed(2)}
+        />
       </div>
+      <p className="mt-4 text-xs text-slate-500">
+        GPA and CGPA are the registry&apos;s computed figures. Class of degree
+        appears on your official result statement.
+      </p>
     </div>
   )
 }
 
-function ScaleLine({
-  left,
-  right,
-  color,
-}: {
-  left: string
-  right: string
-  color: string
-}) {
+function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-2">
-      <span className={color}>{left}:</span>
-      <span>{right}</span>
+    <div className="rounded-2xl bg-slate-50 p-4 text-center">
+      <div className="text-2xl font-bold text-slate-800">{value}</div>
+      <div className="text-xs text-slate-600">{label}</div>
     </div>
   )
-}
-
-function getNextTarget(gpa: number) {
-  if (gpa < 1.0) return { target: 1.0, label: "Pass" }
-  if (gpa < 1.5) return { target: 1.5, label: "Third Class" }
-  if (gpa < 2.4) return { target: 2.4, label: "Second Class Lower" }
-  if (gpa < 3.5) return { target: 3.5, label: "Second Class Upper" }
-  if (gpa < 4.5) return { target: 4.5, label: "First Class" }
-  if (gpa < 5.0) return { target: 5.0, label: "Perfect Score" }
-  return null
 }
 
 export function ReportFooter({
@@ -425,19 +328,20 @@ export function ReportFooter({
         <div className="mb-3 flex items-center justify-center gap-2">
           <FileText className="h-4 w-4 text-slate-500" />
           <h4 className="text-sm font-medium text-slate-700">
-            Official Grade Report
+            Result slip · student copy
           </h4>
         </div>
 
         <div className="space-y-2 text-center">
           <p className="text-sm text-slate-600">
-            This is an official academic transcript for{" "}
+            Published results for{" "}
             <strong>{formatSemesterLabel(semester)}</strong> of the{" "}
             <strong>{academicYear}</strong> academic session at{" "}
             <strong>{institutionName}</strong>.
           </p>
           <p className="text-sm text-slate-600">
-            Computed using the Nigerian University 5.00 Grade Point System.
+            This is not an official transcript. Request an official transcript
+            or result statement from the registry.
           </p>
 
           <div className="mt-4 flex items-center justify-center gap-4 border-t border-slate-300 pt-3 text-xs text-slate-500">
@@ -453,9 +357,7 @@ export function ReportFooter({
               </span>
             </div>
             <span>•</span>
-            <span>System: 5.00 Scale</span>
-            <span>•</span>
-            <span>Official Document</span>
+            <span>Student copy</span>
           </div>
         </div>
       </div>

@@ -1,5 +1,4 @@
 import type { AppUser } from "@/store/appStore"
-import { UNIVERSITY_NAME } from "@/config/global.config"
 import type { StudentGrade } from "../../types"
 import type {
   ReportCourse,
@@ -8,61 +7,10 @@ import type {
   ReportSummary,
 } from "./types"
 
-const GRADE_META: Array<{
-  grade: string
-  label: string
-  colorClass: string
-  textClass: string
-}> = [
-  {
-    grade: "A",
-    label: "Excellent (70-100%)",
-    colorClass: "bg-emerald-500",
-    textClass: "text-emerald-600",
-  },
-  {
-    grade: "AB",
-    label: "Very Good (60-69%)",
-    colorClass: "bg-teal-500",
-    textClass: "text-teal-600",
-  },
-  {
-    grade: "B",
-    label: "Good (50-59%)",
-    colorClass: "bg-blue-500",
-    textClass: "text-blue-600",
-  },
-  {
-    grade: "BC",
-    label: "Above Average (45-49%)",
-    colorClass: "bg-indigo-500",
-    textClass: "text-indigo-600",
-  },
-  {
-    grade: "C",
-    label: "Average (40-44%)",
-    colorClass: "bg-violet-500",
-    textClass: "text-violet-600",
-  },
-  {
-    grade: "CD",
-    label: "Below Average (35-39%)",
-    colorClass: "bg-orange-500",
-    textClass: "text-orange-600",
-  },
-  {
-    grade: "D",
-    label: "Pass (30-34%)",
-    colorClass: "bg-amber-500",
-    textClass: "text-amber-600",
-  },
-  {
-    grade: "F",
-    label: "Fail (0-29%)",
-    colorClass: "bg-red-500",
-    textClass: "text-red-600",
-  },
-]
+// No grading thresholds live here. Letter grades and grade points come from
+// the backend's grading scheme on each published grade, and GPA/CGPA from the
+// backend's CGPA history. Class of degree isn't returned by the backend yet
+// (sandbox/result-documents/CLASS_OF_DEGREE.md), so the report doesn't show it.
 
 // Published StudentGrade rows only (contract C8) — a student never renders
 // anything else.
@@ -75,7 +23,7 @@ export function toReportCourses(grades: StudentGrade[]): ReportCourse[] {
       courseTitle: grade.courseTitle,
       creditLoad: grade.creditUnits,
       score: grade.totalScore ?? 0,
-      grade: grade.grade ?? "F",
+      grade: grade.grade ?? "—",
       gradePoint: grade.gradePoint ?? 0,
       qualityPoints: (grade.gradePoint ?? 0) * grade.creditUnits,
       semesterName: grade.semesterName,
@@ -84,52 +32,46 @@ export function toReportCourses(grades: StudentGrade[]): ReportCourse[] {
     }))
 }
 
-// `authoritativeGpa`, when given, is the backend-computed semester GPA from
-// the matching CgpaHistory entry (GET /results/cgpa/student/:studentId) — the
-// Registrar's own number, used instead of a client-side recomputation so this
-// report can never silently diverge from what the backend considers correct
-// (rounding, carryover handling, etc.). Only falls back to recomputing from
-// the loaded courses when no matching history entry exists yet (e.g. the
-// backend hasn't run CGPA - Calculate for this semester).
+/**
+ * Totals for the loaded courses plus the backend's own GPA/CGPA for the
+ * semester (GET /results/cgpa/student/:id). GPA is never recomputed here, so
+ * the report can't disagree with the registry; it's null until the backend
+ * has computed it.
+ */
 export function calculateReportSummary(
   courses: ReportCourse[],
-  authoritativeGpa: number | null = null
+  official: { gpa: number; cgpa: number } | null
 ): ReportSummary {
-  const totalCredits = courses.reduce(
-    (sum, course) => sum + course.creditLoad,
-    0
-  )
+  const totalCredits = courses.reduce((sum, c) => sum + c.creditLoad, 0)
   const totalQualityPoints = courses.reduce(
-    (sum, course) => sum + course.qualityPoints,
+    (sum, c) => sum + c.qualityPoints,
     0
   )
-  const gpa =
-    authoritativeGpa ??
-    (totalCredits > 0
-      ? Number((totalQualityPoints / totalCredits).toFixed(2))
-      : 0)
 
-  const gradeDistribution: ReportGradeDistributionItem[] = GRADE_META.map(
-    (meta) => {
-      const count = courses.filter(
-        (course) => course.grade.toUpperCase() === meta.grade
-      ).length
-      const percentage =
-        courses.length > 0 ? Math.round((count / courses.length) * 100) : 0
-      return {
-        ...meta,
-        count,
-        percentage,
-      }
-    }
-  )
+  // Letters as graded, best grade point first.
+  const byGrade = new Map<string, { count: number; point: number }>()
+  for (const c of courses) {
+    const cur = byGrade.get(c.grade) ?? { count: 0, point: c.gradePoint }
+    byGrade.set(c.grade, {
+      count: cur.count + 1,
+      point: Math.max(cur.point, c.gradePoint),
+    })
+  }
+  const gradeDistribution: ReportGradeDistributionItem[] = [...byGrade]
+    .sort((x, y) => y[1].point - x[1].point || x[0].localeCompare(y[0]))
+    .map(([grade, { count }]) => ({
+      grade,
+      count,
+      percentage: courses.length
+        ? Math.round((count / courses.length) * 100)
+        : 0,
+    }))
 
   return {
-    gpa,
+    gpa: official?.gpa ?? null,
+    cgpa: official?.cgpa ?? null,
     totalCredits,
     totalQualityPoints: Number(totalQualityPoints.toFixed(2)),
-    degreeClass: getDegreeClass(gpa),
-    academicStanding: getAcademicStanding(gpa),
     gradeDistribution,
   }
 }
@@ -149,64 +91,8 @@ export function buildReportStudentInfo(
   }
 }
 
-export function getInstitutionSubtitle() {
-  return `${UNIVERSITY_NAME} 5.00 grading system`
-}
-
 export function formatSemesterLabel(semesterName: string) {
   return semesterName.endsWith("Semester")
     ? semesterName
     : `${semesterName} Semester`
-}
-
-export function getAcademicStanding(gpa: number) {
-  if (gpa >= 4.5) {
-    return {
-      text: "First Class",
-      color: "text-emerald-700",
-      bgColor: "bg-emerald-500",
-    }
-  }
-  if (gpa >= 3.5) {
-    return {
-      text: "Second Class Upper",
-      color: "text-blue-700",
-      bgColor: "bg-blue-500",
-    }
-  }
-  if (gpa >= 2.4) {
-    return {
-      text: "Second Class Lower",
-      color: "text-violet-700",
-      bgColor: "bg-violet-500",
-    }
-  }
-  if (gpa >= 1.5) {
-    return {
-      text: "Third Class",
-      color: "text-amber-700",
-      bgColor: "bg-amber-500",
-    }
-  }
-  if (gpa >= 1.0) {
-    return {
-      text: "Pass",
-      color: "text-slate-700",
-      bgColor: "bg-slate-500",
-    }
-  }
-  return {
-    text: "Fail",
-    color: "text-red-700",
-    bgColor: "bg-red-500",
-  }
-}
-
-function getDegreeClass(gpa: number) {
-  if (gpa >= 4.5) return "First Class"
-  if (gpa >= 3.5) return "Second Class Upper"
-  if (gpa >= 2.4) return "Second Class Lower"
-  if (gpa >= 1.5) return "Third Class"
-  if (gpa >= 1.0) return "Pass"
-  return "Fail"
 }

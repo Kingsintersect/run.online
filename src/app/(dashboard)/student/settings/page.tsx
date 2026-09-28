@@ -27,62 +27,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import { useAppHydrated, useAppStore, useThemeStore } from "@/store"
 import { changePassword } from "@/lib/auth/backendAuth"
 import { useMyStudent, useUpdateMyProfile } from "@/hooks/use-my-student-id"
 import { useUnreadCount } from "@/modules/notifications/hooks/use-notifications"
 import { useMarkAllRead } from "@/modules/notifications/hooks/use-notification-mutations"
 
-const SETTINGS_STORAGE_KEY = "student-settings:v1"
-
-type SettingsState = {
-  bio: string
-  language: "en" | "fr"
-  timezone: string
-  reducedMotion: boolean
-  compactMode: boolean
-  emailAcademic: boolean
-  emailBilling: boolean
-  emailAnnouncements: boolean
-  pushReminders: boolean
-  smsAlerts: boolean
-  twoFactorEnabled: boolean
-}
-
-const DEFAULT_SETTINGS: SettingsState = {
-  bio: "",
-  language: "en",
-  timezone: "Africa/Lagos",
-  reducedMotion: false,
-  compactMode: false,
-  emailAcademic: true,
-  emailBilling: true,
-  emailAnnouncements: false,
-  pushReminders: true,
-  smsAlerts: false,
-  twoFactorEnabled: false,
-}
-
-function readStoredSettings(): SettingsState {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
-    if (!raw) return DEFAULT_SETTINGS
-    return {
-      ...DEFAULT_SETTINGS,
-      ...(JSON.parse(raw) as Partial<SettingsState>),
-    }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
+// Every setting on this page is saved on the server. Settings the server
+// can't store yet (notification channels, two-factor sign-in, profile photo,
+// language) are hidden rather than kept in the browser; their contracts are
+// in sandbox/account-settings. Theme is the one exception: it's the same
+// per-device display toggle as the header's.
 
 export default function StudentSettingsPage() {
   const hydrated = useAppHydrated()
-  const { user, updateUser } = useAppStore()
+  const { user } = useAppStore()
   const { data: unreadData } = useUnreadCount()
   const markAllRead = useMarkAllRead()
   const { theme, setTheme } = useThemeStore()
@@ -90,10 +50,8 @@ export default function StudentSettingsPage() {
   const { student } = useMyStudent()
   const updateProfile = useUpdateMyProfile()
 
-  const [avatarUrl, setAvatarUrl] = useState("")
   const [phoneNumber, setPhoneNumber] = useState("")
   const [contactAddress, setContactAddress] = useState("")
-  const [settings, setSettings] = useState<SettingsState>(readStoredSettings)
 
   // Read-only identity fields come straight off the resolved student record
   // (name / email / matric / programme / department / level are not
@@ -131,27 +89,9 @@ export default function StudentSettingsPage() {
     setSyncedStudentId(student.id)
     setPhoneNumber(student.user.phone_number ?? "")
     setContactAddress(student.contact_address ?? "")
-    setAvatarUrl(user?.avatar ?? "")
-  }
-
-  function patchSettings(patch: Partial<SettingsState>) {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch }
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next))
-      }
-      return next
-    })
   }
 
   async function handleSaveProfile() {
-    // Bio / avatar have no backend field — keep them as this-device
-    // personalization.
-    if (avatarUrl.trim()) {
-      updateUser({ avatar: avatarUrl.trim() })
-    }
-    patchSettings({ bio: settings.bio })
-
     if (!student) {
       toast.error("Your student record isn't loaded yet — try again shortly.")
       return
@@ -179,11 +119,6 @@ export default function StudentSettingsPage() {
     } catch {
       // useUpdateMyProfile surfaces its own error toast
     }
-  }
-
-  function handleSavePreferences() {
-    patchSettings(settings)
-    toast.success("Preferences updated.")
   }
 
   async function handleChangePassword() {
@@ -349,29 +284,9 @@ export default function StudentSettingsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="avatar-url">Avatar URL</Label>
-                <Input
-                  id="avatar-url"
-                  value={avatarUrl}
-                  onChange={(event) => setAvatarUrl(event.target.value)}
-                  placeholder="https://…"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea
-                  id="bio"
-                  value={settings.bio}
-                  onChange={(event) =>
-                    patchSettings({ bio: event.target.value })
-                  }
-                  placeholder="Tell us a little about your learning goals."
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Avatar and bio are saved on this device only.
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Your profile photo is set by the registry.
+              </p>
               <div className="flex justify-end">
                 <Button
                   onClick={handleSaveProfile}
@@ -395,46 +310,11 @@ export default function StudentSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SettingsToggle
-                title="Academic updates"
-                description="Result release, assessment deadlines, and timetable changes."
-                checked={settings.emailAcademic}
-                onCheckedChange={(checked) =>
-                  patchSettings({ emailAcademic: checked })
-                }
-              />
-              <SettingsToggle
-                title="Billing notifications"
-                description="Fee due reminders, receipts, and payment confirmations."
-                checked={settings.emailBilling}
-                onCheckedChange={(checked) =>
-                  patchSettings({ emailBilling: checked })
-                }
-              />
-              <SettingsToggle
-                title="Announcements"
-                description="General notices from faculty and the student affairs office."
-                checked={settings.emailAnnouncements}
-                onCheckedChange={(checked) =>
-                  patchSettings({ emailAnnouncements: checked })
-                }
-              />
-              <SettingsToggle
-                title="Push reminders"
-                description="Browser push alerts for urgent deadlines."
-                checked={settings.pushReminders}
-                onCheckedChange={(checked) =>
-                  patchSettings({ pushReminders: checked })
-                }
-              />
-              <SettingsToggle
-                title="SMS alerts"
-                description="Critical account and payment alerts via SMS."
-                checked={settings.smsAlerts}
-                onCheckedChange={(checked) =>
-                  patchSettings({ smsAlerts: checked })
-                }
-              />
+              <p className="rounded-2xl border border-dashed border-border p-3 text-sm text-muted-foreground">
+                Choosing which updates reach you by email, SMS or push
+                isn&apos;t available yet. Until it is, important notices appear
+                in your portal notifications.
+              </p>
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/30 p-3">
                 <p className="text-sm text-muted-foreground">
@@ -451,13 +331,6 @@ export default function StudentSettingsPage() {
                   }}
                 >
                   Mark all as read
-                </Button>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleSavePreferences} className="gap-2">
-                  <Save size={15} />
-                  Save Notifications
                 </Button>
               </div>
             </CardContent>
@@ -491,72 +364,12 @@ export default function StudentSettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Language</Label>
-                  <Select
-                    value={settings.language}
-                    onValueChange={(value) =>
-                      patchSettings({ language: value as "en" | "fr" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Timezone</Label>
-                  <Select
-                    value={settings.timezone}
-                    onValueChange={(value) =>
-                      patchSettings({ timezone: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Africa/Lagos">
-                        Africa/Lagos (WAT)
-                      </SelectItem>
-                      <SelectItem value="Europe/London">
-                        Europe/London (GMT)
-                      </SelectItem>
-                      <SelectItem value="America/New_York">
-                        America/New_York (EST)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
-              <SettingsToggle
-                title="Compact mode"
-                description="Use denser spacing to fit more information on screen."
-                checked={settings.compactMode}
-                onCheckedChange={(checked) =>
-                  patchSettings({ compactMode: checked })
-                }
-              />
-              <SettingsToggle
-                title="Reduce motion"
-                description="Minimize non-essential animations and transitions."
-                checked={settings.reducedMotion}
-                onCheckedChange={(checked) =>
-                  patchSettings({ reducedMotion: checked })
-                }
-              />
-
-              <div className="flex justify-end">
-                <Button onClick={handleSavePreferences} className="gap-2">
-                  <Save size={15} />
-                  Save Preferences
-                </Button>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Theme applies to this device only, like the theme button in the
+                header.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -609,18 +422,6 @@ export default function StudentSettingsPage() {
                 </Button>
               </div>
 
-              <SettingsToggle
-                title="Two-factor authentication"
-                description="Require an extra verification step during sign-in."
-                checked={settings.twoFactorEnabled}
-                onCheckedChange={(checked) => {
-                  patchSettings({ twoFactorEnabled: checked })
-                  toast.success(
-                    checked ? "Two-factor enabled." : "Two-factor disabled."
-                  )
-                }}
-              />
-
               <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
                 <div className="flex items-start gap-2">
                   <ShieldCheck className="mt-0.5 h-4 w-4" />
@@ -637,28 +438,6 @@ export default function StudentSettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
-  )
-}
-
-function SettingsToggle({
-  title,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  title: string
-  description: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-muted/20 p-3">
-      <div>
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   )
 }
