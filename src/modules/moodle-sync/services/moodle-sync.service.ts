@@ -389,6 +389,16 @@ export const moodleSyncService = {
       AUTH
     ),
 
+  // POST /moodle-sync/categories/repair-hierarchy — re-parents each mapped
+  // portal node under its Moodle parent's node. Idempotent; see
+  // lib/repair-plan.ts for the preview the UI shows first.
+  repairCategoryHierarchy: async () => {
+    const res = await apiClient.post<{
+      data: { checked: number; fixed: number; skippedAlreadyCorrect: number }
+    }>(`${BASE}/categories/repair-hierarchy`, undefined, AUTH)
+    return res.data
+  },
+
   deleteCategoryMapping: (id: number) =>
     apiClient.delete<{ message: string }>(`${BASE}/categories/${id}`, AUTH),
 

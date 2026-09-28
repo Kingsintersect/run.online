@@ -4,6 +4,7 @@ import { useSyncCategories } from "../../hooks/use-sync-categories"
 import { usePullCategories } from "../../hooks/use-sync-mutations"
 import { PushPullToolbar } from "../shared/push-pull-toolbar"
 import { ReconcileButton } from "../shared/reconcile-dialog"
+import { RepairHierarchyButton } from "./category-repair-dialog"
 
 function formatLastPulled(categories: { lastSyncAt: string | null }[]): string {
   const timestamps = categories
@@ -29,7 +30,10 @@ export function CategoryPullPanel() {
       pullLabel="Pull All from Moodle"
       pullPending={pullAll.isPending}
       extraActions={
-        <ReconcileButton module="categories" moduleLabel="categories" />
+        <>
+          <ReconcileButton module="categories" moduleLabel="categories" />
+          <RepairHierarchyButton />
+        </>
       }
     />
   )

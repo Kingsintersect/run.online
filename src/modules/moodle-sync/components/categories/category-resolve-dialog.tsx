@@ -244,10 +244,16 @@ export function CategoryResolveDialog({
     <Modal
       open={!!category}
       onClose={onClose}
-      title="Resolve Category"
+      title={
+        category?.needsMapping === false
+          ? "Re-link Category"
+          : "Resolve Category"
+      }
       subtitle={
         category
-          ? `"${category.moodleCategoryName}" has no recognizable idnumber`
+          ? category.needsMapping === false
+            ? `Moodle "${category.moodleCategoryName}" is linked to portal "${category.unitName}". Pick the portal record it really is; the link is also written back to Moodle.`
+            : `"${category.moodleCategoryName}" has no recognizable idnumber`
           : undefined
       }
       size="md"

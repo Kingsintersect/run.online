@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   ChevronRight,
@@ -23,6 +24,8 @@ import { SyncStatusBadge } from "../shared/sync-status-badge"
 import { SyncDirectionBadge } from "../shared/sync-direction-badge"
 import type { CategorySyncResponse } from "../../types"
 import { describeSyncError } from "../../lib/sync-error"
+import { isNameMismatch } from "../../lib/repair-plan"
+import { CategoryResolveDialog } from "./category-resolve-dialog"
 
 // Known seeded type codes get a dedicated icon; any other code (a custom
 // type an admin added, e.g. "COHORT") falls back to a generic icon — the
@@ -38,23 +41,35 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   TERM: CalendarDays,
 }
 
+// Rows are keyed by portal node. A node whose parent node has no Moodle
+// mapping would otherwise vanish, along with its whole branch, because the
+// tree is built from mappings only. Such nodes are shown at the top level
+// instead (flagged in the row), so nothing mapped is ever hidden.
 function buildTree(items: CategorySyncResponse[]) {
+  const mapped = new Set(items.map((i) => i.academicUnitId))
   const byParent = new Map<number | null, CategorySyncResponse[]>()
   for (const item of items) {
-    const list = byParent.get(item.parentId) ?? []
+    const key =
+      item.parentId != null && mapped.has(item.parentId) ? item.parentId : null
+    const list = byParent.get(key) ?? []
     list.push(item)
-    byParent.set(item.parentId, list)
+    byParent.set(key, list)
   }
-  return byParent
+  return { byParent, mapped }
 }
 
 interface TreeNodeProps {
   node: CategorySyncResponse
   depth: number
   byParent: Map<number | null, CategorySyncResponse[]>
+  /** Portal nodes that have a Moodle mapping (to flag rows whose parent doesn't). */
+  mapped: Set<number>
+  /** Opens the resolve dialog to link this Moodle category to another portal record. */
+  onRelink: (node: CategorySyncResponse) => void
 }
 
-function TreeNode({ node, depth, byParent }: TreeNodeProps) {
+function TreeNode({ node, depth, byParent, mapped, onRelink }: TreeNodeProps) {
+  const parentUnmapped = node.parentId != null && !mapped.has(node.parentId)
   const children = byParent.get(node.academicUnitId) ?? []
   const expanded = useMoodleSyncUiStore((s) =>
     s.expandedCategoryIds.has(node.academicUnitId)
@@ -89,8 +104,29 @@ function TreeNode({ node, depth, byParent }: TreeNodeProps) {
           <Icon size={13} />
         </div>
 
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-          {node.unitName}
+        {/* The row is the portal node; its Moodle category is shown too
+            whenever the names disagree, so a crossed mapping is visible
+            instead of looking correct. */}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">
+            {node.unitName}
+          </span>
+          {parentUnmapped && (
+            <span className="block text-[11px] text-amber-700 dark:text-amber-300">
+              Its parent in the portal tree has no Moodle mapping, so it&apos;s
+              shown here at the top.
+            </span>
+          )}
+          {isNameMismatch(node.moodleCategoryName, node.unitName) && (
+            <span className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                Mapping mismatch
+              </span>
+              <span className="truncate text-muted-foreground">
+                Moodle: {node.moodleCategoryName?.replace(/&amp;/g, "&")}
+              </span>
+            </span>
+          )}
         </span>
         <span className="hidden shrink-0 text-[11px] text-muted-foreground capitalize sm:inline">
           {node.unitTypeCode.toLowerCase()}
@@ -103,6 +139,17 @@ function TreeNode({ node, depth, byParent }: TreeNodeProps) {
         <SyncStatusBadge status={node.syncStatus} />
 
         <div className="flex shrink-0 items-center gap-1">
+          <PermissionGate require={{ resource: "moodle-sync", action: "pull" }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onRelink(node)}
+              title={`Link Moodle category "${node.moodleCategoryName ?? ""}" to a different portal record`}
+            >
+              Re-link
+            </Button>
+          </PermissionGate>
           {hasChildren && (
             <PermissionGate
               require={{ resource: "moodle-sync", action: "push" }}
@@ -166,6 +213,8 @@ function TreeNode({ node, depth, byParent }: TreeNodeProps) {
                 node={child}
                 depth={depth + 1}
                 byParent={byParent}
+                mapped={mapped}
+                onRelink={onRelink}
               />
             ))}
           </motion.div>
@@ -182,6 +231,7 @@ interface CategoryTreeProps {
 }
 
 export function CategoryTree({ majorProgramId = null }: CategoryTreeProps) {
+  const [relinking, setRelinking] = useState<CategorySyncResponse | null>(null)
   // useSyncCategories -> moodleSyncService.listCategories already applies
   // the real majorProgramId filter client-side (derived per-node from the
   // AcademicUnit tree's linkedEntity — see that service's own comment), so
@@ -222,14 +272,25 @@ export function CategoryTree({ majorProgramId = null }: CategoryTreeProps) {
     )
   }
 
-  const byParent = buildTree(data)
+  const { byParent, mapped } = buildTree(data)
   const roots = byParent.get(null) ?? []
 
   return (
     <div className="rounded-2xl border border-border bg-card p-2">
       {roots.map((root) => (
-        <TreeNode key={root.id} node={root} depth={0} byParent={byParent} />
+        <TreeNode
+          key={root.id}
+          node={root}
+          depth={0}
+          byParent={byParent}
+          mapped={mapped}
+          onRelink={setRelinking}
+        />
       ))}
+      <CategoryResolveDialog
+        category={relinking}
+        onClose={() => setRelinking(null)}
+      />
     </div>
   )
 }

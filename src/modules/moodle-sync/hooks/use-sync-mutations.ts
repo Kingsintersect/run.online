@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { moodleSyncService } from "../services/moodle-sync.service"
 import { moodleSyncKeys } from "./query-keys"
+import { academicStructureKeys } from "@/services/academicStructureApi"
 import type {
   CoursesBulkPushPayload,
   PushCategoryDto,
@@ -62,6 +63,19 @@ export function useResolveCategoryMapping() {
       moodleSyncService.resolveCategoryMapping(id, dto),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
+  })
+}
+
+export function useRepairCategoryHierarchy() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => moodleSyncService.repairCategoryHierarchy(),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: moodleSyncKeys.categoriesAll() }),
+        qc.invalidateQueries({ queryKey: academicStructureKeys.units.all }),
+      ])
+    },
   })
 }
 
