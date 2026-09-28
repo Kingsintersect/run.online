@@ -3,12 +3,12 @@
 import { AlertTriangle, Loader2 } from "lucide-react"
 import Modal from "@/components/custom/Modal"
 import { Button } from "@/components/ui/button"
-import type { Setting } from "@/types/school"
+import type { SafeSetting } from "@/services/configurationApi"
 
 interface DeleteSettingModalProps {
   open: boolean
   onClose: () => void
-  setting: Setting | null
+  setting: SafeSetting | null
   onConfirm: () => Promise<void>
   isDeleting: boolean
 }

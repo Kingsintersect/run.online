@@ -3,6 +3,7 @@ import {
   createApiQueryOptions,
 } from "@/lib/clients/apiClient"
 import apiClient from "@/lib/clients/apiClient"
+import { z } from "zod"
 import type {
   Setting,
   CreateSettingPayload,
@@ -94,6 +95,105 @@ export const systemMonitoringApi = {
   },
 }
 
+// ── Secret settings (sandbox/payment-secrets) ─────────────────
+// Some settings hold credentials: the payment gateway's secret key first
+// (`fcmb_secret_key`), then any other key flagged secret. The proposed
+// contract (sandbox/payment-secrets/API_CONTRACTS.md §1) has the server
+// return `{ isSecret: true, isSet, maskedValue, value: null }` for these and
+// only ever hand out the full value from the password-checked reveal
+// endpoint. Until then `GET /configuration/settings` still returns every
+// value in plain text, so every setting read below goes through
+// `toSafeSetting()` here, in the service layer: for a secret the raw value is
+// dropped (replaced by a client-computed mask) before it can reach the React
+// Query cache, a component, the DOM or the clipboard. It is still in the
+// network response itself, which only the backend can fix.
+
+/** Key fragments that mark a setting as secret when the server has no flag. */
+// `token` also catches webhook tokens (e.g. `credo_webhook_token`, found in
+// plain text on 2026-09-28), which the original screen pattern missed.
+const SECRET_KEY_FRAGMENTS = [
+  "gateway_key",
+  "token",
+  "password",
+  "secret",
+  "private_key",
+]
+
+/** Client-side secret detection (fallback for the server's `isSecret`). */
+export function isSecretSettingKey(key: string): boolean {
+  const k = key.toLowerCase()
+  return SECRET_KEY_FRAGMENTS.some((fragment) => k.includes(fragment))
+}
+
+const MASK = "••••"
+/** Below this length even the last 4 characters give away too much. */
+const MIN_LENGTH_FOR_TAIL = 12
+
+/**
+ * `sk_live_••••a1b2`: a recognised key prefix (`sk_live_`, `pk_test_`, …),
+ * four dots and the last four characters. A short value shows dots only.
+ */
+export function maskSecretValue(value: string): string {
+  if (value.length < MIN_LENGTH_FOR_TAIL) return MASK
+  const prefix = /^[a-z]{2,6}_(?:live|test)_/i.exec(value)?.[0] ?? ""
+  return `${prefix}${MASK}${value.slice(-4)}`
+}
+
+/** A setting as the server may send it: today's plain shape or the masked one. */
+type RawSetting = Omit<Setting, "value"> & {
+  value: string | null
+  isSecret?: boolean
+  isSet?: boolean
+  maskedValue?: string | null
+}
+
+/** A setting as the portal holds it. `value` is always null for a secret. */
+export type SafeSetting = Omit<Setting, "value"> & {
+  value: string | null
+  isSecret: boolean
+  /** Whether a secret has a value at all (always true for plain settings). */
+  isSet: boolean
+  /** The masked value to display for a secret, e.g. `sk_live_••••a1b2`. */
+  maskedValue: string | null
+}
+
+/**
+ * The server's `isSecret: true` always wins. The key heuristic can only add
+ * masking, never remove it, so a server that doesn't send the flag yet (or
+ * sends `false` for an obviously secret key) never gets a key shown in full.
+ */
+export function toSafeSetting(raw: RawSetting): SafeSetting {
+  const secret = raw.isSecret === true || isSecretSettingKey(raw.key)
+  if (!secret) {
+    return {
+      ...raw,
+      value: raw.value ?? "",
+      isSecret: false,
+      isSet: true,
+      maskedValue: null,
+    }
+  }
+  const plain = raw.value ?? ""
+  return {
+    ...raw,
+    value: null,
+    isSecret: true,
+    isSet: raw.isSet ?? plain !== "",
+    maskedValue: raw.maskedValue ?? (plain ? maskSecretValue(plain) : null),
+  }
+}
+
+export const RevealSecretPayloadSchema = z.object({
+  password: z.string().min(1, "Enter your password"),
+})
+export type RevealSecretPayload = z.infer<typeof RevealSecretPayloadSchema>
+
+const RevealedSecretSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+})
+export type RevealedSecret = z.infer<typeof RevealedSecretSchema>
+
 // Real backend contract per bruno/configuration/*.bru (source of truth — see
 // CLAUDE.md §13). List is the only endpoint wrapped in `{data, meta}` — every other
 // endpoint here returns its setting FLAT, confirmed by each .bru file's docs block
@@ -104,43 +204,78 @@ export const systemMonitoringApi = {
 export const settingsApi = {
   list: async (
     params?: SettingsQueryParams
-  ): Promise<ApiPaginatedResponse<Setting>> => {
-    return apiClient.get<ApiPaginatedResponse<Setting>>(
+  ): Promise<ApiPaginatedResponse<SafeSetting>> => {
+    const res = await apiClient.get<ApiPaginatedResponse<RawSetting>>(
       "/configuration/settings",
       { ...AUTH, params: params as Record<string, unknown> | undefined }
     )
+    return { ...res, data: res.data.map(toSafeSetting) }
   },
 
-  getById: async (id: number): Promise<Setting> => {
-    return apiClient.get<Setting>(`/configuration/settings/${id}`, AUTH)
-  },
-
-  getByKey: async (key: string): Promise<Setting> => {
-    return apiClient.get<Setting>(`/configuration/settings/key/${key}`, AUTH)
-  },
-
-  create: async (payload: CreateSettingPayload): Promise<Setting> => {
-    return apiClient.post<Setting, CreateSettingPayload>(
-      "/configuration/settings",
-      payload,
-      AUTH
+  getById: async (id: number): Promise<SafeSetting> => {
+    return toSafeSetting(
+      await apiClient.get<RawSetting>(`/configuration/settings/${id}`, AUTH)
     )
   },
 
+  getByKey: async (key: string): Promise<SafeSetting> => {
+    return toSafeSetting(
+      await apiClient.get<RawSetting>(
+        `/configuration/settings/key/${key}`,
+        AUTH
+      )
+    )
+  },
+
+  create: async (payload: CreateSettingPayload): Promise<SafeSetting> => {
+    return toSafeSetting(
+      await apiClient.post<RawSetting, CreateSettingPayload>(
+        "/configuration/settings",
+        payload,
+        AUTH
+      )
+    )
+  },
+
+  // For a secret this is the write-only "replace" (sandbox/payment-secrets
+  // API_CONTRACTS §2): the new value goes up, only the mask comes back.
   update: async (
     id: number,
     payload: UpdateSettingPayload
-  ): Promise<Setting> => {
-    return apiClient.patch<Setting, UpdateSettingPayload>(
-      `/configuration/settings/${id}`,
-      payload,
-      AUTH
+  ): Promise<SafeSetting> => {
+    return toSafeSetting(
+      await apiClient.patch<RawSetting, UpdateSettingPayload>(
+        `/configuration/settings/${id}`,
+        payload,
+        AUTH
+      )
     )
   },
 
   // 204 No Content — no response body.
   remove: async (id: number): Promise<void> => {
     return apiClient.delete<void>(`/configuration/settings/${id}`, AUTH)
+  },
+
+  /**
+   * Proposed (sandbox/payment-secrets API_CONTRACTS §3): super admin only,
+   * re-checks the caller's own password, returns the full value in this
+   * response only. `skipAuthRefresh`: a 401 here can mean a wrong password
+   * rather than an expired token, so it must not trigger a token refresh.
+   */
+  revealSecret: async (
+    id: number,
+    payload: RevealSecretPayload
+  ): Promise<RevealedSecret> => {
+    const body = RevealSecretPayloadSchema.parse(payload)
+    const res = await apiClient.post<
+      { data: RevealedSecret },
+      RevealSecretPayload
+    >(`/configuration/settings/${id}/reveal`, body, {
+      ...AUTH,
+      skipAuthRefresh: true,
+    })
+    return RevealedSecretSchema.parse(res.data)
   },
 }
 
@@ -192,14 +327,14 @@ export const configurationQueryOptions = {
 
 export const configurationMutationOptions = {
   create: () =>
-    createApiMutationOptions<Setting, CreateSettingPayload>({
+    createApiMutationOptions<SafeSetting, CreateSettingPayload>({
       mutationKey: [...configurationKeys.settings(), "create"],
       mutationFn: settingsApi.create,
     }),
 
   update: () =>
     createApiMutationOptions<
-      Setting,
+      SafeSetting,
       { id: number; payload: UpdateSettingPayload }
     >({
       mutationKey: [...configurationKeys.settings(), "update"],
@@ -210,5 +345,15 @@ export const configurationMutationOptions = {
     createApiMutationOptions<void, number>({
       mutationKey: [...configurationKeys.settings(), "delete"],
       mutationFn: settingsApi.remove,
+    }),
+
+  // No mutationKey on purpose; see useRevealSecretSetting() for why the
+  // result must not linger in the mutation cache.
+  revealSecret: () =>
+    createApiMutationOptions<
+      RevealedSecret,
+      { id: number; payload: RevealSecretPayload }
+    >({
+      mutationFn: ({ id, payload }) => settingsApi.revealSecret(id, payload),
     }),
 }

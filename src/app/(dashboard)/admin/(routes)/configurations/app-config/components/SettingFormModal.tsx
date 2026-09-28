@@ -17,7 +17,10 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import type { Setting } from "@/types/school"
+import {
+  isSecretSettingKey,
+  type SafeSetting,
+} from "@/services/configurationApi"
 import { SETTING_GROUPS } from "./GroupTabs"
 
 // ── Validation schema ────────────────────────
@@ -37,13 +40,14 @@ const editSchema = z.object({
   group: z.string().min(1, "Group is required"),
 })
 
-type CreateFormValues = z.infer<typeof createSchema>
-// type EditFormValues = z.infer<typeof editSchema>;
+// A secret is write-only (sandbox/payment-secrets API_CONTRACTS §2): the form
+// never has its current value, so a blank field means "keep the current key".
+const secretEditSchema = z.object({
+  value: z.string(),
+  group: z.string().min(1, "Group is required"),
+})
 
-// ── Sensitive keys that should be masked ────
-const SENSITIVE_KEYS = ["gateway_key", "api_token", "password", "secret"]
-const isSensitive = (key: string) =>
-  SENSITIVE_KEYS.some((k) => key.toLowerCase().includes(k))
+type CreateFormValues = z.infer<typeof createSchema>
 
 // ── Groups list (excluding "all") ───────────
 const groupOptions = SETTING_GROUPS.filter((g) => g.value !== "all")
@@ -54,10 +58,11 @@ interface SettingFormModalProps {
   open: boolean
   onClose: () => void
   mode: "create" | "edit"
-  setting?: Setting
+  setting?: SafeSetting
   onSubmit: (data: {
     key?: string
-    value: string
+    /** Omitted when editing a secret and the field was left blank. */
+    value?: string
     group: string
   }) => Promise<void>
   isSubmitting: boolean
@@ -72,6 +77,7 @@ export function SettingFormModal({
   isSubmitting,
 }: SettingFormModalProps) {
   const isEdit = mode === "edit"
+  const editingSecret = isEdit && !!setting?.isSecret
 
   const {
     register,
@@ -82,27 +88,37 @@ export function SettingFormModal({
     formState: { errors },
   } = useForm<CreateFormValues>({
     resolver: zodResolver(
-      isEdit ? (editSchema as unknown as typeof createSchema) : createSchema
+      editingSecret
+        ? (secretEditSchema as unknown as typeof createSchema)
+        : isEdit
+          ? (editSchema as unknown as typeof createSchema)
+          : createSchema
     ),
     defaultValues: { key: "", value: "", group: "" },
   })
 
   const currentGroup = useWatch({ control, name: "group" })
+  const typedKey = useWatch({ control, name: "key" })
 
-  // Pre-fill when editing
+  // Pre-fill when editing. A secret's value is never pre-filled: the portal
+  // doesn't hold it, and the field asks for a replacement instead.
   useEffect(() => {
     if (open && isEdit && setting) {
-      setValue("value", setting.value)
+      setValue("value", setting.isSecret ? "" : (setting.value ?? ""))
       setValue("group", setting.group)
     }
     if (!open) reset()
   }, [open, isEdit, setting, setValue, reset])
 
   const handleFormSubmit = async (data: CreateFormValues) => {
-    await onSubmit(isEdit ? { value: data.value, group: data.group } : data)
+    if (!isEdit) return onSubmit(data)
+    if (editingSecret && data.value === "") {
+      return onSubmit({ group: data.group })
+    }
+    await onSubmit({ value: data.value, group: data.group })
   }
 
-  const sensitive = isEdit && setting ? isSensitive(setting.key) : false
+  const sensitive = isEdit ? editingSecret : isSecretSettingKey(typedKey ?? "")
 
   return (
     <Modal
@@ -158,13 +174,17 @@ export function SettingFormModal({
 
         {/* Value */}
         <div className="space-y-1.5">
-          <Label htmlFor="value">Value</Label>
+          <Label htmlFor="value">{editingSecret ? "New value" : "Value"}</Label>
           {sensitive ? (
             <Input
               id="value"
               type="password"
               autoComplete="new-password"
+              placeholder={
+                editingSecret ? "Leave blank to keep the current key" : ""
+              }
               aria-invalid={!!errors.value}
+              aria-describedby={editingSecret ? "value-secret-hint" : undefined}
               {...register("value")}
             />
           ) : (
@@ -177,6 +197,22 @@ export function SettingFormModal({
           )}
           {errors.value && (
             <p className="text-xs text-destructive">{errors.value.message}</p>
+          )}
+          {editingSecret && (
+            <p id="value-secret-hint" className="text-xs text-muted-foreground">
+              {setting?.isSet ? (
+                <>
+                  Current:{" "}
+                  <span className="font-mono text-foreground">
+                    {setting.maskedValue}
+                  </span>
+                  . This is a secret: it can be replaced but is never shown
+                  here.
+                </>
+              ) : (
+                "No value is set yet. This is a secret: it can be replaced but is never shown here."
+              )}
+            </p>
           )}
         </div>
 

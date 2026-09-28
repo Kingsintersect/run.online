@@ -1,15 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Edit2, Trash2, Eye, EyeOff, Copy, Check } from "lucide-react"
+import { Edit2, Trash2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import StatusBadge from "@/components/custom/StatusBadge"
-import type { Setting } from "@/types/school"
-
-// ── Sensitive key detection ──────────────────
-const SENSITIVE_KEYS = ["gateway_key", "api_token", "password", "secret"]
-const isSensitive = (key: string) =>
-  SENSITIVE_KEYS.some((k) => key.toLowerCase().includes(k))
+import type { SafeSetting } from "@/services/configurationApi"
+import { SecretValue } from "./SecretValue"
 
 // ── Group badge color mapping ─────────────────
 const GROUP_VARIANTS: Record<
@@ -23,16 +19,11 @@ const GROUP_VARIANTS: Record<
   system: "orange",
 }
 
-// ── Copy-to-clipboard cell ──────────────────
+// ── Copy-to-clipboard cell (plain settings only) ──────────
+// Secret settings never reach this cell: their value is dropped in the
+// service layer (toSafeSetting) and they render through <SecretValue>.
 
-function CopyableValue({
-  value,
-  sensitive,
-}: {
-  value: string
-  sensitive: boolean
-}) {
-  const [visible, setVisible] = useState(false)
+function CopyableValue({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -41,31 +32,21 @@ function CopyableValue({
     setTimeout(() => setCopied(false), 1500)
   }
 
-  const display =
-    sensitive && !visible ? "•".repeat(Math.min(value.length, 12)) : value
-
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span
         className="max-w-65 truncate font-mono text-xs text-foreground"
-        title={sensitive && !visible ? undefined : value}
+        title={value}
       >
-        {display}
+        {value}
       </span>
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100">
-        {sensitive && (
-          <button
-            onClick={() => setVisible((v) => !v)}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            title={visible ? "Hide" : "Reveal"}
-          >
-            {visible ? <EyeOff size={12} /> : <Eye size={12} />}
-          </button>
-        )}
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
         <button
+          type="button"
           onClick={handleCopy}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           title="Copy value"
+          aria-label="Copy value"
         >
           {copied ? (
             <Check size={12} className="text-emerald-500" />
@@ -81,15 +62,18 @@ function CopyableValue({
 // ── Main table ───────────────────────────────
 
 interface SettingsTableProps {
-  settings: Setting[]
+  settings: SafeSetting[]
   showGroupColumn?: boolean
-  onEdit: (setting: Setting) => void
-  onDelete: (setting: Setting) => void
+  /** Show View / Copy on secret settings (super admin only). */
+  canRevealSecrets?: boolean
+  onEdit: (setting: SafeSetting) => void
+  onDelete: (setting: SafeSetting) => void
 }
 
 export function SettingsTable({
   settings,
   showGroupColumn = false,
+  canRevealSecrets = false,
   onEdit,
   onDelete,
 }: SettingsTableProps) {
@@ -130,7 +114,6 @@ export function SettingsTable({
         </thead>
         <tbody className="divide-y divide-border">
           {settings.map((setting) => {
-            const sensitive = isSensitive(setting.key)
             return (
               <tr
                 key={setting.id}
@@ -145,7 +128,14 @@ export function SettingsTable({
 
                 {/* Value */}
                 <td className="px-4 py-3">
-                  <CopyableValue value={setting.value} sensitive={sensitive} />
+                  {setting.isSecret ? (
+                    <SecretValue
+                      setting={setting}
+                      canReveal={canRevealSecrets}
+                    />
+                  ) : (
+                    <CopyableValue value={setting.value ?? ""} />
+                  )}
                 </td>
 
                 {/* Group (optional) */}
@@ -171,13 +161,14 @@ export function SettingsTable({
 
                 {/* Actions */}
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover/row:opacity-100">
+                  <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
                     <Button
                       size="icon"
                       variant="ghost"
                       className="size-7"
                       onClick={() => onEdit(setting)}
                       title="Edit"
+                      aria-label={`Edit ${setting.key}`}
                     >
                       <Edit2 size={13} />
                     </Button>
@@ -187,6 +178,7 @@ export function SettingsTable({
                       className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => onDelete(setting)}
                       title="Delete"
+                      aria-label={`Delete ${setting.key}`}
                     >
                       <Trash2 size={13} />
                     </Button>

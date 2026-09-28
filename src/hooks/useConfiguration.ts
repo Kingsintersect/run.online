@@ -60,6 +60,22 @@ export function useDeleteSetting() {
   })
 }
 
+/**
+ * Reveals one secret setting after a password re-check (proposed endpoint,
+ * sandbox/payment-secrets API_CONTRACTS §3). The value must live only in the
+ * caller's short-lived local state: `gcTime: 0` drops the finished mutation
+ * from the cache as soon as nothing observes it, no retry re-sends the
+ * password, and callers `reset()` right after reading the result so the
+ * observer doesn't hold it either. Nothing is ever written to a query key.
+ */
+export function useRevealSecretSetting() {
+  return useMutation({
+    ...configurationMutationOptions.revealSecret(),
+    gcTime: 0,
+    retry: false,
+  })
+}
+
 // Super-admin only (backend-enforced) — see configurationApi.ts's
 // systemMonitoringApi comment.
 export function useScheduledJobs() {

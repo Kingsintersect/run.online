@@ -12,11 +12,10 @@ import {
   useUpdateSetting,
   useDeleteSetting,
 } from "@/hooks/useConfiguration"
-import type {
-  Setting,
-  SettingGroup,
-  CreateSettingPayload,
-} from "@/types/school"
+import type { SettingGroup, CreateSettingPayload } from "@/types/school"
+import type { SafeSetting } from "@/services/configurationApi"
+import { UserRole } from "@/config/nav.config"
+import { useAppStore } from "@/store"
 import { GroupTabs, SETTING_GROUPS } from "./components/GroupTabs"
 import { SettingsTable } from "./components/SettingsTable"
 import { SettingFormModal } from "./components/SettingFormModal"
@@ -28,8 +27,19 @@ export default function ConfigPage() {
   const [search, setSearch] = useState("")
   const [formOpen, setFormOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [selectedSetting, setSelectedSetting] = useState<Setting | null>(null)
+  const [selectedSetting, setSelectedSetting] = useState<SafeSetting | null>(
+    null
+  )
   const [formMode, setFormMode] = useState<"create" | "edit">("create")
+
+  // Viewing or copying a secret setting is super admin only (spec in
+  // sandbox/payment-secrets README). This is a role check, not a permission
+  // check, on purpose: usePermissions().can() passes every permission for
+  // SUPER_ADMIN and the backend has no "reveal secret" permission to grant
+  // anyone else, so there is no permission that draws this line. The reveal
+  // endpoint enforces the same rule server-side (403 for any other role).
+  const activeRole = useAppStore((s) => s.activeRole)
+  const canRevealSecrets = activeRole === UserRole.SUPER_ADMIN
 
   // ── Data ───────────────────────────────────
   const { data: allSettings = [], isLoading } = useSettings()
@@ -56,9 +66,11 @@ export default function ConfigPage() {
         : allSettings.filter((s) => s.group === activeGroup)
     if (search.trim()) {
       const q = search.toLowerCase()
+      // A secret's value is never searchable (it isn't held client-side).
       list = list.filter(
         (s) =>
-          s.key.toLowerCase().includes(q) || s.value.toLowerCase().includes(q)
+          s.key.toLowerCase().includes(q) ||
+          (s.value ?? "").toLowerCase().includes(q)
       )
     }
     return list
@@ -71,20 +83,20 @@ export default function ConfigPage() {
     setFormOpen(true)
   }
 
-  const openEdit = (setting: Setting) => {
+  const openEdit = (setting: SafeSetting) => {
     setSelectedSetting(setting)
     setFormMode("edit")
     setFormOpen(true)
   }
 
-  const openDelete = (setting: Setting) => {
+  const openDelete = (setting: SafeSetting) => {
     setSelectedSetting(setting)
     setDeleteOpen(true)
   }
 
   const handleFormSubmit = async (data: {
     key?: string
-    value: string
+    value?: string
     group: string
   }) => {
     try {
@@ -94,7 +106,11 @@ export default function ConfigPage() {
       } else if (selectedSetting) {
         await updateSetting.mutateAsync({
           id: selectedSetting.id,
-          payload: { value: data.value, group: data.group },
+          // No value means "keep the current secret" (write-only edit).
+          payload:
+            data.value === undefined
+              ? { group: data.group }
+              : { value: data.value, group: data.group },
         })
         toast.success("Setting updated")
       }
@@ -181,6 +197,7 @@ export default function ConfigPage() {
           <SettingsTable
             settings={filtered}
             showGroupColumn={activeGroup === "all"}
+            canRevealSecrets={canRevealSecrets}
             onEdit={openEdit}
             onDelete={openDelete}
           />
