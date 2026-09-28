@@ -141,23 +141,51 @@ function namesLikelyMatch(a: string, b: string): boolean {
  */
 export async function resolveFacultyAcademicUnit(
   facultyId: number,
-  facultyName: string
+  facultyName: string,
+  /**
+   * The major program the program belongs to. Since the multi-program
+   * restructure, faculty nodes live *inside* a major program's node (e.g.
+   * Part-Time Programmes → Faculty of Natural Sciences), not at the root,
+   * and a faculty can appear under several major programs. With this given,
+   * the node under that major program is used, or created there.
+   */
+  majorProgram?: { id: number; name: string } | null
 ): Promise<AcademicUnit> {
-  const { data: roots } = await academicUnitsApi.list({ rootsOnly: true })
-  const existing = roots.find(
+  // Search the whole tree: a faculty node can sit at any depth.
+  const { data: all } = await academicUnitsApi.list()
+  const byId = new Map(all.map((u) => [u.id, u]))
+  const linked = all.filter(
     (u) => u.linkedEntity?.type === "faculty" && u.linkedEntity.id === facultyId
   )
-  if (existing) return existing
+  const underMajorProgram = (unit: AcademicUnit, mpId: number) => {
+    let cur = unit.parentId != null ? byId.get(unit.parentId) : undefined
+    for (let guard = 0; cur && guard < 20; guard++) {
+      if (cur.linkedEntity?.type === "major_program")
+        return cur.linkedEntity.id === mpId
+      cur = cur.parentId != null ? byId.get(cur.parentId) : undefined
+    }
+    return false
+  }
+  if (majorProgram) {
+    const match = linked.find((u) => underMajorProgram(u, majorProgram.id))
+    if (match) return match
+    // Not under this major program yet: create it there rather than as a
+    // duplicate root.
+    const mpUnit = await resolveMajorProgramAcademicUnit(
+      majorProgram.id,
+      majorProgram.name
+    )
+    const { data: created } = await academicUnitsApi.create({
+      typeCode: "FACULTY",
+      parentId: mpUnit.id,
+      name: facultyName,
+      linkedEntity: { type: "faculty", id: facultyId },
+    })
+    return created
+  }
+  if (linked.length > 0) return linked[0]
 
-  // A category pulled from Moodle and left unresolved gets a bare,
-  // unlinked placeholder root with the Moodle category's own name (see
-  // BACKEND_DEVIATIONS A18's investigation) — that placeholder is invisible
-  // to the lookup above (it has no `linkedEntity` at all), so without this
-  // check, calling this twice for the same Faculty would create a second,
-  // duplicate root. `linkedEntity` can't be changed after creation, so the
-  // fix isn't to silently merge into it — surface the conflict so an admin
-  // resolves it deliberately (delete/rename the placeholder, or re-parent
-  // its children first) instead of ending up with two same-named roots.
+  const roots = all.filter((u) => u.parentId == null)
   const nameCollision = roots.find(
     (u) => u.linkedEntity == null && namesLikelyMatch(u.name, facultyName)
   )

@@ -35,6 +35,8 @@ import {
   useUpdateFaculty,
   useUpdateDepartment,
   useUpdateProgram,
+  useDepartments,
+  useEligibleHods,
 } from "@/hooks/useCourseStructure"
 import { useAcademicUnits } from "@/hooks/useAcademicStructure"
 import { courseStructureKeys } from "@/services/courseStructureApi"
@@ -391,22 +393,34 @@ function FacultyDetail({
   const [reassigning, setReassigning] = useState<Program | null>(null)
 
   const faculty = data?.data
-  const departments = faculty?.departments ?? []
+  // The faculty detail nests its departments without `isActive` (id, name,
+  // code only), which read as "Inactive" on every card. Use the full records
+  // from the departments list, falling back to the nested ones while loading.
+  const { data: facultyDepartmentsRes } = useDepartments(facultyId)
+  const departments = facultyDepartmentsRes?.data ?? faculty?.departments ?? []
 
   // Programs attached straight to this faculty, no department in between.
   // Program has no facultyId of its own — this link only exists via the
   // AcademicUnit tree's parentAcademicUnitId, so it has to be cross-referenced
   // client-side rather than filtered server-side.
-  const { data: unitsData } = useAcademicUnits({ rootsOnly: true })
+  // The faculty's node can sit at any depth (inside a major program's node
+  // since the multi-program restructure), and one faculty can appear under
+  // several major programs, so every node linked to it counts.
+  const { data: unitsData } = useAcademicUnits()
   const { data: allProgramsData } = useAllPrograms()
-  const facultyUnit = (unitsData?.data ?? []).find(
-    (u) => u.linkedEntity?.type === "faculty" && u.linkedEntity.id === facultyId
+  const facultyUnitIds = new Set(
+    (unitsData?.data ?? [])
+      .filter(
+        (u) =>
+          u.linkedEntity?.type === "faculty" && u.linkedEntity.id === facultyId
+      )
+      .map((u) => u.id)
   )
   const directPrograms = (allProgramsData?.data ?? []).filter(
     (p) =>
       p.departmentId === null &&
-      facultyUnit !== undefined &&
-      p.parentAcademicUnitId === facultyUnit.id
+      p.parentAcademicUnitId != null &&
+      facultyUnitIds.has(p.parentAcademicUnitId)
   )
 
   // PATCH `{isActive}` — reversible on/off toggles (bruno/academic/
@@ -725,12 +739,17 @@ function FacultyDetail({
                 {canManage && (
                   <>
                     <Button
-                      variant="ghost"
-                      size="icon-sm"
+                      variant="outline"
+                      size="sm"
                       onClick={() => setReassigning(program)}
-                      title="Reassign faculty/department"
+                      title="Move this program to another faculty or department"
+                      aria-label={`Move ${program.name} to another faculty or department`}
                     >
-                      <ArrowRightLeft className="size-3.5" />
+                      <ArrowRightLeft
+                        className="size-3.5"
+                        data-icon="inline-start"
+                      />
+                      Move
                     </Button>
                     <Button
                       variant="ghost"
@@ -830,9 +849,20 @@ function DepartmentDetail({
   const [reassigning, setReassigning] = useState<Program | null>(null)
 
   const department = data?.data
-  const programs = department?.programs ?? []
+  // The department detail nests its programs as {id, name, code} only, which
+  // showed every one as "Inactive" with blank details. Use the full program
+  // records, falling back to the nested ones while they load.
+  const { data: allProgramsRes } = useAllPrograms()
+  const fullPrograms = (allProgramsRes?.data ?? []).filter(
+    (p) => p.departmentId === department?.id
+  )
+  const programs = allProgramsRes ? fullPrograms : (department?.programs ?? [])
   const lecturers = department?.lecturers ?? []
-  const hod = lecturers.find((l) => l.userId === department?.hodUserId)
+  // The head is a user with the hod role, not necessarily one of these
+  // lecturers (whose entries carry no user id), so the name comes from the
+  // HOD-role users.
+  const { data: hodUsers = [] } = useEligibleHods()
+  const hodUser = hodUsers.find((u) => u.id === department?.hodUserId)
 
   // PATCH `{isActive}` — reversible on/off toggle (bruno/academic/Programs -
   // Update.bru).
@@ -940,8 +970,10 @@ function DepartmentDetail({
           <div className="flex items-center gap-2 text-muted-foreground">
             <Users size={13} />
             HOD:{" "}
-            {hod
-              ? `${hod.user ? `${hod.user.firstName ?? ""} ${hod.user.lastName ?? ""}`.trim() : hod.staffNumber}`
+            {hodUser
+              ? [hodUser.first_name, hodUser.last_name]
+                  .filter(Boolean)
+                  .join(" ") || hodUser.email
               : department.hodUserId
                 ? `User #${department.hodUserId}`
                 : "Not assigned"}
@@ -999,12 +1031,17 @@ function DepartmentDetail({
                     {canManage && (
                       <>
                         <Button
-                          variant="ghost"
-                          size="icon-sm"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setReassigning(program)}
-                          title="Reassign faculty/department"
+                          title="Move this program to another faculty or department"
+                          aria-label={`Move ${program.name} to another faculty or department`}
                         >
-                          <ArrowRightLeft className="size-3.5" />
+                          <ArrowRightLeft
+                            className="size-3.5"
+                            data-icon="inline-start"
+                          />
+                          Move
                         </Button>
                         <Button
                           variant="ghost"
@@ -1072,13 +1109,13 @@ function DepartmentDetail({
                     <p className="truncate text-sm font-medium text-foreground">
                       {l.user
                         ? `${l.user.firstName ?? ""} ${l.user.lastName ?? ""}`.trim()
-                        : `Staff #${l.staffNumber}`}
+                        : (l.name ?? `Staff #${l.staffNumber}`)}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {l.designation}
+                      {l.designation ?? l.staffNumber}
                     </p>
                   </div>
-                  {l.userId === department.hodUserId && (
+                  {l.userId != null && l.userId === department.hodUserId && (
                     <StatusBadge label="HOD" variant="purple" />
                   )}
                 </div>

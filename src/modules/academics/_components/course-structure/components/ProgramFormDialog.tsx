@@ -146,7 +146,12 @@ export function ProgramFormDialog({
         toast.success("Program updated")
       } else if (faculty) {
         setIsResolving(true)
-        const unit = await resolveFacultyAcademicUnit(faculty.id, faculty.name)
+        const mp = majorPrograms.find((m) => m.id === values.majorProgramId)
+        const unit = await resolveFacultyAcademicUnit(
+          faculty.id,
+          faculty.name,
+          mp ? { id: mp.id, name: mp.name } : null
+        )
         // resolveFacultyAcademicUnit calls academicUnitsApi.create() directly
         // (not via useCreateAcademicUnit()), so it never triggers that hook's
         // own cache invalidation — do it here, otherwise a lazily-created

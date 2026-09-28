@@ -17,6 +17,7 @@ import {
 import {
   useFaculties,
   useDepartments,
+  useMajorPrograms,
   useUpdateProgram,
 } from "@/hooks/useCourseStructure"
 import {
@@ -65,6 +66,7 @@ export function ReassignProgramDialog({
   }
 
   const { data: facultiesData } = useFaculties()
+  const { data: majorProgramsData } = useMajorPrograms()
   const { data: departmentsData } = useDepartments(facultyId)
   const updateProgram = useUpdateProgram()
   const queryClient = useQueryClient()
@@ -88,9 +90,15 @@ export function ReassignProgramDialog({
       if (attachMode === "direct") {
         const faculty = faculties.find((f) => f.id === facultyId)
         setIsResolving(true)
+        // Attach under the faculty's node inside this program's own major
+        // program, the way the structure tree is organised.
+        const mp = (majorProgramsData?.data ?? []).find(
+          (m) => m.id === program.majorProgramId
+        )
         const unit = await resolveFacultyAcademicUnit(
           facultyId,
-          faculty?.name ?? ""
+          faculty?.name ?? "",
+          mp ? { id: mp.id, name: mp.name } : null
         )
         // resolveFacultyAcademicUnit calls academicUnitsApi.create() directly
         // (not via useCreateAcademicUnit()), so it never triggers that hook's

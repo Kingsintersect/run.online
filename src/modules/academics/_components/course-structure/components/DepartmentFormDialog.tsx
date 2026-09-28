@@ -20,6 +20,7 @@ import {
 import {
   useCreateDepartment,
   useUpdateDepartment,
+  useEligibleHods,
 } from "@/hooks/useCourseStructure"
 import {
   departmentSchema,
@@ -47,12 +48,13 @@ export function DepartmentFormDialog({
   const updateDepartment = useUpdateDepartment()
   const isPending = createDepartment.isPending || updateDepartment.isPending
 
-  // Real HOD picker, scoped to this department's actual lecturers (from
-  // GET /academic/departments/:id's nested `lecturers`) — only available
-  // once the department exists, i.e. in edit mode. There's no real
-  // endpoint to list "eligible" lecturers before that — see
-  // missing_faculty_department_apis.readme.md.
-  const lecturers = department?.lecturers ?? []
+  // Head of Department candidates: users holding the `hod` role. That is
+  // what the backend accepts for `hodUserId` (UpdateDepartmentRequest checks
+  // the role). The department's nested `lecturers` can't be offered: live
+  // they carry only {id, staffNumber, name} (the lecturer id, no user id),
+  // and a plain tutor would be rejected anyway. HOD access follows the
+  // department they head.
+  const { data: hodUsers = [] } = useEligibleHods()
 
   const {
     register,
@@ -200,7 +202,7 @@ export function DepartmentFormDialog({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select from this department's lecturers" />
+                    <SelectValue placeholder="Select a head of department" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>
@@ -208,30 +210,32 @@ export function DepartmentFormDialog({
                         — No HOD assigned —
                       </span>
                     </SelectItem>
-                    {lecturers.map((l) => (
-                      <SelectItem key={l.userId} value={l.userId.toString()}>
-                        {l.user
-                          ? `${l.user.firstName ?? ""} ${l.user.lastName ?? ""}`.trim()
-                          : `Staff #${l.staffNumber}`}
-                        {" — "}
-                        {l.designation}
+                    {hodUsers.map((u) => (
+                      <SelectItem key={`hod-${u.id}`} value={u.id.toString()}>
+                        {[u.first_name, u.last_name]
+                          .filter(Boolean)
+                          .join(" ") || u.email}
+                        {" — HOD role"}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             />
-            {lecturers.length === 0 && (
+            {hodUsers.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No lecturers in this department yet — assign one from Users →
-                Lecturers first.
+                No users hold the HOD role yet. Give someone the HOD role (Users
+                → Staff, or Manage Roles) first.
               </p>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              The head sees this department&apos;s students and results across
+              every major program.
+            </p>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            You can assign a Head of Department after creating it, once
-            lecturers are assigned here.
+            You can assign a Head of Department after creating it.
           </p>
         )}
       </div>

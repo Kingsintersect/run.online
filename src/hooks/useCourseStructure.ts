@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { rolesQueryOptions } from "@/services/rolesApi"
 import {
   courseStructureKeys,
   courseStructureMutationOptions,
@@ -50,6 +51,23 @@ export function useFaculty(id: number | null) {
 export function useEligibleDeans() {
   return useQuery({
     ...courseStructureQueryOptions.faculties.eligibleDeans(),
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+/**
+ * Users holding the `hod` role: the backend accepts any of them as a
+ * department's `hodUserId` (UpdateDepartmentRequest), not only the
+ * department's own lecturers. Recording the head matters because HOD access
+ * now follows the department they lead (`/auth/me` `leads`).
+ */
+export function useEligibleHods() {
+  const rolesQ = useQuery({ ...rolesQueryOptions.list(), staleTime: 300_000 })
+  const hodRoleId =
+    (rolesQ.data ?? []).find((r) => /^hod$/i.test(r.slug || r.name))?.id ?? null
+  return useQuery({
+    ...rolesQueryOptions.users(hodRoleId ?? 0),
+    enabled: hodRoleId != null,
     staleTime: 1000 * 60 * 5,
   })
 }

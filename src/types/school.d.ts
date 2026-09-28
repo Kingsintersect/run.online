@@ -82,11 +82,15 @@ export interface Faculty {
   majorProgram?: { id: number; name: string } | null
 }
 
+// Live (2026-09-28) GET /academic/departments/:id sends each lecturer as
+// {id, staffNumber, name}: the lecturer id, no user id or designation. The
+// older nested shape is kept optional for compatibility.
 export interface DepartmentLecturer {
   id: number
-  userId: number
   staffNumber: string
-  designation: string
+  name?: string
+  userId?: number
+  designation?: string
   user?: {
     firstName: string | null
     lastName: string | null
