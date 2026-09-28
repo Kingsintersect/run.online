@@ -37,7 +37,19 @@ export default function Modal({
   const subtitleId = useId()
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    // Escape closes the dialog only when nothing inside it handled the key
+    // first: an open select/dropdown/popover (Radix portals it into a popper
+    // wrapper) should close on its own without taking the dialog with it.
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return
+      if (
+        document.querySelector(
+          "[data-radix-popper-content-wrapper], [role=listbox]"
+        )
+      )
+        return
+      onClose()
+    }
     if (open) document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
   }, [open, onClose])
