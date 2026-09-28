@@ -1,6 +1,10 @@
 "use client"
 
-import { TeachingScopeSelect } from "@/components/teaching-scope-select"
+import {
+  TeachingScopeSelect,
+  teachingScopeEmptyMessage,
+} from "@/components/teaching-scope-select"
+import { useAppStore } from "@/store"
 import { useMyTeachingScope } from "@/hooks/use-my-teaching-scope"
 import { Suspense, useMemo, useState, useCallback } from "react"
 import { ClipboardList, Info, Layers } from "lucide-react"
@@ -196,6 +200,7 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
 function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   const { workspace: w, setWorkspace } = useResultsUiStore()
   const scope = useMyTeachingScope()
+  const activeRole = useAppStore((s) => s.activeRole)
   const heads =
     scope.majorPrograms
       .find((mp) => mp.id === w.majorProgramId)
@@ -267,7 +272,7 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         <EmptyState
           icon={ClipboardList}
           title="No programs in your scope yet"
-          description="Results appear here for the major programs and programs you teach in or head. Ask an administrator to assign you a course."
+          description={teachingScopeEmptyMessage(activeRole)}
         />
       ) : !ready ? (
         <EmptyState

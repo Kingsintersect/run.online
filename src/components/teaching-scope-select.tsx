@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { UserRole } from "@/config/nav.config"
 import type {
   MyTeachingScope,
   TeachingScopeMajorProgram,
@@ -148,4 +149,18 @@ export function TeachingScopeSelect({
       </div>
     </div>
   )
+}
+
+/**
+ * Why a tutor, HOD or dean sees nothing, and what fixes it. Scope comes from
+ * the courses assigned to them and the department/faculty they head
+ * (GET /me/teaching-scope), so an empty scope usually means one of those
+ * hasn't been recorded yet.
+ */
+export function teachingScopeEmptyMessage(role: UserRole | null): string {
+  if (role === UserRole.HOD)
+    return "Nothing is in your scope yet. You'll see a department's programs and students once an administrator records you as its Head of Department (Course Structure → the department → Edit → Head of Department), and any programs whose courses you're assigned to teach."
+  if (role === UserRole.DEAN)
+    return "Nothing is in your scope yet. You'll see a faculty's programs and students once an administrator records you as its Dean (Course Structure → the faculty → Edit → Dean), and any programs whose courses you're assigned to teach."
+  return "Nothing is in your scope yet. Programs appear here once an administrator assigns you a course to teach (Users → Tutors → Manage Courses)."
 }

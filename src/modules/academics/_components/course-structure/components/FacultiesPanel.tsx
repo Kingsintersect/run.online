@@ -38,6 +38,7 @@ import {
   useDepartments,
   useEligibleHods,
 } from "@/hooks/useCourseStructure"
+import { AuditTrailLink } from "@/components/audit-trail-link"
 import { useAcademicUnits } from "@/hooks/useAcademicStructure"
 import { courseStructureKeys } from "@/services/courseStructureApi"
 import { EmptyState } from "./EmptyState"
@@ -531,6 +532,7 @@ function FacultyDetail({
             />
           </div>
         </div>
+        <AuditTrailLink entityType="Faculty" entityId={facultyId} />
         {canManage && (
           <Button
             variant="outline"
@@ -939,6 +941,7 @@ function DepartmentDetail({
             />
           </div>
         </div>
+        <AuditTrailLink entityType="Department" entityId={department.id} />
         {canManage && (
           <Button
             variant="outline"

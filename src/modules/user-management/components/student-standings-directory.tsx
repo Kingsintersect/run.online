@@ -6,7 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { cn } from "@/lib/utils"
-import { TeachingScopeSelect } from "@/components/teaching-scope-select"
+import {
+  TeachingScopeSelect,
+  teachingScopeEmptyMessage,
+} from "@/components/teaching-scope-select"
+import { useAppStore } from "@/store"
 import { useMyTeachingScope } from "@/hooks/use-my-teaching-scope"
 import { RunPagination } from "@/modules/progression/components/run-pagination"
 import { QueryError } from "@/modules/progression/components/standing-states"
@@ -43,6 +47,7 @@ const statusVariant: Record<
 // teach in nor head are never offered.
 export function StudentStandingsDirectory() {
   const scope = useMyTeachingScope()
+  const activeRole = useAppStore((s) => s.activeRole)
   const [page, setPage] = useState(1)
   const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
   const [programId, setProgramId] = useState<number | null>(null)
@@ -149,9 +154,7 @@ export function StudentStandingsDirectory() {
 
       {scope.isEmpty ? (
         <p className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-muted/20">
-          You don&apos;t teach in or head any program yet, so there are no
-          students to show. Programs appear here once you&apos;re assigned a
-          course or made head of a department.
+          {teachingScopeEmptyMessage(activeRole)}
         </p>
       ) : !ready ? (
         <p className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-muted/20">
