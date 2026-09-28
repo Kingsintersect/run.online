@@ -5,8 +5,6 @@ import { motion } from "framer-motion"
 import { useFormContext } from "react-hook-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import {
   CheckCircle,
   AlertCircle,
@@ -14,9 +12,9 @@ import {
   FileText,
   Settings,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import type { AdmissionFormField } from "@/types/admissionConfig"
+import ConsentSection from "../ConsentSection"
 import { FormStep, FORM_STEP_KEYS } from "../../types/form-types"
 import type { FormDefaultValues } from "../../types/form-types"
 import {
@@ -369,13 +367,8 @@ export default function ReviewStep({
   onEditStep,
   fieldIndex,
 }: ReviewStepProps) {
-  const {
-    watch,
-    setValue,
-    formState: { errors },
-  } = useFormContext<FormDefaultValues>()
+  const { watch } = useFormContext<FormDefaultValues>()
   const values = watch()
-  const agreeToTerms = watch("agreeToTerms")
   const lookup = makeLookup(values, fieldIndex)
   const { data: programsData } = useAllPrograms()
   const programs = programsData?.data ?? []
@@ -451,44 +444,7 @@ export default function ReviewStep({
         )}
 
       <motion.div {...fadeInUp}>
-        <Card
-          className={cn(
-            "border-2",
-            agreeToTerms ? "border-primary/30 bg-primary/5" : "border-border",
-            errors.agreeToTerms && "border-destructive"
-          )}
-        >
-          <CardContent className="flex items-start gap-4 pt-6">
-            <Switch
-              id="agreeToTerms"
-              checked={agreeToTerms ?? false}
-              onCheckedChange={(checked) =>
-                setValue("agreeToTerms", checked, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                })
-              }
-            />
-            <div className="space-y-1">
-              <Label
-                htmlFor="agreeToTerms"
-                className="cursor-pointer text-sm font-medium"
-              >
-                I agree to the Terms and Conditions
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                By checking this box, I confirm that all information provided is
-                accurate and complete. I understand that providing false
-                information may result in the cancellation of my admission.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        {errors.agreeToTerms?.message && (
-          <p className="mt-2 text-sm text-destructive">
-            {errors.agreeToTerms.message}
-          </p>
-        )}
+        <ConsentSection />
       </motion.div>
     </motion.div>
   )

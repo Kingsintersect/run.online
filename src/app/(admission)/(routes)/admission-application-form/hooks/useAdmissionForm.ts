@@ -33,6 +33,8 @@ import {
   qualificationDocumentsSchema,
   programSelectionSchema,
   odlProgramSchema,
+  consentSchema,
+  CONSENT_FIELD_KEYS,
 } from "../schema/admission-schema"
 import {
   FormStep,
@@ -74,6 +76,10 @@ const STEP_SCHEMAS = {
 } as const
 
 const BUILT_IN_STEP_IDS = new Set<string>(Object.values(FORM_STEP_KEYS))
+
+// Consent is given fresh on the Review step at submit time and is never kept
+// in the browser draft (IndexedDB) — sandbox/data-protection/README.md.
+const CONSENT_KEYS = new Set<string>(CONSENT_FIELD_KEYS)
 
 export interface UseAdmissionFormReturn {
   form: UseFormReturn<FormDefaultValues>
@@ -259,7 +265,12 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
           // own steps under `answers`.
           const restored: Record<string, unknown> = {}
           for (const [key, value] of Object.entries(savedData)) {
-            if (value !== null && key !== "customFields") restored[key] = value
+            if (
+              value !== null &&
+              key !== "customFields" &&
+              !CONSENT_KEYS.has(key)
+            )
+              restored[key] = value
           }
           form.reset({
             ...DEFAULT_FORM_VALUES,
@@ -333,6 +344,7 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
       const values = form.getValues()
       const sanitized: Record<string, unknown> = {}
       for (const [key, value] of Object.entries(values)) {
+        if (CONSENT_KEYS.has(key)) continue
         sanitized[key] = value === undefined ? null : value
       }
 
@@ -568,11 +580,20 @@ export function useAdmissionForm(): UseAdmissionFormReturn {
         // Standard steps come from field definitions, so their conditions
         // carry the cross-step rules.
         for (const step of steps) issues.push(...(await validateStep(step)))
-        if (!values.agreeToTerms) {
+      }
+
+      // Data-protection acknowledgments (Review step), in both paths. The
+      // whole-form schema above already checks agreeToTerms, so skip paths
+      // that are already reported.
+      const consent = await consentSchema.safeParseAsync(values)
+      if (!consent.success) {
+        for (const issue of consent.error.issues) {
+          const path = issue.path.map(String).join(".")
+          if (issues.some((i) => i.path === path)) continue
           issues.push({
-            path: "agreeToTerms",
-            label: getFieldLabel("agreeToTerms"),
-            message: "You must agree to terms and conditions",
+            path,
+            label: getFieldLabel(path),
+            message: issue.message,
           })
         }
       }

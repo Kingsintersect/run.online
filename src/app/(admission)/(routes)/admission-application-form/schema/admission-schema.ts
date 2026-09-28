@@ -468,3 +468,67 @@ export type QualificationDocumentsData = z.infer<
 >
 export type ProgramSelectionData = z.infer<typeof programSelectionSchema>
 export type ODLApplication = z.infer<typeof odlProgramSchema>
+
+// ─── Data-protection consent (Review step) ───────────────────────────────────
+// Nigeria Data Protection Act 2023 — sandbox/data-protection/. Two required
+// acknowledgments and a separate opt-in per optional purpose.
+//
+// Only `agreeToTerms` reaches the backend today (a bare boolean the submit
+// endpoint requires). There is no endpoint that stores the privacy-notice
+// acknowledgment, the notice versions, a timestamp or any optional purpose,
+// so those are validated here and then deliberately NOT sent or saved — see
+// sandbox/data-protection/API_CONTRACTS.md for the proposed consent record.
+// They are also never written to the browser draft (useAdmissionForm strips
+// CONSENT_FIELD_KEYS before saving progress).
+
+/** Optional processing purposes — each its own opt-in, unticked by default. */
+export const OPTIONAL_CONSENT_PURPOSES = [
+  {
+    key: "consent_marketing",
+    label: "News, events and programme updates",
+    description:
+      "Emails or messages about university news, events and new programmes that are not about your own application.",
+  },
+  {
+    key: "consent_research",
+    label: "Research and surveys",
+    description:
+      "Use of your data, with identifying details removed where possible, in institutional research and surveys.",
+  },
+  {
+    key: "consent_share_with_guardian",
+    label: "Sharing with a parent, guardian or sponsor",
+    description:
+      "Sharing your results, fees and welfare information with the parent, guardian or sponsor you named.",
+  },
+] as const
+
+export type OptionalConsentKey =
+  (typeof OPTIONAL_CONSENT_PURPOSES)[number]["key"]
+
+export const consentSchema = z.object({
+  agreeToTerms: z
+    .boolean()
+    .refine(
+      (val) => val === true,
+      "You must accept the Terms of Use and confirm your information is accurate"
+    ),
+  acknowledgePrivacyNotice: z
+    .boolean()
+    .refine(
+      (val) => val === true,
+      "You must confirm you have read the Privacy Notice"
+    ),
+  consent_marketing: z.boolean(),
+  consent_research: z.boolean(),
+  consent_share_with_guardian: z.boolean(),
+})
+
+export type ConsentValues = z.infer<typeof consentSchema>
+
+/** Every consent field — none of these may be persisted in the browser draft. */
+export const CONSENT_FIELD_KEYS = [
+  "agreeToTerms",
+  "acknowledgePrivacyNotice",
+  ...OPTIONAL_CONSENT_PURPOSES.map((p) => p.key),
+] as const satisfies readonly (keyof ConsentValues)[]

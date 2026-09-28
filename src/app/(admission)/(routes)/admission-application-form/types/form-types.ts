@@ -1,4 +1,3 @@
-import type { z } from "zod"
 import type { FieldError, FieldErrors } from "react-hook-form"
 import {
   User,
@@ -21,6 +20,7 @@ import type {
   examSittingSchema,
   qualificationDocumentsSchema,
   programSelectionSchema,
+  consentSchema,
 } from "../schema/admission-schema"
 import type { DynamicAnswers } from "../lib/dynamic-form"
 
@@ -201,6 +201,10 @@ export const DEFAULT_FORM_VALUES: FormDefaultValues = {
   studyMode: "online",
 
   agreeToTerms: false,
+  acknowledgePrivacyNotice: false,
+  consent_marketing: false,
+  consent_research: false,
+  consent_share_with_guardian: false,
 
   answers: {},
 }
@@ -264,7 +268,13 @@ export const STEP_FIELDS: Record<FormStep, string[]> = {
     "startTerm",
     "studyMode",
   ],
-  [FormStep.REVIEW]: ["agreeToTerms"],
+  [FormStep.REVIEW]: [
+    "agreeToTerms",
+    "acknowledgePrivacyNotice",
+    "consent_marketing",
+    "consent_research",
+    "consent_share_with_guardian",
+  ],
   // Retired — dynamic questions now live on their own steps under `answers`.
   [FormStep.ADDITIONAL_INFO]: [],
 }
@@ -354,7 +364,11 @@ export const FIELD_LABELS: Record<string, string> = {
   entryMode: "Entry Mode",
   startTerm: "Start Term",
   studyMode: "Study Mode",
-  agreeToTerms: "Terms & Conditions Agreement",
+  agreeToTerms: "Terms of Use",
+  acknowledgePrivacyNotice: "Privacy Notice",
+  consent_marketing: "News and updates (optional)",
+  consent_research: "Research and surveys (optional)",
+  consent_share_with_guardian: "Sharing with parent/guardian (optional)",
   answers: "Additional Information",
 }
 
@@ -460,7 +474,7 @@ export type StepSchemaMap = {
   [FormStep.EXAM_SITTING]: typeof examSittingSchema
   [FormStep.QUALIFICATION_DOCUMENTS]: typeof qualificationDocumentsSchema
   [FormStep.PROGRAM_SELECTION]: typeof programSelectionSchema
-  [FormStep.REVIEW]: z.ZodObject<{ agreeToTerms: z.ZodBoolean }>
+  [FormStep.REVIEW]: typeof consentSchema
 }
 
 // ─── Form Default Values Type ────────────────────────────────────────────────
@@ -517,7 +531,13 @@ export interface FormDefaultValues {
   startTerm: string
   studyMode: "online" | "offline"
 
+  // Data-protection consent (Review step) — only agreeToTerms is sent; see
+  // consentSchema in ../schema/admission-schema.ts.
   agreeToTerms: boolean
+  acknowledgePrivacyNotice: boolean
+  consent_marketing: boolean
+  consent_research: boolean
+  consent_share_with_guardian: boolean
 
   // Dynamic Admission — answers to questions that aren't system fields,
   // by step key then field key (sandbox/dynamic-admission/API_CONTRACTS.md §3.4).
