@@ -72,12 +72,14 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
   const filtered = invoices.filter((inv) => {
     if (!search) return true
     const q = search.toLowerCase()
-    return (
-      inv.invoiceNumber.toLowerCase().includes(q) ||
-      inv.student?.fullName.toLowerCase().includes(q) ||
-      inv.student?.matricNumber.toLowerCase().includes(q) ||
-      inv.feeType.name.toLowerCase().includes(q)
-    )
+    // Live invoices can come back without a student name or fee-type name
+    // (e.g. a waived invoice's feeType {name: null}); treat those as empty.
+    return [
+      inv.invoiceNumber,
+      inv.student?.fullName,
+      inv.student?.matricNumber,
+      inv.feeType?.name,
+    ].some((v) => (v ?? "").toLowerCase().includes(q))
   })
 
   const sorted = [...filtered].sort((a, b) => {
