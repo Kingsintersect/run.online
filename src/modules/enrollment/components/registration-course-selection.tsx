@@ -231,7 +231,9 @@ export function RegistrationCourseSelection({
                     />
                     {c.reason === "FAILED"
                       ? "Retake of a course not yet passed"
-                      : "Required course from an earlier level"}
+                      : c.reason === "MISSING_GRADE"
+                        ? "Carried over because no grade was entered"
+                        : "Required course from an earlier level"}
                     <span>· {c.course.credit_units} units</span>
                   </p>
                   {c.offering_missing && (

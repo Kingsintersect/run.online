@@ -173,7 +173,7 @@ const RegistrationCourseSchema = z.object({
 export const CarryoverCourseSchema = z.object({
   course: RegistrationCourseSchema,
   offering_id: z.number().nullable(),
-  reason: z.enum(["FAILED", "NOT_TAKEN"]),
+  reason: z.enum(["FAILED", "NOT_TAKEN", "MISSING_GRADE"]),
   last_attempt_session: z.string().nullable(),
   locked: z.boolean(),
   offering_missing: z.boolean(),

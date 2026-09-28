@@ -8,6 +8,7 @@ import type { OutstandingCourse } from "../types"
 const CARRYOVER_REASON_LABELS: Record<OutstandingCourse["reason"], string> = {
   FAILED: "Failed",
   NOT_TAKEN: "Not taken",
+  MISSING_GRADE: "No grade entered",
 }
 
 interface OutstandingCoursesListProps {

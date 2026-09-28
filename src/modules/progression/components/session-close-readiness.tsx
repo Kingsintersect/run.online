@@ -24,6 +24,7 @@ import { PROGRESSION_PERMISSIONS as P } from "../lib/permissions"
 import { dashboardBase } from "../lib/readiness-links"
 import type { Readiness } from "../types"
 import { MajorProgramSelect } from "./major-program-select"
+import { MissingGradesDialog } from "./missing-grades-dialog"
 import { ProgressionConfirmDialog } from "./progression-confirm-dialog"
 import { ReadinessChecklist } from "./readiness-checklist"
 
@@ -31,7 +32,9 @@ import { ReadinessChecklist } from "./readiness-checklist"
 // session students move into; the backend reports blockers (each linking to
 // the screen that fixes it). "Start promotion run" stays disabled until the
 // server says `ready`, and the server re-checks on create (422
-// READINESS_FAILED carries a fresh checklist, shown in place).
+// READINESS_FAILED carries a fresh checklist, shown in place). When missing
+// grades are the only blocker, Start asks whether to carry those courses over
+// for the affected students or to wait for their grades.
 export function SessionCloseReadiness() {
   const router = useRouter()
   const base = dashboardBase(usePathname())
@@ -41,6 +44,7 @@ export function SessionCloseReadiness() {
   const [targetId, setTargetId] = useState<number | null>(null)
   const [lockOpen, setLockOpen] = useState(false)
   const [rejected, setRejected] = useState<Readiness | null>(null)
+  const [missingOpen, setMissingOpen] = useState(false)
 
   const sourceId =
     mp.majorProgramId == null
@@ -62,11 +66,20 @@ export function SessionCloseReadiness() {
   const live = readiness.data?.available ? readiness.data.data : null
   // A 422 on create returns the checklist as the server saw it then.
   const shown = rejected ?? live
+  const missingGrades =
+    live?.blockers.find((b) => b.code === "GRADES_MISSING") ?? null
+  // Missing grades can be settled by a decision (carry over, or wait); any
+  // other blocker still has to be fixed first.
+  const onlyMissingGrades =
+    live != null &&
+    !live.ready &&
+    missingGrades != null &&
+    live.blockers.every((b) => b.code === "GRADES_MISSING")
   const canStart =
     mp.majorProgramId != null &&
     sourceId != null &&
     effectiveTarget != null &&
-    live?.ready === true &&
+    (live?.ready === true || onlyMissingGrades) &&
     rejected == null
 
   const sourceLabel = sessions.labelFor(sourceId) ?? "this session"
@@ -85,7 +98,7 @@ export function SessionCloseReadiness() {
     }
   }
 
-  const startRun = async () => {
+  const startRun = async (carryOverMissing = false) => {
     if (
       !canStart ||
       mp.majorProgramId == null ||
@@ -98,14 +111,30 @@ export function SessionCloseReadiness() {
         major_program_id: mp.majorProgramId,
         source_session_id: sourceId,
         target_session_id: effectiveTarget,
+        ...(carryOverMissing ? { missing_grades: "CARRYOVER" as const } : {}),
       })
-      toast.success("Promotion run created. Building the preview…")
+      setMissingOpen(false)
+      toast.success(
+        carryOverMissing
+          ? "Promotion run created. Ungraded courses are carried over. Building the preview…"
+          : "Promotion run created. Building the preview…"
+      )
       router.push(`${base}/progression/runs/${run.id}`)
     } catch (error) {
       if (!(error instanceof Error)) return
       const e = toProgressionApiError(error)
+      setMissingOpen(false)
       if (e.readiness) setRejected(e.readiness)
-      toast.error(e.message)
+      // Still refused for missing grades: the server doesn't yet accept the
+      // carry-over choice (BACKEND_DEVIATIONS B26).
+      const refusedCarryOver =
+        carryOverMissing &&
+        e.readiness?.blockers.some((b) => b.code === "GRADES_MISSING")
+      toast.error(
+        refusedCarryOver
+          ? "The server doesn't accept carrying ungraded courses over yet, so no run was started. Enter the missing grades, or try again once the backend supports it."
+          : e.message
+      )
     }
   }
 
@@ -299,7 +328,9 @@ export function SessionCloseReadiness() {
               </PermissionGate>
               <PermissionGate require={P.runCreate}>
                 <Button
-                  onClick={() => void startRun()}
+                  onClick={() =>
+                    onlyMissingGrades ? setMissingOpen(true) : void startRun()
+                  }
                   disabled={!canStart || createRun.isPending}
                   aria-describedby="start-run-hint"
                 >
@@ -317,8 +348,22 @@ export function SessionCloseReadiness() {
         {sourceId != null && effectiveTarget != null && !canStart && (
           <p id="start-run-hint" className="text-xs text-muted-foreground">
             Start promotion run is available once the readiness checklist
-            reports the session as ready.
+            reports the session as ready. Missing grades don&apos;t block it on
+            their own: you&apos;ll be asked whether to carry those courses over
+            or wait for the grades.
           </p>
+        )}
+
+        {missingGrades && (
+          <MissingGradesDialog
+            open={missingOpen}
+            onOpenChange={setMissingOpen}
+            issue={missingGrades}
+            base={base}
+            targetLabel={targetLabel}
+            onCarryOver={() => void startRun(true)}
+            pending={createRun.isPending}
+          />
         )}
 
         <ProgressionConfirmDialog

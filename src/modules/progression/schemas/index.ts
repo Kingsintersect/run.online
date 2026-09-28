@@ -83,7 +83,14 @@ export const ElectiveFailureModeSchema = z.enum([
   "ANY_ELECTIVE_SAME_UNITS",
 ])
 
-export const CarryoverReasonSchema = z.enum(["FAILED", "NOT_TAKEN"])
+// MISSING_GRADE: carried over because no grade was entered when the run was
+// created with `missing_grades: "CARRYOVER"` (sandbox/session-promotion,
+// "Missing grades at promotion").
+export const CarryoverReasonSchema = z.enum([
+  "FAILED",
+  "NOT_TAKEN",
+  "MISSING_GRADE",
+])
 
 // Known codes, for label maps. Response schemas accept any string for codes
 // so a new backend code never breaks parsing — it just renders its raw code.
@@ -342,6 +349,9 @@ export const CreatePromotionRunPayloadSchema = z.object({
   major_program_id: z.number().int().positive(),
   source_session_id: z.number().int().positive(),
   target_session_id: z.number().int().positive(),
+  // Proposed (BACKEND_DEVIATIONS B26): start the run even though some
+  // students have no grade, treating those courses as carryovers.
+  missing_grades: z.enum(["CARRYOVER"]).optional(),
 })
 
 // ─── PromotionRunItem ─────────────────────────────────────────────────────────
