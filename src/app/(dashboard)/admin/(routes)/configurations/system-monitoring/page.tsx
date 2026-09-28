@@ -5,6 +5,7 @@ import SectionCard from "@/components/custom/SectionCard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScheduledJobsPanel } from "./components/ScheduledJobsPanel"
 import { LogViewerPanel } from "./components/LogViewerPanel"
+import { AutomationStatusPanel } from "@/modules/automation/components/automation-status-panel"
 
 export default function SystemMonitoringPage() {
   return (
@@ -23,12 +24,16 @@ export default function SystemMonitoringPage() {
           <TabsList>
             <TabsTrigger value="jobs">Scheduled Jobs</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
+            <TabsTrigger value="automations">Automations</TabsTrigger>
           </TabsList>
           <TabsContent value="jobs" className="pt-4">
             <ScheduledJobsPanel />
           </TabsContent>
           <TabsContent value="logs" className="pt-4">
             <LogViewerPanel />
+          </TabsContent>
+          <TabsContent value="automations" className="pt-4">
+            <AutomationStatusPanel />
           </TabsContent>
         </Tabs>
       </SectionCard>

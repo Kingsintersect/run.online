@@ -10,6 +10,7 @@ import { CategoryTree } from "@/modules/moodle-sync/components/categories/catego
 import { CategoryPullPanel } from "@/modules/moodle-sync/components/categories/category-pull-panel"
 import { CategoryPushDialog } from "@/modules/moodle-sync/components/categories/category-push-dialog"
 import { CategoryNeedsMappingPanel } from "@/modules/moodle-sync/components/categories/category-needs-mapping-panel"
+import { CategoryHealthAlert } from "@/modules/moodle-sync/components/categories/category-health-alert"
 
 export default function MoodleSyncCategoriesPage() {
   // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
@@ -60,6 +61,7 @@ export default function MoodleSyncCategoriesPage() {
           onChange={setMajorProgramId}
         />
 
+        <CategoryHealthAlert showLink={false} />
         <CategoryPullPanel />
         <CategoryNeedsMappingPanel />
         <CategoryTree majorProgramId={majorProgramId} />

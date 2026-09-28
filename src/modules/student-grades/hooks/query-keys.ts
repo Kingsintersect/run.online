@@ -83,6 +83,8 @@ export const resultsKeys = {
   gradeItemsAll: () => [...resultsKeys.all, "grade-items"] as const,
   gradeItems: (offeringId: number) =>
     [...resultsKeys.gradeItemsAll(), offeringId] as const,
+  gradeItemSuggestions: (offeringId: number) =>
+    [...resultsKeys.gradeItemsAll(), offeringId, "suggestions"] as const,
   adjustmentsAll: () => [...resultsKeys.all, "adjustments"] as const,
   adjustments: (offeringId: number) =>
     [...resultsKeys.adjustmentsAll(), offeringId] as const,
@@ -107,8 +109,9 @@ export const resultsKeys = {
   policy: (majorProgramId: number) =>
     [...resultsKeys.all, "policy", majorProgramId] as const,
 
+  resultStatusAll: () => [...resultsKeys.all, "result-status"] as const,
   resultStatus: (semesterId: number) =>
-    [...resultsKeys.all, "result-status", semesterId] as const,
+    [...resultsKeys.resultStatusAll(), semesterId] as const,
   studentGrades: (studentId: number) =>
     [...resultsKeys.all, "student-grades", studentId] as const,
   semesterSessionLinks: () =>

@@ -31,6 +31,7 @@ import {
   useDepartments,
 } from "@/hooks/useCourseStructure"
 import { isCrossProgramRole, isDeanRole, isHodRole } from "../lib/role-scope"
+import { useRecordHead, type RecordHeadInput } from "../hooks/use-record-head"
 import { isMajorProgramRequiredError } from "../lib/major-program-required"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
 import { toast } from "sonner"
@@ -109,6 +110,7 @@ export default function StaffPage() {
     major_program_id: majorProgramFilter ?? undefined,
   })
   const createStaff = useCreateStaff()
+  const recordHead = useRecordHead()
   const updateStaff = useUpdateStaff()
   const setActive = useSetUserActive()
   const [selected, setSelected] = useState<Staff | null>(null)
@@ -249,11 +251,30 @@ export default function StaffPage() {
         size="xl"
       >
         <CreateStaffForm
-          onSubmit={async (payload) => {
-            await createStaff.mutateAsync(payload)
+          onSubmit={async (payload, head) => {
+            const res = await createStaff.mutateAsync(payload)
             setShowCreate(false)
+            if (!head) return
+            // An HOD/dean is only in scope once recorded as head
+            // (sandbox/automation §8); make sure that happened.
+            try {
+              const r = await recordHead.mutateAsync({
+                ...head,
+                userId: res.data.user_id,
+              })
+              if (r && !r.alreadyRecorded)
+                toast.success(
+                  r.replacedPrevious
+                    ? `Recorded as head of ${r.unitName}, replacing the previous head.`
+                    : `Recorded as head of ${r.unitName}.`
+                )
+            } catch (error) {
+              toast.error(
+                `The staff member was created, but couldn't be recorded as head: ${error instanceof Error ? error.message : "unknown error"}. Set it under Course Structure → Edit.`
+              )
+            }
           }}
-          isSubmitting={createStaff.isPending}
+          isSubmitting={createStaff.isPending || recordHead.isPending}
         />
       </Modal>
 
@@ -352,7 +373,10 @@ function CreateStaffForm({
   onSubmit,
   isSubmitting,
 }: {
-  onSubmit: (p: CreateStaffPayload) => Promise<void>
+  onSubmit: (
+    p: CreateStaffPayload,
+    head: Omit<RecordHeadInput, "userId"> | null
+  ) => Promise<void>
   isSubmitting: boolean
 }) {
   const { data: rolesData } = useStaffEligibleRoles()
@@ -417,7 +441,13 @@ function CreateStaffForm({
       faculty_id: dean ? form.faculty_id : undefined,
       department_id: form.department_id,
     }
-    void onSubmit(payload).catch((error: Error) => {
+    const head =
+      hod && form.department_id
+        ? { departmentId: form.department_id }
+        : dean && form.faculty_id
+          ? { facultyId: form.faculty_id }
+          : null
+    void onSubmit(payload, head).catch((error: Error) => {
       if (crossProgram && isMajorProgramRequiredError(error))
         setNeedsMajorProgram(true)
     })
@@ -537,6 +567,14 @@ function CreateStaffForm({
                 </option>
               ))}
             </select>
+            {dean &&
+              faculties.find((f) => f.id === form.faculty_id)?.deanUserId !=
+                null && (
+                <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                  This faculty already has a dean. Creating this dean makes them
+                  its dean instead.
+                </p>
+              )}
           </div>
         )}
         {hod && (
@@ -571,6 +609,13 @@ function CreateStaffForm({
                 </option>
               ))}
             </select>
+            {departments.find((d) => d.id === form.department_id)?.hodUserId !=
+              null && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                This department already has a head. Creating this HOD makes them
+                its head instead.
+              </p>
+            )}
           </div>
         )}
         <div>

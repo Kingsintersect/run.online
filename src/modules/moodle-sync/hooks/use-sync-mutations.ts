@@ -16,6 +16,16 @@ import type {
 
 // ---------- Category mutations ----------
 
+/** Run the category-mapping check now (sandbox/automation §6). */
+export function useRunCategoryHealthCheck() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => moodleSyncService.runCategoryHealthCheck(),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: moodleSyncKeys.categoryHealth() }),
+  })
+}
+
 export function usePushCategory() {
   const qc = useQueryClient()
   return useMutation({

@@ -16,6 +16,7 @@ export const moodleSyncKeys = {
   // codebase already hit and fixed once — see BACKEND_DEVIATIONS_2026-09-14
   // A20 ("Fee Types/Invoices lists didn't refresh after create/...").
   categoriesAll: () => [...moodleSyncKeys.all, "categories"] as const,
+  categoryHealth: () => [...moodleSyncKeys.categoriesAll(), "health"] as const,
   categories: (filters?: { majorProgramId?: number }) =>
     [...moodleSyncKeys.categoriesAll(), "list", filters] as const,
   category: (id: number) =>

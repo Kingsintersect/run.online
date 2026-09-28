@@ -1,10 +1,19 @@
 "use client"
 
-import { Mail, MessageSquare, Smartphone, Bell as BellIcon } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import {
+  ArrowRight,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  Bell as BellIcon,
+} from "lucide-react"
 import Modal from "@/components/custom/Modal"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { Badge } from "@/components/ui/badge"
 import { useNotification } from "../hooks/use-notifications"
+import { notificationLink } from "../lib/notification-link"
 import type { NotificationChannel, NotificationItem } from "../types"
 
 const channelConfig: Record<
@@ -56,6 +65,8 @@ export function NotificationDetailModal({
 
   const channel = n ? channelConfig[n.channel] : null
   const ChannelIcon = channel?.icon ?? BellIcon
+  const area = usePathname().split("/")[1] ?? ""
+  const link = n ? notificationLink(n, area) : null
 
   return (
     <Modal
@@ -91,6 +102,17 @@ export function NotificationDetailModal({
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {n.body}
           </p>
+
+          {link && (
+            <Link
+              href={link.href}
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
+            >
+              {link.label}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          )}
 
           <div className="grid grid-cols-1 gap-2 border-t border-border/60 pt-4 sm:grid-cols-2">
             <Meta label="Sent" value={fmt(n.createdAt)} />

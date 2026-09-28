@@ -14,6 +14,8 @@ import type {
   BatchStatusSchema,
   ComponentSchema,
   GradeItemMappingSchema,
+  GradeItemSuggestionSchema,
+  OfferingRefSchema,
   GradePullJobSchema,
   GradeScaleFormSchema,
   GradeStatusSchema,
@@ -57,6 +59,8 @@ export type ResultSheetSummary = z.infer<typeof ResultSheetSummarySchema>
 export type ResultSheetRow = z.infer<typeof ResultSheetRowSchema>
 export type ResultSheet = z.infer<typeof ResultSheetSchema>
 export type GradeItemMapping = z.infer<typeof GradeItemMappingSchema>
+export type GradeItemSuggestion = z.infer<typeof GradeItemSuggestionSchema>
+export type OfferingRef = z.infer<typeof OfferingRefSchema>
 
 export type PullJobStatus = z.infer<typeof PullJobStatusSchema>
 export type GradePullJob = z.infer<typeof GradePullJobSchema>

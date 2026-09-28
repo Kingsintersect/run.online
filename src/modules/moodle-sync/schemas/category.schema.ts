@@ -46,6 +46,32 @@ export const CategorySyncResponseSchema = z.object({
   majorProgramId: z.number().nullable(),
 })
 
+// GET /moodle-sync/categories/health (proposed, sandbox/automation §6): the
+// nightly check's open issues. Until it exists the portal derives the ones it
+// can see (lib/category-health.ts).
+export const CategoryHealthIssueTypeSchema = z.enum([
+  "CROSSED",
+  "ORPHANED",
+  "WRONG_PARENT",
+  "NAME_MISMATCH",
+])
+
+export const CategoryHealthIssueSchema = z.object({
+  categoryMappingId: z.number(),
+  academicUnitId: z.number().nullable(),
+  unitName: z.string().nullable(),
+  moodleCategoryId: z.number().nullable(),
+  moodleCategoryName: z.string().nullable(),
+  issue: CategoryHealthIssueTypeSchema,
+  detail: z.string(),
+  firstSeenAt: z.string().nullable(),
+})
+
+export const CategoryHealthSchema = z.object({
+  checkedAt: z.string().nullable(),
+  issues: z.array(CategoryHealthIssueSchema),
+})
+
 // Resolving a flagged (needsMapping: true) row pulled from Moodle with no
 // resolvable idnumber — either link it to an existing Faculty/Department/
 // Program/Level/Semester entity, or fix its type/parent as a pure

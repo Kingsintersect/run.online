@@ -24,6 +24,7 @@ import { useSyncGrades } from "@/modules/moodle-sync/hooks/use-sync-grades"
 import { useSyncCalendarEvents } from "@/modules/moodle-sync/hooks/use-sync-calendar"
 import { useSyncCohorts } from "@/modules/moodle-sync/hooks/use-sync-cohorts"
 import { describeSyncError } from "@/modules/moodle-sync/lib/sync-error"
+import { CategoryHealthAlert } from "@/modules/moodle-sync/components/categories/category-health-alert"
 
 interface SummaryCardProps {
   href: string
@@ -158,6 +159,10 @@ export default function MoodleSyncOverviewPage() {
           </div>
         </div>
       )}
+
+      <div className="mb-6">
+        <CategoryHealthAlert />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryCard

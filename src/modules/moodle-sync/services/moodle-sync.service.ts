@@ -1,7 +1,9 @@
-import apiClient from "@/lib/clients/apiClient"
+import apiClient, { ApiClientError } from "@/lib/clients/apiClient"
+import { CategoryHealthSchema } from "../schemas/category.schema"
 import { academicUnitsApi } from "@/services/academicStructureApi"
 import { offeringsApi } from "@/services/courseOfferingApi"
 import type {
+  CategoryHealth,
   CategorySyncResponse,
   CoursesBulkPushPayload,
   CourseSyncResponse,
@@ -292,8 +294,44 @@ function normalizeAssessmentSyncStatus(
   }
 }
 
+/** Laravel's unregistered-route 404, or a 405: the endpoint isn't built yet. */
+function isRouteMissing(error: unknown): boolean {
+  if (!(error instanceof ApiClientError)) return false
+  return (
+    error.status === 405 ||
+    (error.status === 404 &&
+      /^The route .+ could not be found/i.test(error.message))
+  )
+}
+
 export const moodleSyncService = {
   // ---------- Categories ----------
+
+  /**
+   * The nightly mapping check (sandbox/automation §6), or null while the
+   * server has no such route, in which case useCategoryHealth derives it.
+   */
+  async getCategoryHealth(): Promise<CategoryHealth | null> {
+    try {
+      const res = await apiClient.get<{ data: CategoryHealth }>(
+        `${BASE}/categories/health`,
+        AUTH
+      )
+      return CategoryHealthSchema.parse(res.data)
+    } catch (error) {
+      if (isRouteMissing(error)) return null
+      throw error
+    }
+  },
+
+  /** Queue the mapping check now (sandbox/automation §6). */
+  async runCategoryHealthCheck(): Promise<void> {
+    await apiClient.post<void>(
+      `${BASE}/categories/health/check`,
+      undefined,
+      AUTH
+    )
+  },
 
   // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
   // `majorProgramId` is sent ahead of the backend per CLAUDE.md §14 (no

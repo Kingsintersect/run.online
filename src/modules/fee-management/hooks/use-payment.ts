@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { resultsKeys } from "@/modules/student-grades/hooks/query-keys"
 import { feeManagementService } from "../services/fee-management.service"
 import { feeKeys } from "./query-keys"
 import type { InitiatePaymentDto } from "../types"
@@ -28,6 +29,9 @@ export function useVerifyPayment() {
       // this too, so a newly-paid invoice's status/amount updates there
       // without a manual refresh.
       qc.invalidateQueries({ queryKey: feeKeys.invoicesAll() })
+      // Paying can release results withheld for outstanding fees
+      // (sandbox/automation §2), so the "Results withheld" banner re-checks.
+      qc.invalidateQueries({ queryKey: resultsKeys.resultStatusAll() })
     },
   })
 }

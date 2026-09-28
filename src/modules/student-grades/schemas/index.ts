@@ -138,6 +138,14 @@ export const ResultSheetSchema = z.object({
   rows: z.array(ResultSheetRowSchema),
 })
 
+// The earlier offering a mapping was copied from (sandbox/automation §5).
+export const OfferingRefSchema = z.object({
+  offeringId: z.number(),
+  courseCode: z.string(),
+  academicSession: z.string(),
+  semesterName: z.string(),
+})
+
 export const GradeItemMappingSchema = z.object({
   moodleGradeItemId: z.number(),
   itemName: z.string(),
@@ -145,8 +153,21 @@ export const GradeItemMappingSchema = z.object({
   categoryIdnumber: z.string().nullable(),
   gradeMax: decimal,
   component: ItemComponentSchema,
-  source: z.enum(["IDNUMBER", "CATEGORY", "MANUAL"]).nullable(),
+  // CARRIED_FORWARD is proposed (sandbox/automation §5).
+  source: z
+    .enum(["IDNUMBER", "CATEGORY", "MANUAL", "CARRIED_FORWARD"])
+    .nullable(),
   mappedBy: z.string().nullable(),
+  carriedFrom: OfferingRefSchema.nullable().optional(),
+})
+
+// GET /results/offerings/{id}/grade-items/suggestions (proposed,
+// sandbox/automation §5). The portal derives the same thing until it exists.
+export const GradeItemSuggestionSchema = z.object({
+  moodleGradeItemId: z.number(),
+  component: z.enum(["CA", "EXAM"]),
+  basis: z.enum(["PREVIOUS_OFFERING", "NAME"]),
+  fromOffering: OfferingRefSchema.nullable(),
 })
 
 // ─── Moodle pull ──────────────────────────────────────────────────────────────

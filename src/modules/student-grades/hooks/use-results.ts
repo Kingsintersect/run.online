@@ -18,10 +18,15 @@ import {
   fetchScopedOfferingIds,
   fetchScopedSheetPage,
 } from "../lib/offering-scope"
+import { deriveGradeItemSuggestions } from "../lib/grade-item-suggestions"
 import { live, resultsApi } from "../services/results.service"
 import { resultsKeys } from "./query-keys"
 import type {
   AdjustmentQueueFilters,
+  GradeItemMapping,
+  GradeItemSuggestion,
+  OfferingRef,
+  ResultSheetSummary,
   PullJobFilters,
   PullJobStatus,
   ResultScopeSelection,
@@ -86,6 +91,70 @@ export function useGradeItems(offeringId: number, enabled = true) {
       queryFn: () => live(() => resultsApi.getGradeItems(offeringId)),
     }),
     enabled: enabled && offeringId > 0,
+  })
+}
+
+/**
+ * The same course's most recent earlier offering whose items are all mapped,
+ * and its items; null when there isn't one or it can't be read.
+ */
+async function previousMappedOffering(
+  summary: ResultSheetSummary
+): Promise<{ offering: OfferingRef; items: GradeItemMapping[] } | null> {
+  const page = await resultsApi.listSheets({
+    search: summary.courseCode,
+    page: 1,
+    limit: 50,
+  })
+  const prev = page.data
+    .filter(
+      (s) =>
+        s.courseId === summary.courseId &&
+        s.offeringId !== summary.offeringId &&
+        s.semesterId < summary.semesterId &&
+        s.unmappedItemCount === 0
+    )
+    .sort((a, b) => b.semesterId - a.semesterId)[0]
+  if (!prev) return null
+  return {
+    offering: {
+      offeringId: prev.offeringId,
+      courseCode: prev.courseCode,
+      academicSession: prev.academicSession,
+      semesterName: prev.semesterName,
+    },
+    items: await resultsApi.getGradeItems(prev.offeringId),
+  }
+}
+
+/**
+ * Suggested components for a sheet's unmapped grade items
+ * (sandbox/automation §5): the live endpoint when it exists, otherwise the
+ * same rules applied here to the previous offering and the item names.
+ */
+export function useGradeItemSuggestions(
+  summary: ResultSheetSummary | null,
+  enabled = true
+) {
+  const offeringId = summary?.offeringId ?? 0
+  return useQuery({
+    ...createApiQueryOptions({
+      queryKey: resultsKeys.gradeItemSuggestions(offeringId),
+      queryFn: async (): Promise<GradeItemSuggestion[]> => {
+        if (!summary) return []
+        const fromServer = await live(() =>
+          resultsApi.getGradeItemSuggestions(offeringId)
+        )
+        if (fromServer.available) return fromServer.data
+        const items = await resultsApi.getGradeItems(offeringId)
+        if (!items.some((i) => i.component === "UNMAPPED")) return []
+        // A reader who can't list other sheets still gets the name rules.
+        const previous = await previousMappedOffering(summary).catch(() => null)
+        return deriveGradeItemSuggestions(items, previous)
+      },
+    }),
+    enabled: enabled && summary != null && offeringId > 0,
+    staleTime: 60 * 1000,
   })
 }
 

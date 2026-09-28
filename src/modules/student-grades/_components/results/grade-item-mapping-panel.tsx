@@ -11,7 +11,12 @@ import { toResultsApiError } from "../../lib/results-errors"
 import { NotAvailableNotice } from "./not-available-notice"
 import { MOODLE_SETUP_NOTE } from "./sheet-summary-header"
 import { fmtScore } from "./format"
-import type { GradeItemMapping, ItemComponent } from "../../types"
+import { GradeItemSuggestions } from "./grade-item-suggestions"
+import type {
+  GradeItemMapping,
+  ItemComponent,
+  ResultSheetSummary,
+} from "../../types"
 
 export const COMPONENT_STYLE: Record<ItemComponent, string> = {
   CA: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
@@ -25,16 +30,19 @@ const SOURCE_LABEL = {
   IDNUMBER: "Moodle ID number",
   CATEGORY: "Moodle category",
   MANUAL: "Mapped in portal",
+  CARRIED_FORWARD: "Carried forward",
 } as const
 
 interface GradeItemMappingPanelProps {
   offeringId: number
+  summary: ResultSheetSummary
   /** results.items.map held AND the sheet is DRAFT (C7: 409 otherwise). */
   canMap: boolean
 }
 
 export function GradeItemMappingPanel({
   offeringId,
+  summary,
   canMap,
 }: GradeItemMappingPanelProps) {
   const items = useGradeItems(offeringId)
@@ -121,6 +129,9 @@ export function GradeItemMappingPanel({
           {unmapped.length} unmapped item{unmapped.length === 1 ? "" : "s"}{" "}
           block this sheet: {unmapped.map((i) => i.itemName).join(", ")}.
         </p>
+      )}
+      {unmapped.length > 0 && (
+        <GradeItemSuggestions summary={summary} items={list} canMap={canMap} />
       )}
       {list.length > 0 && (
         <dl
@@ -273,6 +284,8 @@ export function GradeItemMappingPanel({
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {item.source ? SOURCE_LABEL[item.source] : "—"}
+                      {item.carriedFrom &&
+                        ` from ${item.carriedFrom.courseCode}, ${item.carriedFrom.academicSession}`}
                       {item.mappedBy && ` · ${item.mappedBy}`}
                     </td>
                   </tr>

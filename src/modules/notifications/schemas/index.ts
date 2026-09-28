@@ -14,6 +14,13 @@ export const notificationStatusSchema = z.enum([
   "READ",
 ])
 
+// What an automatic notification is about (sandbox/automation §4). The
+// server names the thing; the portal builds the link for the reader's role.
+export const notificationRefSchema = z.object({
+  type: z.string(),
+  id: z.number(),
+})
+
 export const notificationItemSchema = z.object({
   id: z.number(),
   subject: z.string(),
@@ -23,6 +30,9 @@ export const notificationItemSchema = z.object({
   sentAt: z.string().nullable(),
   readAt: z.string().nullable(),
   createdAt: z.string(),
+  // Proposed (sandbox/automation §4); absent on the server until then.
+  event: z.string().nullable().optional(),
+  ref: notificationRefSchema.nullable().optional(),
 })
 
 export const notificationListResponseSchema = z.object({

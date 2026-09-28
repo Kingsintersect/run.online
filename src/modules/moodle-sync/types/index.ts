@@ -23,6 +23,12 @@ export type PushCategoryDto = z.infer<
 export type CategorySyncResponse = z.infer<
   typeof CategorySchemas.CategorySyncResponseSchema
 >
+export type CategoryHealth = z.infer<
+  typeof CategorySchemas.CategoryHealthSchema
+>
+export type CategoryHealthIssue = z.infer<
+  typeof CategorySchemas.CategoryHealthIssueSchema
+>
 export type ResolveCategoryMappingDto = z.infer<
   typeof CategorySchemas.ResolveCategoryMappingSchema
 >

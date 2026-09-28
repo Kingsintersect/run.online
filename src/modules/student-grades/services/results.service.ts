@@ -18,6 +18,7 @@ import {
   AdjustmentHistorySchema,
   AdjustmentPreviewSchema,
   GradeItemMappingSchema,
+  GradeItemSuggestionSchema,
   GradePullJobSchema,
   GradingSchemeSchema,
   LegacyStudentGradeRowSchema,
@@ -45,6 +46,7 @@ import type {
   BatchApproveBody,
   BatchRejectBody,
   GradeItemMapping,
+  GradeItemSuggestion,
   GradePullJob,
   GradeScaleForm,
   GradingSchemeForm,
@@ -182,6 +184,13 @@ export const resultsApi = {
     getOne(
       `${R}/offerings/${offeringId}/grade-items`,
       z.array(GradeItemMappingSchema)
+    ),
+  getGradeItemSuggestions: (
+    offeringId: number
+  ): Promise<GradeItemSuggestion[]> =>
+    getOne(
+      `${R}/offerings/${offeringId}/grade-items/suggestions`,
+      z.array(GradeItemSuggestionSchema)
     ),
   mapGradeItem: (
     offeringId: number,

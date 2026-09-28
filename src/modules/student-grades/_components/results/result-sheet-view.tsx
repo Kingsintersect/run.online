@@ -161,7 +161,11 @@ export function ResultSheetView({
           />
         </TabsContent>
         <TabsContent value="items" className="mt-4">
-          <GradeItemMappingPanel offeringId={offeringId} canMap={canMap} />
+          <GradeItemMappingPanel
+            offeringId={offeringId}
+            summary={sheet.summary}
+            canMap={canMap}
+          />
         </TabsContent>
         {canAdjust && (
           <TabsContent value="normalize" className="mt-4">
