@@ -40,6 +40,8 @@ import {
   CalendarCheck,
   MapPin,
   Activity,
+  Landmark,
+  Waypoints,
 } from "lucide-react"
 
 /* ------------------------------------------------------------------ */
@@ -524,6 +526,14 @@ const adminNav: NavGroup[] = [
         matchExactOnly: true,
         icon: Banknote,
       },
+      {
+        // sandbox/payment-routing: settlement accounts + split rules. The
+        // page itself is RoleGuard'ed to ADMIN (DEAN/STAFF share this layout).
+        title: "Settlement & Splits",
+        href: "/manager/finance/settlement",
+        matchExactOnly: true,
+        icon: Landmark,
+      },
     ],
   },
   {
@@ -713,6 +723,12 @@ const superAdminNav: NavGroup[] = [
             href: "/admin/configurations/system-monitoring",
             matchExactOnly: true,
             icon: Activity,
+          },
+          {
+            title: "Payment Gateways",
+            href: "/admin/configurations/payment-gateways",
+            matchExactOnly: true,
+            icon: Waypoints,
           },
         ],
       },
@@ -909,6 +925,12 @@ const superAdminNav: NavGroup[] = [
         href: "/admin/finance/fees",
         matchExactOnly: true,
         icon: Banknote,
+      },
+      {
+        title: "Settlement & Splits",
+        href: "/admin/finance/settlement",
+        matchExactOnly: true,
+        icon: Landmark,
       },
     ],
   },
@@ -1111,22 +1133,34 @@ const deanGradesNav = (group: NavGroup): NavGroup => ({
     ),
 })
 
+// Settlement & Splits is ADMIN-only on the manager side (the page's RoleGuard
+// excludes DEAN), so the link is dropped here rather than leading to a
+// permission-denied screen.
 const deanNav: NavGroup[] = adminNav.map((group) =>
-  group.label === "Grades Management"
-    ? deanGradesNav(group)
-    : group.label !== "User Management"
-      ? group
-      : {
-          ...group,
-          items: group.items.map((item) =>
-            item.title !== "User Management" || !item.children
-              ? item
-              : {
-                  ...item,
-                  children: item.children.filter((c) => c.title !== "Summary"),
-                }
-          ),
-        }
+  group.label === "Finance"
+    ? {
+        ...group,
+        items: group.items.filter(
+          (item) => item.href !== "/manager/finance/settlement"
+        ),
+      }
+    : group.label === "Grades Management"
+      ? deanGradesNav(group)
+      : group.label !== "User Management"
+        ? group
+        : {
+            ...group,
+            items: group.items.map((item) =>
+              item.title !== "User Management" || !item.children
+                ? item
+                : {
+                    ...item,
+                    children: item.children.filter(
+                      (c) => c.title !== "Summary"
+                    ),
+                  }
+            ),
+          }
 )
 
 /* ------------------------------------------------------------------ */
@@ -1152,6 +1186,12 @@ const bursaryNav: NavGroup[] = [
         href: "/admin/finance/fees",
         matchExactOnly: true,
         icon: CreditCard,
+      },
+      {
+        title: "Settlement & Splits",
+        href: "/admin/finance/settlement",
+        matchExactOnly: true,
+        icon: Landmark,
       },
     ],
   },

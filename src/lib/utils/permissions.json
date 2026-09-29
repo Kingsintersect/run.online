@@ -296,6 +296,36 @@
         "resource": "payments",
         "action": "make",
         "description": "Initiate a payment (student-facing)"
+      },
+      {
+        "resource": "payment-gateways",
+        "action": "view",
+        "description": "View configured payment gateways and which gateway each major program uses"
+      },
+      {
+        "resource": "payment-gateways",
+        "action": "manage",
+        "description": "Add, edit, test and delete payment gateways; assign and switch the gateway for each major program"
+      },
+      {
+        "resource": "settlement-accounts",
+        "action": "view",
+        "description": "View settlement bank accounts for major programs in scope"
+      },
+      {
+        "resource": "settlement-accounts",
+        "action": "manage",
+        "description": "Add, edit, activate/deactivate and delete settlement bank accounts"
+      },
+      {
+        "resource": "split-rules",
+        "action": "view",
+        "description": "View payment split rules (percentage / exact amount) for major programs in scope"
+      },
+      {
+        "resource": "split-rules",
+        "action": "manage",
+        "description": "Create, edit and delete payment split rules"
       }
     ]
   },

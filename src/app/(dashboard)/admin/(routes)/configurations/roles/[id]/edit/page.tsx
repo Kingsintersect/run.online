@@ -54,7 +54,16 @@ export default function EditRolePage({ params }: EditRolePageProps) {
   const isDefaultRole = useWatch({ control, name: "is_default" }) ?? false
   const hasRole = Boolean(role)
   const roleName = role?.name ?? ""
-  const roleSlug = role?.slug ?? ""
+  // The backend's roles have no slug (UpdateRoleRequest takes only name and
+  // description, see bruno/auth/Roles - Update.bru), so an empty default
+  // failed the form's min-length rule and blocked saving every existing role.
+  // Fall back to a slug of the name (e.g. "super_admin" → "super-admin").
+  const roleSlug =
+    role?.slug ||
+    roleName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
   const roleDescription = role?.description ?? ""
   const roleIsDefault = role?.is_default ?? false
   const rolePermissionIds = useMemo(

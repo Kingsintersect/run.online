@@ -525,6 +525,22 @@
     {
       "resource": "standings",
       "action": "view"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "view"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "manage"
+    },
+    {
+      "resource": "split-rules",
+      "action": "view"
+    },
+    {
+      "resource": "split-rules",
+      "action": "manage"
     }
   ],
   "DIRECTOR": [
@@ -1183,6 +1199,30 @@
     {
       "resource": "fee-management",
       "action": "waive"
+    },
+    {
+      "resource": "payment-gateways",
+      "action": "view"
+    },
+    {
+      "resource": "payment-gateways",
+      "action": "manage"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "view"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "manage"
+    },
+    {
+      "resource": "split-rules",
+      "action": "view"
+    },
+    {
+      "resource": "split-rules",
+      "action": "manage"
     }
   ],
   "ADMIN": [
@@ -1493,6 +1533,22 @@
     {
       "resource": "fee-management",
       "action": "waive"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "view"
+    },
+    {
+      "resource": "settlement-accounts",
+      "action": "manage"
+    },
+    {
+      "resource": "split-rules",
+      "action": "view"
+    },
+    {
+      "resource": "split-rules",
+      "action": "manage"
     }
   ]
 }
