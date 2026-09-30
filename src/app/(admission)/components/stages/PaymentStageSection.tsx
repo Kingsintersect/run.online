@@ -39,6 +39,12 @@ interface PaymentStageSectionProps {
 
 type PaymentPlan = "full" | "half" | "custom"
 
+// Gateway-agnostic guard: whichever gateway is active (Credo or FCMB, switched
+// live via PATCH /fees/gateway), "Pay now" must never be a silent no-op when
+// the initiate call answers without a checkout URL.
+const NO_CHECKOUT_URL_MESSAGE =
+  "The payment gateway did not return a checkout link. Please try again, or contact support if this continues."
+
 const formatMoney = (amount: number | null | undefined, currency: string) =>
   amount == null
     ? "—"
@@ -119,6 +125,8 @@ export function PaymentStageSection({
           setTimeout(() => {
             window.location.href = result.gateway_url
           }, 800)
+        } else {
+          toast.error(NO_CHECKOUT_URL_MESSAGE)
         }
       } catch (err) {
         toast.error(
@@ -145,6 +153,8 @@ export function PaymentStageSection({
         setTimeout(() => {
           window.location.href = result.gateway_url
         }, 800)
+      } else {
+        toast.error(NO_CHECKOUT_URL_MESSAGE)
       }
     } catch (err) {
       toast.error(

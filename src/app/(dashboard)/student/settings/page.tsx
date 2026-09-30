@@ -1,14 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  Bell,
-  Lock,
-  Palette,
-  Save,
-  ShieldCheck,
-  UserCircle2,
-} from "lucide-react"
+import { Bell, Lock, Palette, ShieldCheck, UserCircle2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,7 +23,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppHydrated, useAppStore, useThemeStore } from "@/store"
 import { changePassword } from "@/lib/auth/backendAuth"
-import { useMyStudent, useUpdateMyProfile } from "@/hooks/use-my-student-id"
+import { useMyStudent } from "@/hooks/use-my-student-id"
+import Avatar from "@/components/custom/Avatar"
+import { ZoomableImage } from "@/components/custom/ZoomableImage"
+import { StudentSelfProfileForm } from "@/modules/user-management/components/student-self-profile-form"
 import { useUnreadCount } from "@/modules/notifications/hooks/use-notifications"
 import { useMarkAllRead } from "@/modules/notifications/hooks/use-notification-mutations"
 
@@ -47,16 +43,13 @@ export default function StudentSettingsPage() {
   const markAllRead = useMarkAllRead()
   const { theme, setTheme } = useThemeStore()
 
-  const { student } = useMyStudent()
-  const updateProfile = useUpdateMyProfile()
-
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [contactAddress, setContactAddress] = useState("")
+  const { student, isError: studentErrored } = useMyStudent()
 
   // Read-only identity fields come straight off the resolved student record
   // (name / email / matric / programme / department / level are not
-  // student-editable — PATCH /users/students/:id only accepts contact +
-  // guardian + phone).
+  // student-editable — a self PATCH /users/students/:id only accepts contact,
+  // permanent address, guardian and phone fields; see
+  // StudentSelfProfileForm).
   const fullName = student
     ? [
         student.user.first_name,
@@ -80,46 +73,6 @@ export default function StudentSettingsPage() {
   const [changingPassword, setChangingPassword] = useState(false)
 
   const unreadCount = unreadData?.data.unreadCount ?? 0
-
-  // Seed the editable fields from the resolved student record once it
-  // arrives — render-time "adjust state when a prop changes" pattern rather
-  // than an effect, to avoid a cascading re-render.
-  const [syncedStudentId, setSyncedStudentId] = useState<number | null>(null)
-  if (student && student.id !== syncedStudentId) {
-    setSyncedStudentId(student.id)
-    setPhoneNumber(student.user.phone_number ?? "")
-    setContactAddress(student.contact_address ?? "")
-  }
-
-  async function handleSaveProfile() {
-    if (!student) {
-      toast.error("Your student record isn't loaded yet — try again shortly.")
-      return
-    }
-
-    const trimmedPhone = phoneNumber.trim()
-    const trimmedAddress = contactAddress.trim()
-    const changed =
-      trimmedPhone !== (student.user.phone_number ?? "") ||
-      trimmedAddress !== (student.contact_address ?? "")
-
-    if (!changed) {
-      toast.success("Profile is already up to date.")
-      return
-    }
-
-    try {
-      await updateProfile.mutateAsync({
-        studentId: student.id,
-        payload: {
-          phone_number: trimmedPhone || undefined,
-          contact_address: trimmedAddress || undefined,
-        },
-      })
-    } catch {
-      // useUpdateMyProfile surfaces its own error toast
-    }
-  }
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -222,6 +175,26 @@ export default function StudentSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Passport photo — copied from the admission application when
+                  the student record was created; set by the registry. */}
+              <div className="flex items-center gap-4">
+                {student?.passport_photo ? (
+                  <ZoomableImage
+                    src={student.passport_photo}
+                    alt="Your passport photograph"
+                    title="Your passport photograph"
+                    className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border"
+                  />
+                ) : (
+                  <Avatar name={fullName || "Student"} size="lg" />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {student?.passport_photo
+                    ? "Your passport photo comes from your admission application. Contact the registry to change it."
+                    : "No passport photo on record. Contact the registry if you need one added."}
+                </p>
+              </div>
+
               {/* Read-only identity — managed by the registry, not editable here */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -262,40 +235,18 @@ export default function StudentSettingsPage() {
                 they can&apos;t be changed here.
               </p>
 
-              {/* Editable — PATCH /users/students/:id (self) */}
-              <div className="grid gap-4 border-t border-border pt-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="phone-number">Phone Number</Label>
-                  <Input
-                    id="phone-number"
-                    value={phoneNumber}
-                    onChange={(event) => setPhoneNumber(event.target.value)}
-                    placeholder="08012345678"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contact-address">Contact Address</Label>
-                  <Input
-                    id="contact-address"
-                    value={contactAddress}
-                    onChange={(event) => setContactAddress(event.target.value)}
-                    placeholder="Where you currently live"
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Your profile photo is set by the registry.
-              </p>
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleSaveProfile}
-                  disabled={updateProfile.isPending}
-                  className="gap-2"
-                >
-                  <Save size={15} />
-                  Save Profile
-                </Button>
+              {/* Editable — PATCH /users/students/:id (self), allowed
+                  fields only */}
+              <div className="border-t border-border pt-4">
+                {student ? (
+                  <StudentSelfProfileForm student={student} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {studentErrored
+                      ? "Your student record couldn't be loaded, so contact details can't be edited right now."
+                      : "Loading your record…"}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

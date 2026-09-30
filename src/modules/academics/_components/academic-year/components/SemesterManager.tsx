@@ -20,7 +20,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { EmptyState } from "./EmptyState"
-import { Layers, Plus, Power, ArrowLeft, Loader2 } from "lucide-react"
+import { LockedBadge } from "./LockedBadge"
+import { useSessionTermStructure } from "@/hooks/use-term-structure"
+import { Layers, Plus, Power, ArrowLeft, Loader2, Info } from "lucide-react"
 import { useAcademicSessionSetupStore } from "@/store/dashboard/academicSessionSetupStore"
 import { SemesterFormValues, semesterSchema } from "@/schemas/school.schema"
 
@@ -35,6 +37,8 @@ export function SemesterManager({ canManage = false }: SemesterManagerProps) {
   const { data: semesters, isLoading } = useSemesters(selectedSessionId)
   const createSemester = useCreateSemester()
   const activateSemester = useActivateSemester(selectedSessionId!)
+  const termStructureOf = useSessionTermStructure()
+  const isSessionStructured = termStructureOf(selectedSessionId) === "SESSION"
 
   const [showForm, setShowForm] = useState(false)
   const {
@@ -122,6 +126,21 @@ export function SemesterManager({ canManage = false }: SemesterManagerProps) {
           </div>
         )}
       </div>
+
+      {isSessionStructured && (
+        <div
+          role="note"
+          className="flex items-start gap-2 rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-sm text-blue-800 dark:text-blue-300"
+        >
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>
+            This session belongs to a major program that runs per session, not
+            per semester. You don&apos;t need to add semesters here: the system
+            creates and manages one &ldquo;Full Session&rdquo; semester for it
+            the first time a course is offered.
+          </p>
+        </div>
+      )}
 
       {/* Create Form - only if can manage */}
       {showForm && canManage && (
@@ -247,6 +266,10 @@ export function SemesterManager({ canManage = false }: SemesterManagerProps) {
                     <Layers className="size-3.5" />
                   </span>
                   {semester.name}
+                  <LockedBadge
+                    lockedAt={semester.lockedAt}
+                    className="ml-auto"
+                  />
                 </CardTitle>
                 <CardDescription>
                   {new Date(semester.startDate).toLocaleDateString("en-NG", {

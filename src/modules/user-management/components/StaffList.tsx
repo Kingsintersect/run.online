@@ -14,9 +14,10 @@ import {
 import { Button } from "@/components/ui/button"
 import DataTable, { type Column } from "@/components/custom/DataTable"
 import Avatar from "@/components/custom/Avatar"
-import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { AccountStatusBadge } from "./account-status-badge"
+import { accountStatusOf } from "../lib/account-status"
 import {
   useStaffList,
   useCreateStaff,
@@ -88,13 +89,7 @@ const columns: Column<Staff & Record<string, unknown>>[] = [
     key: "is_active",
     header: "Status",
     align: "center",
-    render: (row) => (
-      <StatusBadge
-        label={row.user.is_active ? "Active" : "Inactive"}
-        variant={row.user.is_active ? "success" : "destructive"}
-        dot
-      />
-    ),
+    render: (row) => <AccountStatusBadge user={row.user} />,
   },
 ]
 
@@ -189,27 +184,33 @@ export default function StaffPage() {
                       >
                         <Pencil size={14} />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={
-                          row.user.is_active
-                            ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
-                        }
-                        onClick={() => setStatusTarget(row as unknown as Staff)}
-                        title={
-                          row.user.is_active
-                            ? "Deactivate account"
-                            : "Reactivate account"
-                        }
-                      >
-                        {row.user.is_active ? (
-                          <UserX size={14} />
-                        ) : (
-                          <UserCheck size={14} />
-                        )}
-                      </Button>
+                      {/* A deleted account (login revoked) can't be
+                          reactivated with a flag — hide the toggle. */}
+                      {accountStatusOf(row.user) !== "deleted" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={
+                            row.user.is_active
+                              ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                          }
+                          onClick={() =>
+                            setStatusTarget(row as unknown as Staff)
+                          }
+                          title={
+                            row.user.is_active
+                              ? "Deactivate account"
+                              : "Reactivate account"
+                          }
+                        >
+                          {row.user.is_active ? (
+                            <UserX size={14} />
+                          ) : (
+                            <UserCheck size={14} />
+                          )}
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>

@@ -37,6 +37,12 @@ export interface User {
   // `["student"]`), matching the session's own roles shape. See the
   // matching note on WireUser.roles in @/services/usersApi.ts.
   roles: string[]
+  // DELETE /users/:id (redefined 2026-09-28, bruno/user/Users - Delete.bru)
+  // revokes login and keeps the row: `deletedAt` is set, `isActive` goes
+  // false, and email/username are replaced with a placeholder. Null/absent
+  // for a live or merely deactivated account. See
+  // modules/user-management/lib/account-status.ts.
+  deleted_at?: string | null
 }
 
 // ── Student ─────────────────────────────────
@@ -75,6 +81,10 @@ export interface Student {
   guardian_name: string
   guardian_phone: string
   guardian_email: string | null
+  guardian_address?: string | null
+  // Copied from the accepted admission's passport document when the student
+  // record is created (bruno/user/Students - Show.bru, 2026-09-28). Still null
+  // for students created without an admission application.
   passport_photo: string | null
   created_at: string
   updated_at: string
@@ -90,6 +100,7 @@ export interface Student {
     | "phone_number"
     | "avatar"
     | "is_active"
+    | "deleted_at"
   >
 }
 
@@ -140,6 +151,7 @@ export interface Tutor {
     | "phone_number"
     | "avatar"
     | "is_active"
+    | "deleted_at"
   >
 }
 
@@ -173,6 +185,7 @@ export interface Staff {
     | "phone_number"
     | "avatar"
     | "is_active"
+    | "deleted_at"
   >
 }
 
@@ -245,8 +258,27 @@ export interface UpdateStudentPayload {
   mode_of_study?: ModeOfStudy
   status?: StudentStatus
   contact_address?: string
+  permanent_address?: string
+  guardian_name?: string
+  guardian_phone?: string
+  guardian_email?: string
+  guardian_address?: string
   phone_number?: string
 }
+
+// The only fields a student may send when updating their own record
+// (bruno/user/Students - Update.bru, 2026-09-28). Anything else sent as a
+// self-update is rejected with 403 FIELD_NOT_SELF_EDITABLE.
+export type SelfUpdateStudentPayload = Pick<
+  UpdateStudentPayload,
+  | "contact_address"
+  | "permanent_address"
+  | "guardian_name"
+  | "guardian_phone"
+  | "guardian_email"
+  | "guardian_address"
+  | "phone_number"
+>
 
 export interface UpdateTutorPayload {
   designation?: string

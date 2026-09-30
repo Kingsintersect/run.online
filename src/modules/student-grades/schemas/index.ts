@@ -68,6 +68,9 @@ export const ResultSheetSummarySchema = z.object({
   semesterName: z.string(),
   academicSession: z.string(),
   majorProgramId: z.number(),
+  // B20.2 (2026-09-28): the offering's real owning major program(s);
+  // `majorProgramId` above stays the session's. Optional for older servers.
+  majorProgramIds: z.array(z.number()).optional(),
   departmentName: z.string().nullable(),
   status: GradeStatusSchema,
   studentCount: z.number(),
@@ -441,11 +444,20 @@ export const ResultStatusSchema = z.object({
 
 // ─── Request bodies (C7) ──────────────────────────────────────────────────────
 
-export const PullRequestSchema = z.object({
-  semesterId: z.number().int().positive(),
-  majorProgramId: z.number().int().positive().optional(),
-  courseOfferingIds: z.array(z.number().int().positive()).optional(),
-})
+// B25 (2026-09-28): exactly one of semesterId / academicSessionId. A
+// SESSION-structured major program has no semester to name, so it sends the
+// session and the server resolves its auto-managed "Full Session" semester.
+export const PullRequestSchema = z
+  .object({
+    semesterId: z.number().int().positive().optional(),
+    academicSessionId: z.number().int().positive().optional(),
+    majorProgramId: z.number().int().positive().optional(),
+    courseOfferingIds: z.array(z.number().int().positive()).optional(),
+  })
+  .refine((b) => (b.semesterId == null) !== (b.academicSessionId == null), {
+    message: "Choose a semester, or a session for a session-based program.",
+    path: ["semesterId"],
+  })
 
 export const MapGradeItemSchema = z.object({
   component: z.enum(["CA", "EXAM", "EXCLUDED"]),

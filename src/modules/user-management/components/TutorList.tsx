@@ -21,6 +21,8 @@ import Avatar from "@/components/custom/Avatar"
 import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { AccountStatusBadge } from "./account-status-badge"
+import { accountStatusOf } from "../lib/account-status"
 import { BulkImportTutorsModal } from "./BulkImportTutorsModal"
 import { TutorCourseAssignForm } from "./tutor-course-assign-form"
 import { isMajorProgramRequiredError } from "../lib/major-program-required"
@@ -97,13 +99,7 @@ const baseColumns: Column<Tutor & Record<string, unknown>>[] = [
     key: "is_active",
     header: "Status",
     align: "center",
-    render: (row) => (
-      <StatusBadge
-        label={row.user.is_active ? "Active" : "Inactive"}
-        variant={row.user.is_active ? "success" : "destructive"}
-        dot
-      />
-    ),
+    render: (row) => <AccountStatusBadge user={row.user} />,
   },
 ]
 
@@ -175,8 +171,9 @@ export default function TutorsPage({
           </Button>
         )}
 
-        {/* Deactivate / reactivate account — tutors:manage only */}
-        {canEdit && (
+        {/* Deactivate / reactivate account — tutors:manage only. Hidden for
+            a deleted account (login revoked; a flag can't restore it). */}
+        {canEdit && accountStatusOf(row.user) !== "deleted" && (
           <Button
             variant="ghost"
             size="sm"
@@ -194,8 +191,9 @@ export default function TutorsPage({
           </Button>
         )}
 
-        {/* Resend onboarding email — tutors:manage only */}
-        {canEdit && (
+        {/* Resend onboarding email — tutors:manage only. Not for a deleted
+            account: it would mint a new password for a revoked login. */}
+        {canEdit && accountStatusOf(row.user) !== "deleted" && (
           <Button
             variant="ghost"
             size="sm"

@@ -8,7 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import StatusBadge from "@/components/custom/StatusBadge"
 import { cn } from "@/lib/utils"
 import { useSubmitRegistration } from "../hooks/use-registration-mutations"
-import { registrationErrorMessage } from "../lib/registration-copy"
+import {
+  REGISTRATION_FEES_NOTE,
+  registrationErrorMessage,
+} from "../lib/registration-copy"
 import { RegistrationCreditMeter } from "./registration-credit-meter"
 import type {
   CarryoverCourse,
@@ -122,7 +125,8 @@ export function RegistrationCourseSelection({
         toast.success(
           `Registered ${result.enrolled.length} course${
             result.enrolled.length === 1 ? "" : "s"
-          }.`
+          }.`,
+          { description: REGISTRATION_FEES_NOTE }
         )
         setSelected((prev) => {
           const next = new Set(prev)

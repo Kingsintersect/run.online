@@ -26,7 +26,8 @@ interface WireCourse {
   description: string | null
   creditUnits: number
   courseType: CourseType
-  levelId: number
+  // Nullable for FOUNDATIONAL/CERTIFICATE-only courses (bruno/course/Course - Create.bru).
+  levelId: number | null
   owningDepartmentId: number | null
   syllabus: string | null
   curriculumSemester: number | null

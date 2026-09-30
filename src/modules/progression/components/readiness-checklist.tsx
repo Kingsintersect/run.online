@@ -98,6 +98,23 @@ export function ReadinessChecklist({
   )
 }
 
+// GRADES_MISSING (B26) and similar blockers carry id lists in `context`;
+// show how many students / courses they cover.
+const CONTEXT_COUNTS: [key: string, one: string, many: string][] = [
+  ["student_ids", "student", "students"],
+  ["offering_ids", "course", "courses"],
+]
+
+function contextCounts(issue: ReadinessIssue): string[] {
+  return CONTEXT_COUNTS.flatMap(([key, one, many]) => {
+    const v = issue.context?.[key]
+    if (!Array.isArray(v)) return []
+    // `count` already says how many students are affected.
+    if (key === "student_ids" && issue.count != null) return []
+    return [`${v.length.toLocaleString()} ${v.length === 1 ? one : many}`]
+  })
+}
+
 interface IssueListProps {
   title: string
   issues: ReadinessIssue[]
@@ -145,6 +162,9 @@ function IssueList({ title, issues, tone, base }: IssueListProps) {
                         affected
                       </>
                     )}
+                    {contextCounts(issue).map((c) => (
+                      <span key={c}>{` · ${c}`}</span>
+                    ))}
                   </p>
                 </div>
               </div>

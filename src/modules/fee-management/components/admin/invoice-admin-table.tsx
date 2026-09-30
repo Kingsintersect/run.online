@@ -27,6 +27,7 @@ import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useInvoices } from "../../hooks/use-invoices"
 import { useFeeManagementUiStore } from "../../store/fee-management-ui.store"
+import { studentDisplayName } from "../../lib/invoice-student"
 import type { InvoiceResponse, InvoiceStatus, FeeCategory } from "../../types"
 
 interface InvoiceAdminTableProps {
@@ -76,7 +77,7 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
     // (e.g. a waived invoice's feeType {name: null}); treat those as empty.
     return [
       inv.invoiceNumber,
-      inv.student?.fullName,
+      studentDisplayName(inv.student),
       inv.student?.matricNumber,
       inv.feeType?.name,
     ].some((v) => (v ?? "").toLowerCase().includes(q))
@@ -357,7 +358,7 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
                       {inv.student ? (
                         <div>
                           <p className="text-xs font-medium">
-                            {inv.student.fullName}
+                            {studentDisplayName(inv.student) ?? "—"}
                           </p>
                           <p className="font-mono text-xs text-muted-foreground">
                             {inv.student.matricNumber}

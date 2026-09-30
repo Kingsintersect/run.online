@@ -57,7 +57,10 @@ export function CohortFormDialog({
   const onSubmit = async (values: CohortFormValues) => {
     try {
       if (isEditing) {
-        await updateCohort.mutateAsync({ id: cohort.id, payload: values })
+        // `code` is identity-defining and not re-editable
+        // (bruno/academic/Cohorts - Update.bru), so it's never sent here.
+        const { code: _code, ...payload } = values
+        await updateCohort.mutateAsync({ id: cohort.id, payload })
         toast.success("Cohort updated")
       } else {
         await createCohort.mutateAsync({ ...values, programId })

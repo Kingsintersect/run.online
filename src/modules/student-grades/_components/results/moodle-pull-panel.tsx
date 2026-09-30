@@ -18,6 +18,14 @@ import { NotAvailableNotice } from "./not-available-notice"
 
 interface MoodlePullPanelProps {
   semesterId: number | null
+  /** The chosen academic session (the term itself when `sessionBased`). */
+  academicSessionId?: number | null
+  /**
+   * SESSION-structured major program (B25): no semesters, so the pull is
+   * sent with `academicSessionId` and the server resolves the session's
+   * auto-managed "Full Session" semester.
+   */
+  sessionBased?: boolean
   selectedOfferingIds: number[]
   /**
    * Newest `lastPullJobId` among the sheets on screen (A45 CR2). Used as a
@@ -54,21 +62,27 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 
 // The one sentence under the heading that says exactly what Pull will do.
 function describePull(
-  semesterId: number | null,
+  hasTerm: boolean,
+  sessionBased: boolean,
   selectedCount: number,
   scope: PullScope | undefined
 ): string {
-  const where = scope?.label ? ` in ${scope.label}` : " in the chosen semester"
+  const term = sessionBased ? "session" : "semester"
+  const where = scope?.label ? ` in ${scope.label}` : ` in the chosen ${term}`
   if (selectedCount > 0)
     return `${plural(selectedCount, "selected offering")}${where}.`
   if (!scope)
-    return semesterId
-      ? "Every offering in the chosen semester (select rows below to narrow it)."
-      : "Pulls one semester at a time. Choose the academic session and semester in the filters above."
+    return hasTerm
+      ? `Every offering in the chosen ${term} (select rows below to narrow it).`
+      : sessionBased
+        ? "Pulls one academic session at a time. Choose the session in the filters above."
+        : "Pulls one semester at a time. Choose the academic session and semester in the filters above."
   if (!scope.hasMajorProgram)
-    return "Pulls one major program's semester at a time. Choose the major program, then its academic session and semester, in the filters above."
-  if (!semesterId)
-    return `Choose the academic session and semester of ${scope.label ?? "this major program"} to pull.`
+    return "Pulls one major program's semester (or session) at a time. Choose the major program, then its academic session and semester, in the filters above."
+  if (!hasTerm)
+    return sessionBased
+      ? `Choose the academic session of ${scope.label ?? "this major program"} to pull.`
+      : `Choose the academic session and semester of ${scope.label ?? "this major program"} to pull.`
   if (scope.isLoading) return `Counting the offerings${where}…`
   if (scope.isError || scope.offeringIds == null)
     return "Couldn't work out which offerings this selection covers. Reload the page or change a filter to try again."
@@ -96,6 +110,8 @@ const STATUS_LABEL = {
 // Uses useSearchParams, so render it inside <Suspense>.
 export function MoodlePullPanel({
   semesterId,
+  academicSessionId = null,
+  sessionBased = false,
   selectedOfferingIds,
   recentJobId = null,
   filterFieldIds,
@@ -111,14 +127,16 @@ export function MoodlePullPanel({
   const [startedJobId, setStartedJobId] = useState<number | null>(null)
   // Set when Pull is clicked before a semester is chosen; cleared once one is.
   const [askedForSemester, setAskedForSemester] = useState(false)
-  const needsSemester = askedForSemester && !semesterId
+  const termId = sessionBased ? academicSessionId : semesterId
+  const hasTerm = termId != null
+  const needsSemester = askedForSemester && !hasTerm
   const startPull = useStartPull()
 
   // Only looked up when the URL doesn't already name a job.
   const activeJobs = usePullJobs(
     {
       status: ["QUEUED", "RUNNING"],
-      semesterId: semesterId ?? undefined,
+      semesterId: sessionBased ? undefined : (semesterId ?? undefined),
       page: 1,
       limit: 1,
     },
@@ -170,19 +188,21 @@ export function MoodlePullPanel({
   // whole matching set, not just the page on screen). It's blocked, with the
   // reason in the text above, while that set is unknown or empty.
   const scopeIds =
-    scope && selectedOfferingIds.length === 0 && semesterId
+    scope && selectedOfferingIds.length === 0 && hasTerm
       ? scope.offeringIds
       : null
   const scopeBlocked =
     scope != null &&
     selectedOfferingIds.length === 0 &&
-    semesterId != null &&
+    hasTerm &&
     (scope.isLoading || scopeIds == null || scopeIds.length === 0)
 
   const start = async () => {
     if (scopeBlocked) return
     const body = PullRequestSchema.safeParse({
-      semesterId: semesterId ?? undefined,
+      ...(sessionBased
+        ? { academicSessionId: academicSessionId ?? undefined }
+        : { semesterId: semesterId ?? undefined }),
       courseOfferingIds: selectedOfferingIds.length
         ? selectedOfferingIds
         : (scopeIds ?? undefined),
@@ -248,7 +268,12 @@ export function MoodlePullPanel({
             aria-live="polite"
             className="text-xs text-muted-foreground"
           >
-            {describePull(semesterId, selectedOfferingIds.length, scope)}
+            {describePull(
+              hasTerm,
+              sessionBased,
+              selectedOfferingIds.length,
+              scope
+            )}
           </p>
         </div>
         <Button
@@ -283,9 +308,18 @@ export function MoodlePullPanel({
           ) : (
             "the "
           )}
-          <strong>academic session</strong> and then the{" "}
-          <strong>semester</strong> you want to pull (for example 2026/2027 ·
-          First Semester), then click Pull from Moodle again.
+          {sessionBased ? (
+            <>
+              <strong>academic session</strong> you want to pull (this program
+              has no semesters), then click Pull from Moodle again.
+            </>
+          ) : (
+            <>
+              <strong>academic session</strong> and then the{" "}
+              <strong>semester</strong> you want to pull (for example 2026/2027
+              · First Semester), then click Pull from Moodle again.
+            </>
+          )}
         </p>
       )}
 

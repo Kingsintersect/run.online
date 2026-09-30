@@ -31,6 +31,7 @@ import type {
   PullJobStatus,
   ResultScopeSelection,
   ResultSheetFilters,
+  ResultTerm,
 } from "../types"
 
 // ─── Sheets ───────────────────────────────────────────────────────────────────
@@ -58,9 +59,7 @@ export function useResultPullScope(selection: ResultScopeSelection | null) {
   const qc = useQueryClient()
   return useQuery({
     ...createApiQueryOptions({
-      queryKey: resultsKeys.pullScope(
-        selection ?? { semesterId: 0, majorProgramId: 0 }
-      ),
+      queryKey: resultsKeys.pullScope(selection ?? { majorProgramId: 0 }),
       queryFn: () =>
         live(() =>
           selection
@@ -268,22 +267,24 @@ export function usePullJobs(filters: PullJobFilters, enabled = true) {
 
 // ─── Publishing ───────────────────────────────────────────────────────────────
 
+const NO_TERM: ResultTerm = { kind: "semester", semesterId: 0 }
+
 export function useResultsPublishPreview(
-  semesterId: number | null,
+  term: ResultTerm | null,
   majorProgramId: number | null
 ) {
   return useQuery({
     ...createApiQueryOptions({
-      queryKey: resultsKeys.publishPreview(semesterId ?? 0, majorProgramId),
+      queryKey: resultsKeys.publishPreview(term ?? NO_TERM, majorProgramId),
       queryFn: () =>
         live(() =>
           resultsApi.getPublishPreview(
-            semesterId ?? 0,
+            term ?? NO_TERM,
             majorProgramId ?? undefined
           )
         ),
     }),
-    enabled: semesterId != null,
+    enabled: term != null,
   })
 }
 

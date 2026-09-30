@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { ApiClientError } from "@/lib/clients/apiClient"
 import { usersApi, usersKeys } from "@/services/usersApi"
 import { useAppStore, useAppHydrated } from "@/store"
 import { UserRole } from "@/config/nav.config"
@@ -90,6 +91,21 @@ export function useUpdateMyProfile() {
       qc.invalidateQueries({ queryKey: usersKeys.students.me() })
       toast.success("Profile updated")
     },
-    onError: () => toast.error("Couldn't update your profile — try again"),
+    onError: (err) => {
+      // FIELD_NOT_SELF_EDITABLE is shown inline by the profile form.
+      const data = err instanceof ApiClientError ? err.data : null
+      if (
+        data !== null &&
+        typeof data === "object" &&
+        "code" in data &&
+        data.code === "FIELD_NOT_SELF_EDITABLE"
+      )
+        return
+      toast.error(
+        err instanceof ApiClientError && err.message
+          ? err.message
+          : "Couldn't update your profile — try again"
+      )
+    },
   })
 }

@@ -50,21 +50,24 @@ export default function GradeReportsPage() {
   // Sessions labelled with their major program — identical names otherwise.
   const { options: sessionOptions } = useSessionOptions()
   const { data: semesters = [] } = useSemesters(sessionId)
-  // byProgram has no program id, only a display name — the real filter is
-  // majorProgramId sent to the endpoint (A15, unconfirmed). Meanwhile,
-  // best-effort narrow the already-loaded breakdown by matching its name
-  // against programs known to belong to the selected major program; an
-  // unmatched or renamed program name just won't be filtered out, rather
-  // than the whole breakdown disappearing.
+  // The endpoint filters by majorProgramId server-side (A15, documented in
+  // Grade Reports - Summary.bru). This is only a second pass: match on the
+  // row's programId when present, else best-effort by name.
   const { data: programsRes } = useAllPrograms()
+  const programsInMajorProgram = (programsRes?.data ?? []).filter(
+    (p) => p.majorProgramId === majorProgramFilter
+  )
+  const programIdsInMajorProgram = new Set(
+    programsInMajorProgram.map((p) => p.id)
+  )
   const programNamesInMajorProgram = new Set(
-    (programsRes?.data ?? [])
-      .filter((p) => p.majorProgramId === majorProgramFilter)
-      .map((p) => p.name)
+    programsInMajorProgram.map((p) => p.name)
   )
   const byProgram = majorProgramFilter
     ? (report?.byProgram ?? []).filter((entry) =>
-        programNamesInMajorProgram.has(entry.program)
+        entry.programId != null
+          ? programIdsInMajorProgram.has(entry.programId)
+          : programNamesInMajorProgram.has(entry.program)
       )
     : (report?.byProgram ?? [])
 
@@ -197,7 +200,10 @@ export default function GradeReportsPage() {
             },
             {
               label: "Distinction Rate",
-              value: report ? `${report.overall.distinctionRate}%` : "—",
+              value:
+                report?.overall.distinctionRate != null
+                  ? `${report.overall.distinctionRate}%`
+                  : "—",
               sub: "GPA ≥ 4.5",
               color: "accent",
             },

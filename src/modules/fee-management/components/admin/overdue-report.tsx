@@ -11,6 +11,7 @@ import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useOverdueInvoices } from "../../hooks/use-invoices"
+import { studentDisplayName } from "../../lib/invoice-student"
 import type { FeeCategory } from "../../types"
 
 export function OverdueReport() {
@@ -175,7 +176,7 @@ export function OverdueReport() {
                       {inv.student ? (
                         <div>
                           <p className="text-xs font-medium">
-                            {inv.student.fullName}
+                            {studentDisplayName(inv.student) ?? "—"}
                           </p>
                           <p className="font-mono text-xs text-muted-foreground">
                             {inv.student.matricNumber}

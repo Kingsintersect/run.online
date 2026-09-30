@@ -65,6 +65,16 @@ export function RunHeader({ run }: { run: PromotionRun }) {
         <Actor label="Reversed by" by={run.reversed_by} at={run.reversed_at} />
       </dl>
 
+      {run.missing_grades === "CARRYOVER" && (
+        <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+          <span className="font-semibold">Missing grades carried over:</span>{" "}
+          this run was started without waiting for missing grades. Each ungraded
+          course counts as a carryover (reason &ldquo;No grade entered&rdquo;),
+          not as a fail, and doesn&apos;t affect GPA. If the grade is approved
+          before commit, Refresh recomputes that student normally.
+        </p>
+      )}
+
       {run.reverse_reason && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
           <span className="font-semibold">Reversal reason:</span>{" "}

@@ -85,12 +85,17 @@ export function SemesterRollover() {
   const run = async (action: "lock" | "activate") => {
     const id = action === "lock" ? semesterId : nextId
     if (id == null) return
+    // B24.4: locking an already-locked semester is a no-op server-side (the
+    // original lock is kept), so say so instead of implying a new lock.
+    const wasLocked = action === "lock" && Boolean(semester?.lockedAt)
     try {
       if (action === "lock") await lock.mutateAsync(id)
       else await activate.mutateAsync(id)
       toast.success(
         action === "lock"
-          ? `${semester?.name ?? "Semester"} is locked. Its grades are now frozen.`
+          ? wasLocked
+            ? `${semester?.name ?? "Semester"} was already locked. Nothing changed.`
+            : `${semester?.name ?? "Semester"} is locked. Its grades are now frozen.`
           : `${nextSemester?.name ?? "The next semester"} is now the active semester.`
       )
       setDialog(null)

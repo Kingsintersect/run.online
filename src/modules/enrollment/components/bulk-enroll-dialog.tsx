@@ -19,6 +19,10 @@ import { usersQueryOptions } from "@/services/usersApi"
 import { courseOfferingQueryOptions } from "@/services/courseOfferingApi"
 import { useAcademicCalendar } from "@/modules/timetable/hooks/useAcademicCalendar"
 import type { BulkEnrollResult } from "../types"
+import {
+  ENROLLMENT_INVOICE_NOTE,
+  enrollmentErrorMessage,
+} from "../lib/enrollment-errors"
 
 interface BulkEnrollDialogProps {
   open: boolean
@@ -38,6 +42,12 @@ export function BulkEnrollDialog({ open, onClose }: BulkEnrollDialogProps) {
   const students = studentsRes?.data ?? []
   const offerings = offeringsRes?.data ?? []
   const semesters = calendar?.semesters ?? []
+  const offeringLabel = (offeringId: number) => {
+    const o = offerings.find((x) => x.id === offeringId)
+    return o
+      ? `${o.course_code} — ${o.course_title}`
+      : `Offering #${offeringId}`
+  }
 
   const [studentId, setStudentId] = useState<number | null>(null)
   const [semesterId, setSemesterId] = useState<number | null>(null)
@@ -54,11 +64,18 @@ export function BulkEnrollDialog({ open, onClose }: BulkEnrollDialogProps) {
 
   const handleSubmit = async () => {
     if (!studentId || !semesterId) return
-    const res = await bulkEnrollMutation.mutateAsync({
-      studentId,
-      offeringIds: selectedOfferingIds,
-      semesterId,
-    })
+    setResult(null)
+    let res: BulkEnrollResult
+    try {
+      res = await bulkEnrollMutation.mutateAsync({
+        studentId,
+        offeringIds: selectedOfferingIds,
+        semesterId,
+      })
+    } catch {
+      // Whole-request failure — shown inline from the mutation's error below.
+      return
+    }
     setResult(res)
     if (res.errors.length === 0) {
       setSelectedOfferingIds([])
@@ -167,16 +184,46 @@ export function BulkEnrollDialog({ open, onClose }: BulkEnrollDialogProps) {
           </div>
         </div>
 
+        {bulkEnrollMutation.isError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive dark:border-destructive/40"
+          >
+            {bulkEnrollMutation.error?.message ?? "Bulk enrollment failed."}
+          </p>
+        )}
+
         {result && (
-          <div className="space-y-1 rounded-xl border border-border p-3 text-xs">
-            <p className="font-medium text-emerald-600">
+          <div
+            role="status"
+            className="space-y-2 rounded-xl border border-border p-3 text-xs"
+          >
+            <p className="font-medium text-emerald-600 dark:text-emerald-400">
               {result.enrolled.length} enrolled successfully.
+              {result.enrolled.length > 0 && (
+                <span className="block font-normal text-muted-foreground">
+                  {ENROLLMENT_INVOICE_NOTE}
+                </span>
+              )}
             </p>
             {result.errors.length > 0 && (
-              <ul className="space-y-0.5 text-amber-600">
-                {result.errors.map((e, i) => (
-                  <li key={i}>
-                    Offering #{e.offeringId}: {e.message}
+              <ul className="space-y-1.5">
+                {result.errors.map((e) => (
+                  <li
+                    key={e.offeringId}
+                    className="rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-amber-700 dark:text-amber-400"
+                  >
+                    <span className="font-medium">
+                      {offeringLabel(e.offeringId)}
+                    </span>
+                    {e.code && (
+                      <span className="ml-1.5 rounded bg-amber-500/15 px-1 py-px font-mono text-[10px]">
+                        {e.code}
+                      </span>
+                    )}
+                    <span className="block">
+                      {enrollmentErrorMessage(e.code, e.message)}
+                    </span>
                   </li>
                 ))}
               </ul>

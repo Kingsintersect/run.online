@@ -69,7 +69,8 @@ async function verifyGatewayPayment(
 ): Promise<PaymentVerificationResponse> {
   // Body is only consulted for non-GATEWAY (manual) verification — a GATEWAY
   // payment (the only kind this student-facing flow ever creates) is
-  // re-checked server-to-server against Credo regardless, so no body is sent.
+  // re-checked server-to-server against whichever gateway (Credo or FCMB) that
+  // payment row started on, regardless — so no body is sent.
   const result = await apiClient.post<RealVerifyPaymentResponse>(
     `/fees/payments/verify/${reference}`,
     undefined,
@@ -243,8 +244,20 @@ export const admissionService = {
     key: string,
     amount?: number
   ): Promise<PaymentInitiationResponse> {
+    // Bruno: admission/My Stages - Initiate Payment.bru — this route's wire
+    // shape is `{ data: { authorizationUrl, reference, virtualAccount,
+    // otpRequired, authUrl } }` (NOT the wrappers' `gateway_url`). The same
+    // shape comes back whichever gateway is active (credo|fcmb, GET/PATCH
+    // /fees/gateway); `authUrl` is only a fallback in case a gateway hands
+    // its checkout link back there instead. An empty result is caught by
+    // PaymentStageSection so "Pay now" never silently does nothing.
     const { data } = await apiClient.post<{
-      data: { authorizationUrl: string; reference: string }
+      data: {
+        authorizationUrl: string | null
+        reference: string
+        otpRequired?: boolean | null
+        authUrl?: string | null
+      }
     }>(
       `/admission/me/stages/${encodeURIComponent(key)}/payments/initiate`,
       amount ? { amount } : undefined,
@@ -253,7 +266,7 @@ export const admissionService = {
     return {
       success: true,
       reference: data.reference,
-      gateway_url: data.authorizationUrl,
+      gateway_url: data.authorizationUrl || data.authUrl || "",
     }
   },
 

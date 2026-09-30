@@ -649,6 +649,9 @@ const adminNav: NavGroup[] = [
         href: "/manager/notification",
         matchExactOnly: true,
         icon: Bell,
+        // The page is gated on notifications.manage; without it (e.g. DEAN,
+        // who shares this nav) the link only led to a permission-denied modal.
+        permission: { resource: "notifications", action: "manage" },
       },
     ],
   },

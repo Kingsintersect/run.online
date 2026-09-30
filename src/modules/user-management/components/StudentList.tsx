@@ -19,6 +19,9 @@ import Avatar from "@/components/custom/Avatar"
 import StatusBadge from "@/components/custom/StatusBadge"
 import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
+import { ZoomableImage } from "@/components/custom/ZoomableImage"
+import { AccountStatusBadge } from "./account-status-badge"
+import { accountStatusOf } from "../lib/account-status"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
@@ -79,6 +82,7 @@ const columns: Column<Student & Record<string, unknown>>[] = [
       <div className="flex items-center gap-3">
         <Avatar
           name={`${row.user.first_name ?? ""} ${row.user.last_name ?? ""}`}
+          src={row.passport_photo ?? undefined}
           size="sm"
         />
         <div>
@@ -121,6 +125,12 @@ const columns: Column<Student & Record<string, unknown>>[] = [
     render: (row) => (
       <StatusBadge label={row.status} variant={statusVariant[row.status]} dot />
     ),
+  },
+  {
+    key: "account",
+    header: "Account",
+    align: "center",
+    render: (row) => <AccountStatusBadge user={row.user} />,
   },
   {
     key: "entry_mode",
@@ -314,29 +324,33 @@ export default function StudentsPage({
                       >
                         <Pencil size={14} />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={
-                          row.user.is_active
-                            ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
-                        }
-                        onClick={() =>
-                          setStatusTarget(row as unknown as Student)
-                        }
-                        title={
-                          row.user.is_active
-                            ? "Deactivate account"
-                            : "Reactivate account"
-                        }
-                      >
-                        {row.user.is_active ? (
-                          <UserX size={14} />
-                        ) : (
-                          <UserCheck size={14} />
-                        )}
-                      </Button>
+                      {/* Hidden for a deleted account (login revoked;
+                          a flag can't restore it). */}
+                      {accountStatusOf(row.user) !== "deleted" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={
+                            row.user.is_active
+                              ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                          }
+                          onClick={() =>
+                            setStatusTarget(row as unknown as Student)
+                          }
+                          title={
+                            row.user.is_active
+                              ? "Deactivate account"
+                              : "Reactivate account"
+                          }
+                        >
+                          {row.user.is_active ? (
+                            <UserX size={14} />
+                          ) : (
+                            <UserCheck size={14} />
+                          )}
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -504,12 +518,43 @@ function StudentDetail({
         { label: "Guardian Name", value: student.guardian_name },
         { label: "Guardian Phone", value: student.guardian_phone },
         { label: "Guardian Email", value: student.guardian_email ?? "—" },
+        { label: "Guardian Address", value: student.guardian_address ?? "—" },
       ],
     },
   ]
+  const fullName = [
+    student.user.first_name,
+    student.user.middle_name,
+    student.user.last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
 
   return (
     <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1">
+      {/* Passport photo — copied from the admission application when the
+          student record is created (null for students without one). */}
+      <div className="flex items-center gap-4">
+        {student.passport_photo ? (
+          <ZoomableImage
+            src={student.passport_photo}
+            alt={`Passport photograph of ${fullName}`}
+            title={`${fullName} — passport photograph`}
+            className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border"
+          />
+        ) : (
+          <Avatar name={fullName} size="lg" />
+        )}
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-foreground">{fullName}</p>
+          <AccountStatusBadge user={student.user} />
+          {!student.passport_photo && (
+            <p className="text-xs text-muted-foreground">
+              No passport photo on record.
+            </p>
+          )}
+        </div>
+      </div>
       {sections.map((section) => (
         <div key={section.title}>
           <h3 className="mb-3 text-sm font-semibold text-foreground">
@@ -572,6 +617,11 @@ function EditStudentForm({
     mode_of_study: student.mode_of_study,
     status: student.status,
     contact_address: student.contact_address,
+    permanent_address: student.permanent_address,
+    guardian_name: student.guardian_name,
+    guardian_phone: student.guardian_phone,
+    guardian_email: student.guardian_email ?? "",
+    guardian_address: student.guardian_address ?? "",
     phone_number: student.user.phone_number ?? "",
   })
 
@@ -672,6 +722,47 @@ function EditStudentForm({
           value={form.contact_address ?? ""}
           onChange={(e) => update("contact_address", e.target.value)}
         />
+      </div>
+      <div>
+        <label
+          htmlFor="edit-student-permanent-address"
+          className="mb-1 block text-xs font-medium text-foreground"
+        >
+          Permanent Address
+        </label>
+        <textarea
+          id="edit-student-permanent-address"
+          className={inputCls}
+          rows={2}
+          value={form.permanent_address ?? ""}
+          onChange={(e) => update("permanent_address", e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {(
+          [
+            ["guardian_name", "Guardian Name"],
+            ["guardian_phone", "Guardian Phone"],
+            ["guardian_email", "Guardian Email"],
+            ["guardian_address", "Guardian Address"],
+          ] as const
+        ).map(([key, label]) => (
+          <div key={key}>
+            <label
+              htmlFor={`edit-student-${key}`}
+              className="mb-1 block text-xs font-medium text-foreground"
+            >
+              {label}
+            </label>
+            <input
+              id={`edit-student-${key}`}
+              type={key === "guardian_email" ? "email" : "text"}
+              className={inputCls}
+              value={form[key] ?? ""}
+              onChange={(e) => update(key, e.target.value)}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="flex justify-end pt-2">

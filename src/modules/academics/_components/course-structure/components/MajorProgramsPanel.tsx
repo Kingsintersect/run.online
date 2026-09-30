@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { toast } from "sonner"
 import {
   Building,
+  CalendarRange,
   GraduationCap,
   Link2,
   Loader2,
@@ -209,6 +210,12 @@ export function MajorProgramsPanel({
                       {mp.description}
                     </p>
                   )}
+                  <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <CalendarRange className="size-3" aria-hidden="true" />
+                    {(mp.termStructure ?? "SEMESTER") === "SESSION"
+                      ? "Runs per full session (no semesters)"
+                      : "Runs per semester"}
+                  </p>
                   {typeof mp.programCount === "number" && (
                     <p className="mb-2 text-xs text-muted-foreground">
                       {mp.programCount} program

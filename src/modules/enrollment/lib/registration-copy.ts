@@ -43,7 +43,20 @@ export const REGISTRATION_ERROR_MESSAGE: Record<string, string> = {
     "Course registration isn't open right now. Check the registration dates for this semester.",
   STANDING_NOT_ELIGIBLE:
     "Your academic standing doesn't allow registration this semester. Please contact your department.",
+  // POST /enrollments codes (bruno/enrollment/Enrollment - Create.bru,
+  // 2026-09-28).
+  ALREADY_ENROLLED: "You're already registered for this course.",
+  COURSE_OUTSIDE_PROGRAM:
+    "This course isn't part of your programme's curriculum, so it can't be registered.",
+  OFFERING_NOT_OPEN: "This course isn't open for registration.",
+  OFFERING_FULL:
+    "This course is full. Check with your department about another offering.",
 }
+
+// Registering a course also raises any mandatory fee invoice the student is
+// missing (bruno/enrollment/Enrollment - Create.bru, 2026-09-28).
+export const REGISTRATION_FEES_NOTE =
+  "Any fees due for your registration will appear on your fees page."
 
 export function registrationErrorMessage(
   code: string | null | undefined,

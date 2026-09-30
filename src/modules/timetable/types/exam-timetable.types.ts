@@ -75,12 +75,10 @@ export interface ExamScheduleFilters {
   courseOfferingId?: number
   from?: string
   to?: string
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
-  // Sent ahead of the backend per CLAUDE.md §14 (see examSchedulesApi.list
-  // in exam-timetable.service.ts). Send-only: ExamSchedule carries no
-  // program-derivable field (courseCode/courseTitle only), so there's
-  // nothing to filter client-side without an extra offering->program
-  // lookup per row.
+  // Major-Program Scoping — live server-side since 2026-09-22 (bruno/
+  // timetable/Exams - List.bru, scoped via offering.course.programCourses
+  // .program). Server-side only: ExamSchedule carries no program-derivable
+  // field to filter on client-side.
   majorProgramId?: number
   page?: number
   limit?: number

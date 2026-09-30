@@ -21,13 +21,42 @@ const AUTH = { access_token: true } as const
 
 // ── Roles ───────────────────────────────────
 
+// The roles table has no `slug` column (bruno/user/Users - List.bru: "there is
+// no `slug` column anywhere in this API's roles table"), so the UI's `slug`
+// is filled from `name` wherever a role comes back from the API.
+const withSlug = (role: Role): Role => ({
+  ...role,
+  slug: role.slug || role.name,
+})
+
 export const rolesApi = {
+  // GET /auth/roles is paginated (`{data, meta}`, default limit 15 —
+  // bruno/auth/Roles - List.bru). Page through so pickers and the Roles
+  // screen see every role, not just the first 15.
   list: async (): Promise<ApiListResponse<Role>> => {
-    return apiClient.get<ApiListResponse<Role>>("/auth/roles", AUTH)
+    const limit = 100
+    let page = 1
+    let all: Role[] = []
+    for (;;) {
+      const res = await apiClient.get<{
+        data: Role[]
+        meta?: { total?: number }
+      }>("/auth/roles", { ...AUTH, params: { page, limit } })
+      all = all.concat(res.data)
+      const total = res.meta?.total ?? all.length
+      if (all.length >= total || res.data.length === 0) break
+      page += 1
+    }
+    const data = all.map(withSlug)
+    return { data, total: data.length }
   },
 
   getById: async (id: number): Promise<ApiSingleResponse<Role>> => {
-    return apiClient.get<ApiSingleResponse<Role>>(`/auth/roles/${id}`, AUTH)
+    const res = await apiClient.get<ApiSingleResponse<Role>>(
+      `/auth/roles/${id}`,
+      AUTH
+    )
+    return { ...res, data: withSlug(res.data) }
   },
 
   // CreateRoleRequest accepts only `name` + optional `description` (bruno/auth/
@@ -51,14 +80,19 @@ export const rolesApi = {
 
   // The role PATCH doesn't take permissions, so a provided `permission_ids`
   // is applied with a full reconcile (adds + detaches) after the update.
+  // UpdateRoleRequest accepts only `name` and `description` (bruno/auth/
+  // Roles - Update.bru); `slug`/`is_default` are UI-only and not sent.
   update: async (
     id: number,
     payload: UpdateRolePayload
   ): Promise<ApiSingleResponse<Role>> => {
-    const { permission_ids, ...rolePayload } = payload
+    const { permission_ids, name, description } = payload
     const updated = await apiClient.patch<ApiSingleResponse<Role>>(
       `/auth/roles/${id}`,
-      rolePayload,
+      {
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description } : {}),
+      },
       AUTH
     )
     if (permission_ids === undefined) return updated
@@ -264,20 +298,33 @@ export const userRolesApi = {
     try {
       // Live shape (verified 2026-09-14): `{ data, meta }` with camelCase
       // user fields — mapped to the snake_case UserWithRoles the UI renders.
-      const res = await apiClient.get<{
-        data: {
-          id: number
-          email: string
-          username: string
-          firstName: string | null
-          lastName: string | null
-          phoneNumber: string | null
-          isActive: boolean
-          roles?: (string | { id: number; name: string; slug?: string })[]
-        }[]
-        meta?: { total?: number }
-      }>(`/auth/roles/${roleId}/users`, AUTH)
-      const data: UserWithRoles[] = res.data.map((u) => ({
+      // Paginated with a default limit of 15 (bruno/auth/Roles - List
+      // Users.bru), so every page is read.
+      type WireRoleUser = {
+        id: number
+        email: string
+        username: string
+        firstName: string | null
+        lastName: string | null
+        phoneNumber: string | null
+        isActive: boolean
+        roles?: (string | { id: number; name: string; slug?: string })[]
+      }
+      const limit = 100
+      let page = 1
+      let rows: WireRoleUser[] = []
+      let total = 0
+      for (;;) {
+        const res = await apiClient.get<{
+          data: WireRoleUser[]
+          meta?: { total?: number }
+        }>(`/auth/roles/${roleId}/users`, { ...AUTH, params: { page, limit } })
+        rows = rows.concat(res.data)
+        total = res.meta?.total ?? rows.length
+        if (rows.length >= total || res.data.length === 0) break
+        page += 1
+      }
+      const data: UserWithRoles[] = rows.map((u) => ({
         id: u.id,
         email: u.email,
         username: u.username,
@@ -291,7 +338,7 @@ export const userRolesApi = {
             : { id: r.id, name: r.name, slug: r.slug ?? r.name }
         ),
       }))
-      return { data, total: res.meta?.total ?? data.length }
+      return { data, total: Math.max(total, data.length) }
     } catch {
       return { data: [], total: 0 }
     }

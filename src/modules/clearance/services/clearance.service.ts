@@ -59,12 +59,11 @@ export const clearanceService = {
   // header comment. `meta` (page/limit/total) is returned too but dropped
   // here since the only current consumer just needs the list.
   //
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
-  // GET /clearance has no majorProgramId support server-side (confirmed
-  // unscoped, ENDPOINT_INVENTORY.md item 15). `majorProgramId` sent
-  // regardless; the frontend also filters client-side in
-  // clearance-review-queue.tsx (via use-student-major-program-map.ts) so
-  // results are correct either way.
+  // Major-Program Scoping — live since 2026-09-22 (bruno/clearance/
+  // Clearance - List.bru: optional ?majorProgramId=, scoped through
+  // student.program.majorProgramId; 403 OUT_OF_SCOPE outside the caller's
+  // scope). clearance-review-queue.tsx still also filters client-side (via
+  // use-student-major-program-map.ts) as a harmless second pass.
   async list(filters: ClearanceQueryFilters = {}): Promise<StudentClearance[]> {
     const res = await apiClient.get<{ data: StudentClearance[] }>(BASE, {
       ...AUTH,

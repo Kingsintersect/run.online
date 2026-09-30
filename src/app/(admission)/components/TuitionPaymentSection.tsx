@@ -82,9 +82,19 @@ export function TuitionPaymentSection({ student, fees }: StepSectionProps) {
         setTimeout(() => {
           window.location.href = result.gateway_url
         }, 800)
+      } else {
+        // Gateway-agnostic guard: never leave "Pay" as a silent no-op if the
+        // active gateway (Credo or FCMB) answered without a checkout URL.
+        toast.error(
+          "The payment gateway did not return a checkout link. Please try again, or contact support if this continues."
+        )
       }
-    } catch {
-      toast.error("Failed to initiate payment. Please try again.")
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to initiate payment. Please try again."
+      )
     }
   }
 

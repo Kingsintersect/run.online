@@ -81,9 +81,8 @@ export const ClearanceQueryFiltersSchema = z.object({
   status: ClearanceStatusSchema.optional(),
   // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
   // GET /clearance (the Admin/Dean + Staff review queue, both routed
-  // through the same /manager/clearance page) has no majorProgramId
-  // support server-side (confirmed unscoped, ENDPOINT_INVENTORY.md item
-  // 15). Sent ahead of the backend per CLAUDE.md §14;
+  // through the same /manager/clearance page) — ?majorProgramId= is live
+  // server-side since 2026-09-22 (Clearance - List.bru);
   // clearance-review-queue.tsx also filters client-side via
   // use-student-major-program-map.ts, since the nested `student` object
   // here (see NestedStudentSchema above) carries a matricNumber/name, not a

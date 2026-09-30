@@ -13,9 +13,7 @@
 // lookups whenever an endpoint's own response doesn't carry the name fields
 // — the same defensive dual-lookup pattern used for Timetable's schedules.
 
-import { z } from "zod"
 import apiClient, {
-  ApiClientError,
   createApiMutationOptions,
   createApiQueryOptions,
 } from "@/lib/clients/apiClient"
@@ -47,7 +45,12 @@ import type {
   RegistrationContext,
   UpdateAttendanceDto,
 } from "../types"
-import { RegistrationContextSchema } from "../schemas"
+import {
+  BulkEnrollSchema,
+  CreateEnrollmentSchema,
+  RegistrationContextSchema,
+} from "../schemas"
+import { enrollmentErrorCodeOf } from "../lib/enrollment-errors"
 
 const BASE = "/enrollments"
 const AUTH = { access_token: true } as const
@@ -190,14 +193,6 @@ function mapEnrollment(
   }
 }
 
-// The backend's machine-readable error code (`{ code: "CREDIT_LOAD_EXCEEDED" }`)
-// from a rejected request, when it sent one.
-function errorCodeOf(reason: Error | undefined): string | null {
-  if (!(reason instanceof ApiClientError)) return null
-  const body = z.object({ code: z.string() }).safeParse(reason.data)
-  return body.success ? body.data.code : null
-}
-
 function mapAttendance(
   raw: RawAttendance,
   studentsById: Map<number, Student>
@@ -279,18 +274,37 @@ export const enrollmentApi = {
     )
   },
 
-  // Rejects on duplicate enrollment, closed offering, capacity, registration
-  // window, or unmet prerequisites — all enforced server-side (409/400).
+  // Every rejection carries `{ message, code }` (bruno/enrollment/Enrollment
+  // - Create.bru, 2026-09-28): 409 ALREADY_ENROLLED, 400 STANDING_NOT_ELIGIBLE,
+  // 403 COURSE_OUTSIDE_PROGRAM, 422 OFFERING_NOT_OPEN, 422 REGISTRATION_CLOSED,
+  // 400 OFFERING_FULL, 422 PREREQUISITE_NOT_MET, plus the Progression
+  // registration-gate codes. See lib/enrollment-errors.ts.
   async create(dto: CreateEnrollmentDto): Promise<EnrollmentRecord> {
+    const body = CreateEnrollmentSchema.parse(dto)
     const [res, { offeringsById, studentsById }] = await Promise.all([
-      apiClient.post<{ data: RawEnrollment }>(BASE, dto, AUTH),
+      apiClient.post<{ data: RawEnrollment }>(BASE, body, AUTH),
       buildLookups(),
     ])
     return mapEnrollment(res.data, offeringsById, studentsById)
   },
 
+  // Per-offering failures come back in `errors` as `{ offeringId, code,
+  // message }` (code added 2026-09-28). The documented body is the bare
+  // `{ enrolled, errors }`; a `{ data: {...} }` envelope is accepted too.
   async bulkCreate(dto: BulkEnrollDto): Promise<BulkEnrollResult> {
-    return apiClient.post<BulkEnrollResult>(`${BASE}/bulk`, dto, AUTH)
+    const body = BulkEnrollSchema.parse(dto)
+    const res = await apiClient.post<
+      BulkEnrollResult | { data: BulkEnrollResult }
+    >(`${BASE}/bulk`, body, AUTH)
+    const result = "data" in res ? res.data : res
+    return {
+      enrolled: result.enrolled ?? [],
+      errors: (result.errors ?? []).map((e) => ({
+        offeringId: e.offeringId,
+        message: e.message,
+        code: e.code ?? null,
+      })),
+    }
   },
 
   // Student-facing multi-course registration. `POST /enrollments/bulk` is
@@ -326,7 +340,7 @@ export const enrollmentApi = {
         errors.push({
           offeringId: items[i].offeringId,
           message: reason?.message ?? "Enrollment failed.",
-          code: errorCodeOf(r.reason),
+          code: enrollmentErrorCodeOf(r.reason),
         })
       }
     })

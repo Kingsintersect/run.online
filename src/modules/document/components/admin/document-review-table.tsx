@@ -75,10 +75,10 @@ export function DocumentReviewTable() {
   const deleteDoc = useDeleteDocument()
   const download = useDownloadDocument()
 
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
-  // GET /documents doesn't support majorProgramId server-side yet, and each
-  // document only carries a bare studentId (no nested student object), so
-  // this cross-references the student roster to resolve one — see
+  // Major-Program Scoping — GET /documents filters by ?majorProgramId=
+  // server-side since 2026-09-22 (bruno/document/Document - List.bru), so
+  // this is now only a harmless second pass. Each document carries a bare
+  // studentId, so it cross-references the student roster — see
   // use-student-major-program-map.ts's own doc comment for the "unresolved
   // students are never filtered out" fail-open rule this follows.
   const { getMajorProgramId } = useStudentMajorProgramMap()

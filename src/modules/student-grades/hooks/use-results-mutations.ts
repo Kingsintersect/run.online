@@ -22,6 +22,7 @@ import type {
   RejectSheetBody,
   ReopenSheetBody,
   ResultPolicyForm,
+  ResultTerm,
   RevertBody,
   SingleAdjustBody,
 } from "../types"
@@ -190,8 +191,8 @@ export function useDecideBatch() {
 export function usePublishResults() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { semesterId: number; body: PublishRequest }) =>
-      resultsApi.publish(v.semesterId, v.body),
+    mutationFn: (v: { term: ResultTerm; body: PublishRequest }) =>
+      resultsApi.publish(v.term, v.body),
     onSuccess: async () => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: resultsKeys.all }),

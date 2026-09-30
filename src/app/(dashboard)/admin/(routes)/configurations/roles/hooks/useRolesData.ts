@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { ApiClientError } from "@/lib/clients/apiClient"
 import { useRolesStore } from "@/store/dashboard/rolesStore"
 import {
   permissionsKeys,
@@ -20,6 +21,15 @@ import type {
   UpdatePermissionPayload,
   UpdateRolePayload,
 } from "@/types/roles"
+
+// The backend's own message (e.g. Permissions - Delete's 409 "Cannot delete
+// a permission that is still assigned to one or more roles…", or a 422
+// uniqueness error) says what to fix; fall back to a generic line.
+function errorText(error: Error, fallback: string): string {
+  return error instanceof ApiClientError && error.message
+    ? error.message
+    : fallback
+}
 
 function useRolesInvalidation() {
   const queryClient = useQueryClient()
@@ -59,8 +69,8 @@ export function useRoles() {
       await invalidateRoles()
       toast.success("Role created successfully")
     },
-    onError: () => {
-      toast.error("Failed to create role")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to create role"))
     },
   })
 
@@ -70,8 +80,8 @@ export function useRoles() {
       await invalidateRoles(variables.id)
       toast.success("Role updated successfully")
     },
-    onError: () => {
-      toast.error("Failed to update role")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to update role"))
     },
   })
 
@@ -81,8 +91,8 @@ export function useRoles() {
       await invalidateRoles()
       toast.success("Role deleted successfully")
     },
-    onError: () => {
-      toast.error("Failed to delete role")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to delete role"))
     },
   })
 
@@ -92,8 +102,8 @@ export function useRoles() {
       await invalidateRoles()
       toast.success("Role duplicated successfully")
     },
-    onError: () => {
-      toast.error("Failed to duplicate role")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to duplicate role"))
     },
   })
 
@@ -219,8 +229,8 @@ export function usePermissions() {
       await invalidatePermissions()
       toast.success("Permission created successfully")
     },
-    onError: () => {
-      toast.error("Failed to create permission")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to create permission"))
     },
   })
 
@@ -230,8 +240,8 @@ export function usePermissions() {
       await invalidatePermissions()
       toast.success("Permission updated successfully")
     },
-    onError: () => {
-      toast.error("Failed to update permission")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to update permission"))
     },
   })
 
@@ -241,8 +251,8 @@ export function usePermissions() {
       await invalidatePermissions()
       toast.success("Permission deleted successfully")
     },
-    onError: () => {
-      toast.error("Failed to delete permission")
+    onError: (error) => {
+      toast.error(errorText(error, "Failed to delete permission"))
     },
   })
 

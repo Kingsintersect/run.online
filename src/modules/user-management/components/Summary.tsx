@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button"
 import { useAppStore } from "@/store"
 import { UserRole } from "@/config/nav.config"
 import type { User } from "@/types/users"
+import { AccountStatusBadge } from "./account-status-badge"
+import { accountStatusOf } from "../lib/account-status"
 import {
   PieChart,
   Pie,
@@ -82,13 +84,7 @@ const columns: Column<User & Record<string, unknown>>[] = [
     key: "is_active",
     header: "Status",
     align: "center",
-    render: (row) => (
-      <StatusBadge
-        label={row.is_active ? "Active" : "Inactive"}
-        variant={row.is_active ? "success" : "destructive"}
-        dot
-      />
-    ),
+    render: (row) => <AccountStatusBadge user={row} />,
   },
   {
     key: "created_at",
@@ -394,16 +390,18 @@ export default function UsersSummaryPage() {
                     header: "",
                     align: "center" as const,
                     width: "70px",
-                    render: (row: User) => (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setManagingRolesFor(row)}
-                        title="Manage roles"
-                      >
-                        <ShieldCheck className="size-3.5" />
-                      </Button>
-                    ),
+                    // A deleted account has no login left to grant roles to.
+                    render: (row: User) =>
+                      accountStatusOf(row) === "deleted" ? null : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setManagingRolesFor(row)}
+                          title="Manage roles"
+                        >
+                          <ShieldCheck className="size-3.5" />
+                        </Button>
+                      ),
                   },
                 ]
               : []),

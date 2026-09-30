@@ -22,10 +22,10 @@ export const venuesApi = {
   async list(
     filters: { isExamHall?: boolean; isActive?: boolean } = {}
   ): Promise<{ data: Venue[] }> {
-    // GET /timetable/venues is currently the class-timetable venue-name
-    // autocomplete (bruno/timetable/Venues - List.bru, `string[]`), not the
-    // exam Venue entity — keep only Venue objects so exam screens never
-    // render bare name strings as venues.
+    // GET /timetable/venues is the exam Venue entity (bruno/timetable/
+    // Venue - List.bru); the old free-text name autocomplete moved to
+    // /timetable/venues/names. The object-only filter below is kept as a
+    // defensive guard so an exam screen never renders a bare name string.
     const res = await apiClient.get<{ data: (Venue | string)[] }>(
       `${BASE}/venues`,
       { ...AUTH, params: filters }
@@ -59,7 +59,7 @@ export const venuesApi = {
 
 export const examSchedulesApi = {
   // `filters.majorProgramId` — see ExamScheduleFilters' own comment
-  // (sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35).
+  // (live since 2026-09-22, Exams - List.bru).
   async list(filters: ExamScheduleFilters = {}): Promise<{
     data: ExamSchedule[]
     meta: { total: number; page: number; limit: number }

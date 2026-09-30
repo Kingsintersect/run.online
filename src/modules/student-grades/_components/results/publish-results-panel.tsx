@@ -17,13 +17,14 @@ import {
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { useResultsPublishPreview } from "../../hooks/use-results"
+import { useTermStructure } from "@/hooks/use-term-structure"
 import { usePublishResults } from "../../hooks/use-results-mutations"
 import { PublishRequestSchema } from "../../schemas"
 import { toResultsApiError } from "../../lib/results-errors"
 import { NotAvailableNotice } from "./not-available-notice"
 import { SelectField, toId } from "./select-field"
 import { SemesterPicker } from "./semester-picker"
-import type { PublishResultSummary } from "../../types"
+import type { PublishResultSummary, ResultTerm } from "../../types"
 
 // Screen D (gate results.publish — ADMIN and SUPER_ADMIN only). Replaces
 // the old client-side counting with GET /results/publish/preview. Publishing
@@ -45,7 +46,19 @@ export function PublishResultsPanel() {
     withinScope(m.id)
   )
 
-  const preview = useResultsPublishPreview(semesterId, majorProgramId)
+  // A session of a SESSION-structured major program has no semesters: it is
+  // previewed and published by session (B25, 2026-09-28).
+  const { sessionBased } = useTermStructure({ sessionId })
+  const term: ResultTerm | null = sessionBased
+    ? sessionId != null
+      ? { kind: "session", academicSessionId: sessionId }
+      : null
+    : semesterId != null
+      ? { kind: "semester", semesterId }
+      : null
+  const termWord = sessionBased ? "session" : "semester"
+
+  const preview = useResultsPublishPreview(term, majorProgramId)
   const publish = usePublishResults()
   const previewData = preview.data?.available ? preview.data.data : null
   const totals = previewData?.programs.reduce(
@@ -59,12 +72,12 @@ export function PublishResultsPanel() {
   const nothingToPublish = previewData != null && totals?.wouldPublish === 0
 
   const doPublish = async () => {
-    if (!semesterId) return
+    if (!term) return
     const body = PublishRequestSchema.parse({
       majorProgramId: majorProgramId ?? undefined,
     })
     try {
-      const res = await publish.mutateAsync({ semesterId, body })
+      const res = await publish.mutateAsync({ term, body })
       setResult(res)
       setConfirmOpen(false)
       toast.success(`${res.published} results published.`)
@@ -80,16 +93,18 @@ export function PublishResultsPanel() {
           Publish results
         </h2>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Publishing releases every approved sheet in the semester to students
-          and recalculates their GPA/CGPA. Students with outstanding mandatory
-          fees are withheld when the major program&apos;s fee gate is on, and
-          picked up by a later publish once they&apos;ve paid.
+          Publishing releases every approved sheet in the semester (or, for a
+          program that runs by session, the whole session) to students and
+          recalculates their GPA/CGPA. Students with outstanding mandatory fees
+          are withheld when the major program&apos;s fee gate is on, and picked
+          up by a later publish once they&apos;ve paid.
         </p>
       </header>
 
       <div className="grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
         <SemesterPicker
           idPrefix="pub"
+          sessionBased={sessionBased}
           sessionId={sessionId}
           semesterId={semesterId}
           onSessionChange={(id) => {
@@ -118,11 +133,15 @@ export function PublishResultsPanel() {
         />
       </div>
 
-      {!semesterId ? (
+      {!term ? (
         <EmptyState
           icon={Send}
-          title="Choose a semester"
-          description="Pick the session and semester whose approved results you want to publish."
+          title={sessionBased ? "Choose a session" : "Choose a semester"}
+          description={
+            sessionBased
+              ? "Pick the session whose approved results you want to publish. This program runs by session, with no semesters."
+              : "Pick the session and semester whose approved results you want to publish."
+          }
         />
       ) : preview.isLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-muted/40" aria-busy />
@@ -137,7 +156,7 @@ export function PublishResultsPanel() {
           {preview.data?.available === false && (
             <NotAvailableNotice
               title="The publish preview isn't available on the server yet"
-              description="You can still publish: approved results for this semester are released, and the server reports how many were published and withheld."
+              description={`You can still publish: approved results for this ${termWord} are released, and the server reports how many were published and withheld.`}
             />
           )}
 

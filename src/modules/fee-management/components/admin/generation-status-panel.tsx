@@ -41,14 +41,19 @@ export function GenerationStatusPanel({
     )
   }
 
-  // A QUEUED job's status response doesn't carry processed/total/failures
-  // yet (confirmed live 2026-09-15) — they only appear once it's actually
-  // RUNNING. Never assume they're there.
-  const processed = data.processed ?? 0
-  const total = data.total ?? 0
-  const failures = data.failures ?? 0
-  const hasCounts = data.processed !== undefined && data.total !== undefined
-  const percent = total > 0 ? Math.round((processed / total) * 100) : 0
+  // Counts may be missing while QUEUED/RUNNING (bruno Generation Status
+  // note): never assume they're there.
+  const processed = data.processedCount ?? 0
+  const total = data.eligibleCount ?? 0
+  const created = data.createdCount ?? 0
+  const skipped = data.skippedCount ?? 0
+  const hasCounts = data.processedCount != null && data.eligibleCount != null
+  const percent =
+    total > 0
+      ? Math.round((processed / total) * 100)
+      : data.status === "DONE"
+        ? 100
+        : 0
 
   const statusIcon = {
     QUEUED: <Clock size={15} className="text-slate-500" />,
@@ -119,25 +124,28 @@ export function GenerationStatusPanel({
           {hasCounts ? (
             <>
               {processed.toLocaleString("en-NG")} /{" "}
-              {total.toLocaleString("en-NG")} invoices
+              {total.toLocaleString("en-NG")} students processed
               {total > 0 && ` (${percent}%)`}
+              {` · ${created.toLocaleString("en-NG")} created, ${skipped.toLocaleString("en-NG")} skipped (already invoiced)`}
             </>
-          ) : data.eligibleStudentCount !== undefined ? (
-            `Waiting to start — ${data.eligibleStudentCount.toLocaleString("en-NG")} eligible`
+          ) : data.eligibleCount != null ? (
+            `Waiting to start — ${data.eligibleCount.toLocaleString("en-NG")} eligible`
           ) : (
             "Waiting to start…"
           )}
         </p>
       </div>
 
-      {/* Failure count */}
-      {failures > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+      {/* Failure detail */}
+      {isFailed && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive"
+        >
           <AlertTriangle size={13} className="mt-0.5 shrink-0" />
           <span>
-            <strong>{failures.toLocaleString("en-NG")}</strong> invoice
-            {failures !== 1 ? "s" : ""} failed to generate. Re-running
-            activation is safe — already-created invoices will be skipped.
+            {data.error ?? "Invoice generation failed."} Re-running activation
+            is safe — already-created invoices will be skipped.
           </span>
         </div>
       )}

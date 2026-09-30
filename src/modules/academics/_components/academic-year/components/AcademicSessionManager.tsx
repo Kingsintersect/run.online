@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EmptyState } from "./EmptyState"
+import { LockedBadge } from "./LockedBadge"
 import {
   CalendarDays,
   Plus,
@@ -447,13 +448,14 @@ export function AcademicSessionManager({
                     year: "numeric",
                   })}
                 </CardDescription>
-                <CardAction>
+                <CardAction className="flex flex-col items-end gap-1">
                   {session.isActive && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                       <span className="size-1.5 rounded-full bg-primary" />
                       Active
                     </span>
                   )}
+                  <LockedBadge lockedAt={session.lockedAt} />
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-2">

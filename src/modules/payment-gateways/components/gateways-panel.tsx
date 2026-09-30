@@ -25,7 +25,7 @@ export function GatewaysPanel() {
   const { gateways, source, isLoading, isError, error, refetch } =
     usePaymentGateways()
   const { providers, source: providersSource } = useGatewayProviders()
-  const { assignments } = useGatewayAssignments()
+  const { assignments, institutionDefault } = useGatewayAssignments()
   const { data: programsRes } = useMajorPrograms()
   const test = useTestPaymentGateway()
   const toggle = useUpdatePaymentGateway()
@@ -61,6 +61,14 @@ export function GatewaysPanel() {
       )
     }
   }, [programsRes, assignments])
+
+  // The institution default: by id when known, else by provider (the live
+  // /fees/gateway switch names a provider, not a gateway).
+  const isActiveForNew = (gw: PaymentGateway): boolean =>
+    institutionDefault.gatewayId !== null
+      ? gw.id === institutionDefault.gatewayId
+      : institutionDefault.provider !== null &&
+        gw.provider === institutionDefault.provider
 
   const openAdd = () => {
     setEditing(null)
@@ -169,6 +177,7 @@ export function GatewaysPanel() {
               catalog={providers}
               source={source}
               programNames={programNamesFor(gw)}
+              isActiveForNew={isActiveForNew(gw)}
               isTesting={testingId === gw.id}
               isToggling={togglingId === gw.id}
               onEdit={() => {

@@ -40,7 +40,9 @@ const PAYMENT_TYPE_AMOUNTS: {
 ]
 
 /**
- * Resolve which fee a Credo gateway redirect is for. The backend already
+ * Resolve which fee a gateway redirect is for (Credo or FCMB — whichever is
+ * active via GET/PATCH /fees/gateway; the backend builds the callback URL
+ * itself, so `reference`/`feeType` come from it, not the gateway). The backend already
  * echoes the step's own label back via `feeType` (e.g. "Application Fee",
  * or a custom step's own label like "Access Fee") — matching that directly
  * is reliable and doesn't depend on the exact fee amount.
@@ -63,10 +65,13 @@ const PAYMENT_TYPE_AMOUNTS: {
  * window, so it's a last resort, not the primary signal, and only used for
  * the three legacy types (a custom fee has no known "base amount" to guess
  * from at all).
+ *
+ * Gateway-agnostic, 2026-09-29: `transAmount` is Credo's own redirect param —
+ * an FCMB redirect has no equivalent. When nothing identifies the fee, fall
+ * back to the generic verify (same reference-only endpoint) instead of
+ * failing, so a redirect from either gateway can always be verified.
  */
-function resolvePaymentType(
-  searchParams: URLSearchParams
-): PaymentResolution | null {
+function resolvePaymentType(searchParams: URLSearchParams): PaymentResolution {
   const feeTypeRaw = searchParams.get("feeType") ?? ""
   const feeType = feeTypeRaw.toLowerCase()
   if (feeType.includes("application")) return { kind: "application" }
@@ -74,11 +79,12 @@ function resolvePaymentType(
   if (feeType.includes("tuition")) return { kind: "tuition" }
   if (feeTypeRaw) return { kind: "generic", label: feeTypeRaw }
 
+  const generic: PaymentResolution = { kind: "generic", label: "" }
   const transAmount = searchParams.get("transAmount")
-  if (!transAmount) return null
+  if (!transAmount) return generic
 
   const amount = parseFloat(transAmount)
-  if (isNaN(amount)) return null
+  if (isNaN(amount)) return generic
 
   // Sort descending so a higher amount can't accidentally match a lower tier
   const sorted = [...PAYMENT_TYPE_AMOUNTS].sort(
@@ -93,7 +99,52 @@ function resolvePaymentType(
     }
   }
 
-  return null
+  return generic
+}
+
+/**
+ * Keys the gateway redirect may carry the payment reference under: the
+ * backend's own callback `reference` param, Credo's appended `transRef`, and
+ * the merchant-reference names FCMB uses (`invoiceRequestReference`, per
+ * bruno/fee/Payments - Webhook.bru), plus `paymentReference` defensively.
+ */
+const REFERENCE_PARAM_KEYS = [
+  "reference",
+  "transRef",
+  "invoiceRequestReference",
+  "paymentReference",
+] as const
+
+function resolveReference(searchParams: URLSearchParams): string {
+  for (const key of REFERENCE_PARAM_KEYS) {
+    const value = searchParams.get(key)
+    if (value) return value
+  }
+  return ""
+}
+
+/**
+ * A successful payment can be the one that promotes the account (APPLICANT
+ * -> STUDENT) and enrolls it on the backend — tuition, or a custom PAYMENT
+ * stage that plays the same role. The session the browser holds can't know
+ * that on its own, so refresh it while the success screen's countdown is
+ * still showing, so /student is reachable without a manual re-login.
+ */
+function useRefreshSessionOnSuccess(success: boolean | undefined) {
+  const { data: session, update } = useSession()
+  const refreshedSession = useRef(false)
+
+  useEffect(() => {
+    if (!success || refreshedSession.current) return
+    refreshedSession.current = true
+
+    void (async () => {
+      const fresh = await fetchRefreshedSessionRoles(
+        session?.user?.role ?? null
+      )
+      if (fresh) await update(fresh)
+    })()
+  }, [success, session?.user?.role, update])
 }
 
 // ─── Per-type Verification Wrappers ─────────────────────────────────────────
@@ -127,26 +178,7 @@ function VerifyAcceptance({ reference }: { reference: string }) {
 
 function VerifyTuition({ reference }: { reference: string }) {
   const { data, isLoading, error } = useVerifyTuitionPayment(reference)
-  const { data: session, update } = useSession()
-  const refreshedSession = useRef(false)
-
-  // Tuition payment is the one verification step that can promote the
-  // account (APPLICANT -> STUDENT) and enroll it in courses on the backend —
-  // the session the browser is holding has no way to know that on its own.
-  // Refresh it here, while the success screen's countdown is still showing,
-  // so /student is actually reachable by the time the applicant continues
-  // instead of bouncing them back out for a manual re-login.
-  useEffect(() => {
-    if (!data?.success || refreshedSession.current) return
-    refreshedSession.current = true
-
-    void (async () => {
-      const fresh = await fetchRefreshedSessionRoles(
-        session?.user?.role ?? null
-      )
-      if (fresh) await update(fresh)
-    })()
-  }, [data?.success, session?.user?.role, update])
+  useRefreshSessionOnSuccess(data?.success)
 
   return (
     <PaymentVerificationView
@@ -167,9 +199,10 @@ function VerifyGeneric({
   label: string
 }) {
   const { data, isLoading, error } = useVerifyGenericPayment(reference)
+  useRefreshSessionOnSuccess(data?.success)
   return (
     <PaymentVerificationView
-      title={`Verifying ${label} Payment`}
+      title={label ? `Verifying ${label} Payment` : "Verifying Payment"}
       isLoading={isLoading}
       error={error}
       data={data}
@@ -182,8 +215,7 @@ function VerifyGeneric({
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams()
-  const reference =
-    searchParams.get("transRef") ?? searchParams.get("reference") ?? ""
+  const reference = resolveReference(searchParams)
 
   const resolution = useMemo(
     () => resolvePaymentType(searchParams),
@@ -197,22 +229,6 @@ function VerifyPaymentContent() {
         isLoading={false}
         error={
           new Error("No payment reference found. Please retry your payment.")
-        }
-        data={undefined}
-        redirectTo="/process-admission"
-      />
-    )
-  }
-
-  if (!resolution) {
-    return (
-      <PaymentVerificationView
-        title="Payment Verification"
-        isLoading={false}
-        error={
-          new Error(
-            "Unable to determine payment type from the transaction amount. Please contact support."
-          )
         }
         data={undefined}
         redirectTo="/process-admission"

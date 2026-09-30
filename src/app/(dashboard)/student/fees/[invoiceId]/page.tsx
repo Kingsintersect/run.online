@@ -11,6 +11,7 @@ import { InvoiceStatusBadge } from "@/modules/fee-management/components/shared/i
 import { FeeCategoryBadge } from "@/modules/fee-management/components/shared/fee-category-badge"
 import { CurrencyDisplay } from "@/modules/fee-management/components/shared/currency-display"
 import { PaymentHistory } from "@/modules/fee-management/components/shared/payment-history"
+import { WaivedOn } from "@/modules/fee-management/components/shared/waived-on"
 import { PaymentModal } from "@/modules/fee-management/components/student/payment-modal"
 import { useInvoice } from "@/modules/fee-management/hooks/use-invoices"
 import { useFeeManagementUiStore } from "@/modules/fee-management/store/fee-management-ui.store"
@@ -38,10 +39,15 @@ export default function StudentInvoiceDetailPage({ params }: Props) {
     )
   }
 
-  // Ownership check — show "not found" if invoice belongs to a different user
+  // Ownership check — show "not found" if the invoice belongs to a different
+  // user. Compared on `userId` (the paying user): `student.id` is the Student
+  // record's own id, not the user id, so comparing it to the session user
+  // hid a student's own invoice whenever the two ids differed. The server
+  // enforces ownership regardless (Admin, Owner).
   if (
     !invoice ||
-    (invoice.student && String(invoice.student.id) !== String(user?.id))
+    (invoice.userId !== undefined &&
+      String(invoice.userId) !== String(user?.id))
   ) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
@@ -135,6 +141,8 @@ export default function StudentInvoiceDetailPage({ params }: Props) {
               />
             </div>
           </div>
+
+          <WaivedOn invoice={invoice} />
 
           <Separator />
 

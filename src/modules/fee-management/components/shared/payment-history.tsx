@@ -1,19 +1,35 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Info, Loader2, Printer, Receipt } from "lucide-react"
+import { Activity, Info, Loader2, Printer, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import Modal from "@/components/custom/Modal"
+import { getErrorMessage } from "@/lib/errors"
 import { CurrencyDisplay } from "../shared/currency-display"
-import { useInvoicePaymentHistory, usePayment } from "../../hooks/use-payment"
+import {
+  useInvoicePaymentHistory,
+  usePayment,
+  usePaymentGatewayLogs,
+} from "../../hooks/use-payment"
+import type { RecordedPaymentMethod } from "../../types"
 
 // Method display labels
-const METHOD_LABEL: Record<string, string> = {
+const METHOD_LABEL: Record<RecordedPaymentMethod, string> = {
   GATEWAY: "Online Gateway",
+  GATEWAY_TRANSFER: "Online Gateway (transfer)",
+  GATEWAY_CARD: "Online Gateway (card)",
   CARD: "Card",
   USSD: "USSD",
   BANK_TRANSFER: "Bank Transfer",
+}
+
+/** paidAt, else when the attempt was created (paidAt is null until paid). */
+function paymentDate(p: { paidAt: string | null; createdAt?: string | null }) {
+  const raw = p.paidAt ?? p.createdAt ?? null
+  if (!raw) return null
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
 }
 
 interface PaymentHistoryProps {
@@ -58,7 +74,7 @@ export function PaymentHistory({
           <tr><td>Invoice No.</td><td>${invoiceNumber}</td></tr>
           <tr><td>Reference</td><td>${payment.referenceNumber}</td></tr>
           <tr><td>Method</td><td>${METHOD_LABEL[payment.method] ?? payment.method}</td></tr>
-          <tr><td>Date</td><td>${new Date(payment.paidAt).toLocaleDateString("en-NG", { dateStyle: "long" })}</td></tr>
+          <tr><td>Date</td><td>${paymentDate(payment)?.toLocaleDateString("en-NG", { dateStyle: "long" }) ?? "—"}</td></tr>
           <tr><td>Status</td><td>${payment.status}</td></tr>
           <tr class="total"><td>Amount</td><td>₦${Number(payment.amount).toLocaleString("en-NG", { minimumFractionDigits: 2 })}</td></tr>
         </table>
@@ -110,11 +126,11 @@ export function PaymentHistory({
             <p className="text-xs text-muted-foreground">
               {METHOD_LABEL[payment.method] ?? payment.method}
               {" · "}
-              {new Date(payment.paidAt).toLocaleDateString("en-NG", {
+              {paymentDate(payment)?.toLocaleDateString("en-NG", {
                 day: "2-digit",
                 month: "short",
                 year: "numeric",
-              })}
+              }) ?? "—"}
             </p>
           </div>
 
@@ -168,7 +184,15 @@ export function PaymentHistory({
   )
 }
 
-const METHOD_LABEL_FALLBACK = (m: string) => METHOD_LABEL[m] ?? m
+const METHOD_LABEL_FALLBACK = (m: RecordedPaymentMethod) => METHOD_LABEL[m] ?? m
+
+const fmtDateTime = (v: string | null | undefined) =>
+  v
+    ? new Date(v).toLocaleString("en-NG", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : null
 
 function PaymentDetailModal({
   paymentId,
@@ -179,11 +203,16 @@ function PaymentDetailModal({
 }) {
   const { data, isLoading } = usePayment(paymentId)
   const p = data?.data
+  const [showLog, setShowLog] = useState(false)
 
   const rows: { label: string; value: string | null | undefined }[] = p
     ? [
         { label: "Reference", value: p.referenceNumber },
-        { label: "Gateway reference", value: p.gatewayReference },
+        { label: "Gateway", value: p.gateway },
+        {
+          label: "Gateway transaction ID",
+          value: p.gatewayTransactionId ?? p.gatewayReference,
+        },
         { label: "Method", value: METHOD_LABEL_FALLBACK(p.method) },
         { label: "Status", value: p.status },
         {
@@ -200,6 +229,11 @@ function PaymentDetailModal({
               })
             : null,
         },
+        { label: "Verified via", value: p.verifiedVia },
+        {
+          label: "Webhook received",
+          value: fmtDateTime(p.webhookReceivedAt),
+        },
         { label: "Fee type", value: p.feeTypeName },
         { label: "Invoice", value: p.invoiceNumber },
       ]
@@ -208,7 +242,10 @@ function PaymentDetailModal({
   return (
     <Modal
       open={paymentId !== null}
-      onClose={onClose}
+      onClose={() => {
+        setShowLog(false)
+        onClose()
+      }}
       title="Payment details"
       subtitle={p ? undefined : isLoading ? "Loading…" : undefined}
       size="md"
@@ -241,8 +278,80 @@ function PaymentDetailModal({
                 </div>
               ))}
           </div>
+
+          {showLog ? (
+            <GatewayLogTimeline paymentId={p.id} />
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setShowLog(true)}
+            >
+              <Activity size={12} aria-hidden="true" />
+              Show gateway log
+            </Button>
+          )}
         </div>
       )}
     </Modal>
+  )
+}
+
+/** GET /fees/payments/:id/gateway-logs: every webhook and verify attempt. */
+function GatewayLogTimeline({ paymentId }: { paymentId: number }) {
+  const { data, isLoading, isError, error } = usePaymentGatewayLogs(
+    paymentId,
+    true
+  )
+  const log = data?.data
+
+  return (
+    <section aria-labelledby="gateway-log-heading" className="space-y-2">
+      <h3
+        id="gateway-log-heading"
+        className="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+      >
+        Gateway log
+      </h3>
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+          Loading gateway log…
+        </div>
+      ) : isError ? (
+        <p role="alert" className="text-xs text-destructive">
+          {getErrorMessage(error, "Couldn't load the gateway log.")}
+        </p>
+      ) : !log || log.events.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No webhook or verification events recorded for this payment.
+        </p>
+      ) : (
+        <ol className="space-y-1.5">
+          {log.events.map((e, i) => (
+            <li
+              key={e.id ?? i}
+              className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium text-foreground">
+                  {e.event ?? e.type ?? "Event"}
+                </span>
+                <span className="text-muted-foreground">
+                  {fmtDateTime(e.createdAt) ?? "—"}
+                </span>
+              </div>
+              {(e.source || e.ip || e.message) && (
+                <p className="mt-0.5 text-muted-foreground">
+                  {[e.source, e.ip, e.message].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   )
 }

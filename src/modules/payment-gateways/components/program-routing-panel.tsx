@@ -11,6 +11,8 @@ import {
   usePaymentGateways,
 } from "../hooks/use-payment-gateways"
 import { formatDateTime, gatewayLabel } from "../lib/gateway-eligibility"
+import { providerName } from "../lib/provider-catalog"
+import { ActiveGatewayProviderSchema } from "../schemas"
 import type { GatewayAssignment } from "../types"
 import { AssignmentDialog, type AssignmentTarget } from "./assignment-dialog"
 import { ErrorState, FallbackNotice, TableSkeleton } from "./panel-states"
@@ -27,11 +29,27 @@ export function ProgramRoutingPanel() {
 
   const isFallback = routing.source === "fallback"
   const name = (id: number | null) => gatewayLabel(gateways, providers, id)
-  const defaultName = name(routing.defaultGatewayId) ?? "Server default"
+  const dflt = routing.institutionDefault
+  // Live assignments first; else the live /fees/gateway provider.
+  const defaultName =
+    name(dflt.gatewayId) ??
+    (dflt.provider ? providerName(providers, dflt.provider) : null) ??
+    "Server default"
+  // While the assignments API is missing, the default row edits the live
+  // institution-wide switch (PATCH /fees/gateway) instead.
+  const activeSwitch =
+    isFallback && dflt.via === "active-gateway"
+      ? ActiveGatewayProviderSchema.safeParse(dflt.provider)
+      : null
+  const canChangeDefault = !isFallback || activeSwitch !== null
   const noteId = "routing-fallback-note"
 
   const effective = (a: GatewayAssignment) => {
-    if (isFallback) return { text: "Server default", failover: false }
+    if (isFallback)
+      return {
+        text: dflt.provider ? `${defaultName} (default)` : defaultName,
+        failover: false,
+      }
     const failover =
       a.effectiveGatewayId !== null &&
       a.effectiveGatewayId !== a.gatewayId &&
@@ -53,8 +71,11 @@ export function ProgramRoutingPanel() {
         <FallbackNotice>
           <span id={noteId}>
             Per-program routing isn&apos;t on the server yet: every program pays
-            through the server&apos;s built-in gateway choice. Routing controls
-            unlock when the backend ships the proposal in
+            through the institution default below
+            {activeSwitch
+              ? ", which you can switch now"
+              : ", which the server couldn't report"}
+            . Per-program controls unlock when the backend ships the proposal in
             sandbox/payment-routing.
           </span>
         </FallbackNotice>
@@ -112,27 +133,44 @@ export function ProgramRoutingPanel() {
                   </p>
                 </th>
                 <td className={td}>
-                  {isFallback ? "Server default" : defaultName}
+                  <span
+                    className="font-medium text-foreground"
+                    data-testid="institution-default-gateway"
+                  >
+                    {defaultName}
+                  </span>
+                  {dflt.via === "active-gateway" && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Active for new payments
+                    </p>
+                  )}
                 </td>
                 <td className={cn(td, "text-muted-foreground")}>—</td>
                 <td className={cn(td, "text-muted-foreground")}>—</td>
-                <td className={td}>
-                  {isFallback ? "Server default" : defaultName}
-                </td>
+                <td className={td}>{defaultName}</td>
                 <td className={cn(td, "text-muted-foreground")}>—</td>
                 <td className={cn(td, "text-right")}>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isFallback}
+                    disabled={!canChangeDefault}
                     aria-describedby={isFallback ? noteId : undefined}
                     aria-label="Change institution default gateway"
                     onClick={() =>
-                      setTarget({
-                        kind: "default",
-                        defaultGatewayId: routing.defaultGatewayId,
-                      })
+                      setTarget(
+                        activeSwitch
+                          ? {
+                              kind: "active-gateway",
+                              current: activeSwitch.success
+                                ? activeSwitch.data
+                                : null,
+                            }
+                          : {
+                              kind: "default",
+                              defaultGatewayId: routing.defaultGatewayId,
+                            }
+                      )
                     }
                   >
                     <Pencil data-icon="inline-start" aria-hidden="true" />
@@ -155,13 +193,17 @@ export function ProgramRoutingPanel() {
                       {a.majorProgramName}
                     </th>
                     <td className={td}>
-                      {isFallback
-                        ? "Server default"
-                        : (name(a.gatewayId) ?? (
-                            <span className="text-muted-foreground">
-                              Institution default
-                            </span>
-                          ))}
+                      {isFallback ? (
+                        <span className="text-muted-foreground">
+                          Institution default
+                        </span>
+                      ) : (
+                        (name(a.gatewayId) ?? (
+                          <span className="text-muted-foreground">
+                            Institution default
+                          </span>
+                        ))
+                      )}
                     </td>
                     <td className={td}>
                       {name(a.fallbackGatewayId) ?? (

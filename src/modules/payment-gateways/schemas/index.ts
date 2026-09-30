@@ -142,6 +142,21 @@ export const UpdateDefaultGatewayPayloadSchema = z.object({
   reason: ReasonSchema,
 })
 
+// ── Live institution-wide switch (bruno/fee/Payments - Active Gateway) ──
+// `GET /fees/gateway` / `PATCH /fees/gateway` (super_admin only; 422 on any
+// other value). The server only knows these two clients today.
+
+export const ACTIVE_GATEWAY_PROVIDERS = ["credo", "fcmb"] as const
+export const ActiveGatewayProviderSchema = z.enum(ACTIVE_GATEWAY_PROVIDERS)
+
+export const ActiveGatewayResponseSchema = z.object({
+  data: z.object({ activeGateway: ActiveGatewayProviderSchema }),
+})
+
+export const UpdateActiveGatewayPayloadSchema = z.object({
+  gateway: ActiveGatewayProviderSchema,
+})
+
 export const AssignmentHistoryEntrySchema = z.object({
   id: z.number(),
   majorProgramId: z.number().nullable(),

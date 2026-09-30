@@ -15,6 +15,7 @@ import { usePermissions } from "@/lib/permissions/usePermissions"
 import { TutorCourseMoodleGrades } from "@/modules/moodle-sync/components/grades/tutor-course-grades"
 import { useResultSheets } from "../../hooks/use-results"
 import { useResultsScope } from "../../hooks/use-results-scope"
+import { useTermStructure } from "@/hooks/use-term-structure"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
 import { useResultsUiStore } from "../../store/results-ui.store"
 import { MoodlePullPanel } from "./moodle-pull-panel"
@@ -118,6 +119,9 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
     () => ({
       majorProgramId: w.majorProgramId ?? undefined,
       semesterId: w.semesterId ?? undefined,
+      // B25: narrows by session when no semester is picked, and is the only
+      // term filter for a SESSION-structured major program.
+      academicSessionId: w.sessionId ?? undefined,
       programId: w.programId ?? undefined,
       departmentId: w.departmentId ?? undefined,
       status: w.status ?? undefined,
@@ -130,7 +134,13 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   )
   const sheets = useResultSheets(filters, hasMajorProgram)
   const [selectedIds, setSelectedIds] = useScopedSelection(
-    [w.majorProgramId, w.departmentId, w.programId, w.semesterId].join(":")
+    [
+      w.majorProgramId,
+      w.departmentId,
+      w.programId,
+      w.sessionId,
+      w.semesterId,
+    ].join(":")
   )
 
   return (
@@ -156,6 +166,8 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         <Suspense fallback={null}>
           <MoodlePullPanel
             semesterId={w.semesterId}
+            academicSessionId={w.sessionId}
+            sessionBased={scope.sessionBased}
             selectedOfferingIds={selectedIds}
             recentJobId={recentPullJobId(sheets.data)}
             filterFieldIds={SCOPE_FIELD_IDS}
@@ -183,7 +195,7 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
           sheetBasePath={sheetBasePath}
           selectedIds={selectedIds}
           setSelectedIds={setSelectedIds}
-          emptyDescription={`No course offerings in ${scope.scopeLabel ?? "this selection"} match. Try another semester or clear the status, warning and search filters.`}
+          emptyDescription={`No course offerings in ${scope.scopeLabel ?? "this selection"} match. Try another session or semester, or clear the status, warning and search filters.`}
         />
       )}
     </>
@@ -206,6 +218,9 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
       .find((mp) => mp.id === w.majorProgramId)
       ?.reasons.includes("heads") ?? false
   const ready = w.majorProgramId != null && (heads || w.programId != null)
+  const { sessionBased } = useTermStructure({
+    majorProgramId: w.majorProgramId,
+  })
   const changeScope = useCallback(
     (next: { majorProgramId: number | null; programId: number | null }) =>
       setWorkspace(next),
@@ -216,6 +231,7 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
     () => ({
       majorProgramId: w.majorProgramId ?? undefined,
       semesterId: w.semesterId ?? undefined,
+      academicSessionId: w.sessionId ?? undefined,
       programId: w.programId ?? undefined,
       status: w.status ?? undefined,
       flag: w.flag ?? undefined,
@@ -227,7 +243,7 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   )
   const sheets = useResultSheets(filters, ready)
   const [selectedIds, setSelectedIds] = useScopedSelection(
-    [w.majorProgramId, w.programId, w.semesterId].join(":")
+    [w.majorProgramId, w.programId, w.sessionId, w.semesterId].join(":")
   )
 
   return (
@@ -247,6 +263,7 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         <SemesterPicker
           idPrefix="ws"
           majorProgramId={w.majorProgramId}
+          sessionBased={sessionBased}
           sessionId={w.sessionId}
           semesterId={w.semesterId}
           onSessionChange={(sessionId) => setWorkspace({ sessionId })}
@@ -260,6 +277,8 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
         <Suspense fallback={null}>
           <MoodlePullPanel
             semesterId={w.semesterId}
+            academicSessionId={w.sessionId}
+            sessionBased={sessionBased}
             selectedOfferingIds={selectedIds}
             recentJobId={recentPullJobId(sheets.data)}
             filterFieldIds={{ session: "ws-session", semester: "ws-semester" }}

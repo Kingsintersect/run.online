@@ -52,7 +52,10 @@ export function RegistrationSlipCard({ context }: RegistrationSlipCardProps) {
           department: student.department_name ?? "",
           level:
             student.current_level != null ? `${student.current_level}L` : "",
-          photoUrl: avatar,
+          // The passport photo from admission (Students - Show, 2026-09-28)
+          // is the right photo for an official slip; the account avatar is
+          // the fallback for students without one.
+          photoUrl: student.passport_photo ?? avatar,
         },
         slip,
       })

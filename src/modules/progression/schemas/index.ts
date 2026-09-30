@@ -123,6 +123,7 @@ export const PROGRESSION_ERROR_CODES = [
   "RUN_NOT_REVERSIBLE",
   "OVERRIDE_REASON_REQUIRED",
   "CONFIRMATION_MISMATCH",
+  "INVALID_CREDIT_LOAD_RANGE",
 ] as const
 
 // ─── Shared references ────────────────────────────────────────────────────────
@@ -321,6 +322,9 @@ export const PromotionRunSchema = z.object({
   major_program: IdNameSchema,
   source_session: IdNameSchema,
   target_session: IdNameSchema,
+  // B26 (2026-09-28): the choice the run was created with. Optional so an
+  // older response without the key still parses.
+  missing_grades: z.enum(["CARRYOVER"]).nullable().optional(),
   status: RunStatusSchema,
   progress: RunProgressSchema.nullable(),
   // Keyed by standing_outcome; keys with zero may be omitted.
@@ -349,8 +353,9 @@ export const CreatePromotionRunPayloadSchema = z.object({
   major_program_id: z.number().int().positive(),
   source_session_id: z.number().int().positive(),
   target_session_id: z.number().int().positive(),
-  // Proposed (BACKEND_DEVIATIONS B26): start the run even though some
-  // students have no grade, treating those courses as carryovers.
+  // B26 (live 2026-09-28): start the run even though some students have no
+  // grade; GRADES_MISSING becomes a warning and each ungraded course is
+  // carried over as MISSING_GRADE. Every other blocker still refuses.
   missing_grades: z.enum(["CARRYOVER"]).optional(),
 })
 

@@ -83,12 +83,21 @@ export function ResultsScopeFilters({ scope }: ResultsScopeFiltersProps) {
           idPrefix="ws"
           majorProgramId={w.majorProgramId}
           sessionDisabledReason={hasMajorProgram ? null : PICK_MAJOR_PROGRAM}
+          sessionBased={scope.sessionBased}
           sessionId={w.sessionId}
           semesterId={w.semesterId}
           onSessionChange={(sessionId) => setWorkspace({ sessionId })}
           onSemesterChange={(semesterId) => setWorkspace({ semesterId })}
         />
       </div>
+      {scope.sessionBased && (
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          This major program runs by academic session, with no semesters. Pick a
+          session: results are pulled, listed and published for the whole
+          session.
+        </p>
+      )}
       {scope.unitOnly && (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />

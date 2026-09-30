@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
+import { WaivedOn } from "../shared/waived-on"
 import { useFeeManagementUiStore } from "../../store/fee-management-ui.store"
 import type { InvoiceResponse, FeeCategory } from "../../types"
 
@@ -122,6 +123,8 @@ export function InvoiceCard({ invoice }: InvoiceCardProps) {
             Overdue — please pay as soon as possible
           </div>
         )}
+
+        <WaivedOn invoice={invoice} className="mx-5 mt-3" />
 
         {/* Due date + actions */}
         <div className="mt-2 flex items-center justify-between gap-3 px-5 py-4">

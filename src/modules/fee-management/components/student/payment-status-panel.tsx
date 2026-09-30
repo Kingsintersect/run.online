@@ -107,6 +107,12 @@ export function PaymentStatusPanel({ reference }: PaymentStatusPanelProps) {
               ? "Your payment has been verified and applied to your invoice."
               : "Your payment was received but is still being processed. Your balance will update shortly."}
           </p>
+          {isCompleted && isPaid && (
+            <p className="text-xs text-muted-foreground">
+              Any results held back for unpaid fees are now released
+              automatically.
+            </p>
+          )}
         </div>
 
         <div className="w-full space-y-2 rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm">

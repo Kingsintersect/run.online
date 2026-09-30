@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  CircleCheck,
   KeyRound,
   Loader2,
   Pencil,
@@ -24,6 +25,8 @@ interface GatewayCardProps {
   source: DataSource
   /** Names of the major programs routed to this gateway. */
   programNames: string[]
+  /** This gateway is the institution default every new payment uses. */
+  isActiveForNew: boolean
   isTesting: boolean
   isToggling: boolean
   onEdit: () => void
@@ -38,6 +41,7 @@ export function GatewayCard({
   catalog,
   source,
   programNames,
+  isActiveForNew,
   isTesting,
   isToggling,
   onEdit,
@@ -68,6 +72,12 @@ export function GatewayCard({
             {gateway.displayName}
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {isActiveForNew && (
+              <span className="inline-flex h-5 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 text-[11px] font-semibold whitespace-nowrap text-primary dark:border-primary/40 dark:bg-primary/20">
+                <CircleCheck className="size-3" aria-hidden="true" />
+                Active for new payments
+              </span>
+            )}
             <EnvironmentBadge env={gateway.environment} />
             <HealthBadge
               status={gateway.health.status}
@@ -189,8 +199,12 @@ export function GatewayCard({
           ) : (
             <p className="text-xs text-muted-foreground">
               {isFallback
-                ? "Server default routing (per-program routing isn't available yet)"
-                : "No major program is routed to this gateway"}
+                ? isActiveForNew
+                  ? "Every major program (institution default; per-program routing isn't available yet)"
+                  : "No programs (per-program routing isn't available yet)"
+                : isActiveForNew
+                  ? "Programs without their own gateway (institution default)"
+                  : "No major program is routed to this gateway"}
             </p>
           )}
         </div>

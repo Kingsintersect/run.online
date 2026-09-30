@@ -80,3 +80,27 @@ export const bulkImportTutorsSchema = z.object({
 })
 
 export type BulkImportTutorsFormValues = z.infer<typeof bulkImportTutorsSchema>
+
+// ── Student self-service profile ──
+// The only fields PATCH /users/students/:id accepts when the caller is the
+// student themself (bruno/user/Students - Update.bru, 2026-09-28). Level,
+// mode of study and status are registry-controlled; sending them as a
+// self-update is rejected with 403 FIELD_NOT_SELF_EDITABLE.
+const optionalText = (max: number, label: string) =>
+  z.string().trim().max(max, `${label} must be ${max} characters or less`)
+
+export const studentSelfProfileSchema = z.object({
+  phone_number: optionalText(30, "Phone number"),
+  contact_address: optionalText(500, "Contact address"),
+  permanent_address: optionalText(500, "Permanent address"),
+  guardian_name: optionalText(255, "Guardian name"),
+  guardian_phone: optionalText(30, "Guardian phone"),
+  guardian_email: z
+    .string()
+    .trim()
+    .email("Enter a valid email")
+    .or(z.literal("")),
+  guardian_address: optionalText(500, "Guardian address"),
+})
+
+export type StudentSelfProfileValues = z.infer<typeof studentSelfProfileSchema>

@@ -109,6 +109,12 @@ export type ResultPolicyForm = z.infer<typeof ResultPolicyFormSchema>
 export interface ResultSheetFilters {
   semesterId?: number
   /**
+   * B25 (2026-09-28): narrows by the offering's own academic session — used
+   * when a session is picked without a semester, and always for a
+   * SESSION-structured major program (which has no semesters).
+   */
+  academicSessionId?: number
+  /**
    * Always sent. As of 2026-09-26 the server filters it against the
    * session's major program rather than the offering's owner, so
    * `useResultSheets` verifies it (see offering-scope.ts).
@@ -126,11 +132,22 @@ export interface ResultSheetFilters {
 
 /** The scope a Moodle pull covers: major program › structure · semester. */
 export interface ResultScopeSelection {
-  semesterId: number
+  /** Exactly one of semesterId / academicSessionId (B25). */
+  semesterId?: number
+  academicSessionId?: number
   majorProgramId: number
   departmentId?: number
   programId?: number
 }
+
+/**
+ * The term a publish (or its preview) covers: a semester, or — for a
+ * SESSION-structured major program with no semesters — a whole academic
+ * session (B25, POST /results/grades/publish/session/:id).
+ */
+export type ResultTerm =
+  | { kind: "semester"; semesterId: number }
+  | { kind: "session"; academicSessionId: number }
 
 export interface AdjustmentQueueFilters {
   status: BatchStatus

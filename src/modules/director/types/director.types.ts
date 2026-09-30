@@ -223,7 +223,8 @@ export interface GradeDistribution {
 export interface GradeReportOverall {
   averageGPA: number
   passRate: number
-  distinctionRate: number
+  /** Not returned by the live endpoint; null until it is. */
+  distinctionRate: number | null
   totalRecords: number
 }
 
@@ -235,6 +236,8 @@ export interface GradeReportByFaculty {
 
 export interface GradeReportByProgram {
   program: string
+  /** Bruno (Grade Reports - Summary.bru): rows carry programId too — join on it, not the name. */
+  programId?: number | null
   averageGPA: number
   studentCount: number
 }

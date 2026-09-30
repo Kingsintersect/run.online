@@ -6,7 +6,9 @@ import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useSemesters } from "@/hooks/useSemesters"
 import { useResultsUiStore } from "../store/results-ui.store"
 import { useMajorProgramStructure } from "@/hooks/use-major-program-structure"
+import { useSessionOptions } from "@/hooks/use-session-options"
 import { useResultPullScope } from "./use-results"
+import { useTermStructure } from "@/hooks/use-term-structure"
 import type { ResultScopeSelection } from "../types"
 
 export interface ScopeOption {
@@ -50,6 +52,12 @@ export function useResultsScope() {
 
   const structure = useMajorProgramStructure(w.majorProgramId, w.unitPath)
   const { data: semesters = [] } = useSemesters(w.sessionId)
+  const { sessionBased } = useTermStructure({
+    majorProgramId: w.majorProgramId,
+  })
+  const { labelFor: sessionLabelFor } = useSessionOptions({
+    majorProgramId: w.majorProgramId,
+  })
 
   // Choosing a unit at one depth keeps the path above it and drops the rest;
   // the department on the new path (if any) becomes the list's departmentId.
@@ -75,6 +83,13 @@ export function useResultsScope() {
     structure.programs.find((p) => p.program.id === w.programId)?.program ??
     null
   const semester = semesters.find((s) => s.id === w.semesterId) ?? null
+  // What the list and a pull are scoped to in time: the semester, or the
+  // whole session for a SESSION-structured major program (B25).
+  const termName = sessionBased
+    ? w.sessionId != null
+      ? sessionLabelFor(w.sessionId)
+      : null
+    : (semester?.name ?? null)
 
   // What the list and a pull are actually narrowed by. /results/offerings
   // filters by program or department only, so a unit that is neither (e.g. a
@@ -88,19 +103,32 @@ export function useResultsScope() {
         .join(" › ")
     : null
   const scopeLabel =
-    structureLabel && semester
-      ? `${structureLabel} · ${semester.name}`
+    structureLabel && termName
+      ? `${structureLabel} · ${termName}`
       : structureLabel
 
+  const narrowing = {
+    departmentId: w.departmentId ?? undefined,
+    programId: w.programId ?? undefined,
+  }
   const selection: ResultScopeSelection | null =
-    w.majorProgramId != null && w.semesterId != null
-      ? {
-          semesterId: w.semesterId,
-          majorProgramId: w.majorProgramId,
-          departmentId: w.departmentId ?? undefined,
-          programId: w.programId ?? undefined,
-        }
-      : null
+    w.majorProgramId == null
+      ? null
+      : sessionBased
+        ? w.sessionId != null
+          ? {
+              academicSessionId: w.sessionId,
+              majorProgramId: w.majorProgramId,
+              ...narrowing,
+            }
+          : null
+        : w.semesterId != null
+          ? {
+              semesterId: w.semesterId,
+              majorProgramId: w.majorProgramId,
+              ...narrowing,
+            }
+          : null
   const pullScope = useResultPullScope(selection)
   const pullOfferingIds =
     pullScope.data?.available === true ? pullScope.data.data : null
@@ -122,6 +150,8 @@ export function useResultsScope() {
     })),
     unitOnly,
     scopeLabel,
+    /** SESSION-structured major program: no semester level (B25). */
+    sessionBased,
     pull: {
       selection,
       offeringIds: pullOfferingIds,

@@ -5,6 +5,7 @@ import { configurationKeys } from "@/services/configurationApi"
 import { paymentGatewaysService } from "../services/payment-gateways.service"
 import type {
   CreateGatewayPayload,
+  UpdateActiveGatewayPayload,
   UpdateAssignmentPayload,
   UpdateDefaultGatewayPayload,
   UpdateGatewayPayload,
@@ -70,6 +71,7 @@ function useInvalidateRouting() {
   return () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: paymentGatewayKeys.assignments() }),
+      qc.invalidateQueries({ queryKey: paymentGatewayKeys.activeGateway() }),
       qc.invalidateQueries({ queryKey: paymentGatewayKeys.historyAll() }),
       qc.invalidateQueries({ queryKey: paymentGatewayKeys.gateways() }),
     ])
@@ -92,5 +94,23 @@ export function useUpdateDefaultGateway() {
     mutationFn: (payload: UpdateDefaultGatewayPayload) =>
       paymentGatewaysService.updateDefault(payload),
     onSuccess: () => invalidate(),
+  })
+}
+
+/**
+ * Live `PATCH /fees/gateway`: switch the institution-wide gateway for new
+ * payments. The server answers with the new value, which is written straight
+ * into the cache before the routing queries refetch.
+ */
+export function useSetActiveGateway() {
+  const qc = useQueryClient()
+  const invalidate = useInvalidateRouting()
+  return useMutation({
+    mutationFn: (payload: UpdateActiveGatewayPayload) =>
+      paymentGatewaysService.setActiveGateway(payload),
+    onSuccess: (activeGateway) => {
+      qc.setQueryData(paymentGatewayKeys.activeGateway(), activeGateway)
+      return invalidate()
+    },
   })
 }

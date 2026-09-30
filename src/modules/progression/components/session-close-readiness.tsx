@@ -87,9 +87,17 @@ export function SessionCloseReadiness() {
 
   const lockSession = async () => {
     if (sourceId == null) return
+    // B24.4: re-locking is a no-op server-side (the original lock is kept).
+    const wasLocked = Boolean(
+      sessions.sessions.find((s) => s.id === sourceId)?.lockedAt
+    )
     try {
       await lock.mutateAsync(sourceId)
-      toast.success(`${sourceLabel} is locked. Both semesters are frozen.`)
+      toast.success(
+        wasLocked
+          ? `${sourceLabel} was already locked. Nothing changed.`
+          : `${sourceLabel} is locked. Its semesters are frozen.`
+      )
       setLockOpen(false)
       setRejected(null)
     } catch (error) {
@@ -125,14 +133,14 @@ export function SessionCloseReadiness() {
       const e = toProgressionApiError(error)
       setMissingOpen(false)
       if (e.readiness) setRejected(e.readiness)
-      // Still refused for missing grades: the server doesn't yet accept the
-      // carry-over choice (BACKEND_DEVIATIONS B26).
+      // B26 is live: with the carry-over choice GRADES_MISSING only warns.
+      // If it's still listed as a blocker, an older server ignored the flag.
       const refusedCarryOver =
         carryOverMissing &&
         e.readiness?.blockers.some((b) => b.code === "GRADES_MISSING")
       toast.error(
         refusedCarryOver
-          ? "The server doesn't accept carrying ungraded courses over yet, so no run was started. Enter the missing grades, or try again once the backend supports it."
+          ? "The server still refused the run for missing grades, so nothing was started. Enter and approve the missing grades, then try again."
           : e.message
       )
     }
@@ -372,7 +380,7 @@ export function SessionCloseReadiness() {
           title={`Lock ${sourceLabel}?`}
           description={
             <p>
-              Both semesters of this session will be locked and their grades
+              This session and its semesters will be locked and their grades
               frozen for every student in the major program. Promotion is
               decided from these frozen results.
             </p>

@@ -534,35 +534,66 @@ export const directorService = {
   },
 
   // ── Grade Reports ─────────────────────────────────────────────────────────
-  // Real endpoint per bruno/director/Grade Reports - Summary.bru — accepts
-  // only an optional `semesterId`; response is `{data: {overall, byFaculty,
-  // byProgram}}`. Replaces the earlier proposed contract (facultyName/
-  // departmentName/programName/level/status/search filters, a
-  // {summary, gradeDistribution, records, meta} response) — the real
-  // endpoint has no per-student records and no grade-distribution
-  // breakdown. See sandbox/TRIPLE_AUDIT_2026-09-13.md §1a.
-
-  // majorProgramId is not confirmed live on this endpoint (it accepts only
-  // semesterId per the comment on useDirectorGrades) — sent speculatively
-  // per CLAUDE.md §14; see BACKEND_DEVIATIONS_2026-09-14.md A15. The
-  // byProgram breakdown has no program id to filter by either way, so the
-  // caller best-effort name-matches it against the programs list — see
-  // GradeReportsPage's note.
+  // Real endpoint per bruno/director/Grade Reports - Summary.bru. Rebuilt
+  // backend-side (B7, 2026-09-14) to the full contract: `semesterId`,
+  // `majorProgramId` (A15) and name filters are all accepted, and the
+  // response is `{data: {summary, overall, gradeDistribution, byFaculty,
+  // byProgram, records: {data, meta}}}` — PUBLISHED grades only, limited to
+  // the caller's scope (2026-09-25). This page reads only overall/
+  // byFaculty/byProgram today; `gradeDistribution` and the per-student
+  // `records` aren't surfaced yet (their row shapes aren't documented in
+  // Bruno — see the audit report). `byProgram` rows carry `programId`.
   async fetchGradeReport(
     semesterId?: number,
     majorProgramId?: number
   ): Promise<GradeReport> {
+    // Live wire names (captured 2026-09-29) differ from the page's view model:
+    // overall.averageCGPA/totalGrades, rows' avgGPA/facultyName/programName.
+    // Mapped here so a missing field degrades to 0/null instead of crashing.
     const res = await apiClient.get<{
       data: {
-        overall: GradeReport["overall"]
-        byFaculty: GradeReport["byFaculty"]
-        byProgram: GradeReport["byProgram"]
+        overall?: {
+          averageCGPA?: number | null
+          passRate?: number | null
+          totalGrades?: number | null
+        }
+        byFaculty?: {
+          facultyName?: string | null
+          avgGPA?: number | null
+          studentCount?: number | null
+        }[]
+        byProgram?: {
+          programId?: number | null
+          programName?: string | null
+          avgGPA?: number | null
+          studentCount?: number | null
+        }[]
       }
     }>("/results/reports/director-grade-summary", {
       ...AUTH,
       params: { semesterId, majorProgramId },
     })
 
-    return res.data
+    const { overall, byFaculty = [], byProgram = [] } = res.data
+    return {
+      overall: {
+        averageGPA: overall?.averageCGPA ?? 0,
+        passRate: overall?.passRate ?? 0,
+        // Not in the live response; shown as "—" rather than a made-up figure.
+        distinctionRate: null,
+        totalRecords: overall?.totalGrades ?? 0,
+      },
+      byFaculty: byFaculty.map((f) => ({
+        faculty: f.facultyName ?? "Unassigned",
+        averageGPA: f.avgGPA ?? 0,
+        studentCount: f.studentCount ?? 0,
+      })),
+      byProgram: byProgram.map((p) => ({
+        program: p.programName ?? "Unassigned",
+        programId: p.programId ?? null,
+        averageGPA: p.avgGPA ?? 0,
+        studentCount: p.studentCount ?? 0,
+      })),
+    }
   },
 }

@@ -19,6 +19,13 @@ export const InvoiceWaiverActorSchema = z.union([
 export const InvoiceResponseSchema = z.object({
   id: z.number(),
   invoiceNumber: z.string(),
+  // bruno/fee/Invoices - List.bru: the paying user and (once one exists)
+  // their Student record. Optional so older responses still parse.
+  userId: z.number().optional(),
+  studentId: z.number().nullable().optional(),
+  // A28 (2026-09-26): the student's program's major program, else the fee
+  // type's. Lets a client hide out-of-scope actions without a lookup.
+  majorProgramId: z.number().nullable().optional(),
   feeType: z.object({
     id: z.number(),
     name: z.string(),
@@ -34,7 +41,15 @@ export const InvoiceResponseSchema = z.object({
     .object({
       id: z.number(),
       matricNumber: z.string(),
-      fullName: z.string(),
+      // Older responses carry `fullName`; bruno's documented serialize()
+      // shape nests the name under `user`. Read via studentDisplayName().
+      fullName: z.string().optional(),
+      user: z
+        .object({
+          firstName: z.string().nullish(),
+          lastName: z.string().nullish(),
+        })
+        .nullish(),
       // sandbox/MISSING_BACKEND_APIS.md §2.8. Optional so a response
       // without them still parses.
       facultyName: z.string().optional(),
@@ -44,7 +59,8 @@ export const InvoiceResponseSchema = z.object({
     })
     .optional(),
   // Waiver fields (screen 7, invoices.waive). Filled once the invoice is
-  // WAIVED. The contract names them in snake_case; the /fees API serialises
+  // WAIVED. `waivedAt` is a real ISO timestamp since the 2026-09-28 cast fix
+  // (bruno B24.4/B24.8); it was null on every waived invoice before that. The contract names them in snake_case; the /fees API serialises
   // everything else in camelCase, so both spellings are accepted and read
   // through getInvoiceWaiver() (lib/invoice-waiver.ts). All optional so a
   // response from before the backend adds them still parses.

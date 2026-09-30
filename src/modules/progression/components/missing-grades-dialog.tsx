@@ -42,7 +42,14 @@ export function MissingGradesDialog({
   onCarryOver,
   pending,
 }: MissingGradesDialogProps) {
+  // B26: context carries studentIds/offeringIds (snake-cased at the
+  // service boundary).
   const courses = countOf(issue, "offering_ids")
+  const students = countOf(issue, "student_ids") ?? issue.count ?? null
+  const affected = [
+    students != null ? `${students} student${students === 1 ? "" : "s"}` : null,
+    courses != null ? `${courses} course${courses === 1 ? "" : "s"}` : null,
+  ].filter(Boolean)
   const link = readinessIssueLink(issue, base)
   return (
     <AlertDialog
@@ -58,8 +65,8 @@ export function MissingGradesDialog({
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
                 {issue.message}
-                {courses != null
-                  ? ` (${courses} course${courses === 1 ? "" : "s"} affected)`
+                {affected.length > 0
+                  ? ` (${affected.join(", ")} affected)`
                   : ""}
               </p>
               <p>What should happen to those courses?</p>
@@ -68,9 +75,12 @@ export function MissingGradesDialog({
                   <span className="font-medium text-foreground">
                     Carry them over
                   </span>{" "}
-                  — the run starts now, and each ungraded course becomes a
-                  carryover the student registers again in {targetLabel}. You
-                  still review the preview before anything is committed.
+                  — the run starts now. Each ungraded course is counted as a
+                  carryover (&ldquo;No grade entered&rdquo;) for that student
+                  instead of withholding their whole result: it adds to their
+                  outstanding units in {targetLabel} but not to their GPA. Every
+                  other readiness check still applies, and you review the
+                  preview before anything is committed.
                 </li>
                 <li>
                   <span className="font-medium text-foreground">

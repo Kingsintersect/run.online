@@ -5,12 +5,17 @@ import { useQuery } from "@tanstack/react-query"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { paymentGatewaysService } from "../services/payment-gateways.service"
 import { FALLBACK_PROVIDER_CATALOG } from "../lib/provider-catalog"
-import { deriveGatewaysFromSettings } from "../lib/settings-derivation"
+import {
+  deriveGatewaysFromSettings,
+  legacyGatewayId,
+} from "../lib/settings-derivation"
 import type {
+  ActiveGatewayProvider,
   AssignmentHistoryEntry,
   DataSource,
   GatewayAssignment,
   GatewayProvider,
+  InstitutionDefaultGateway,
   PaymentGateway,
   Sourced,
 } from "../types"
@@ -90,15 +95,44 @@ export function usePaymentGateways(): UsePaymentGatewaysResult {
   }
 }
 
+export interface UseActiveGatewayResult extends QueryState {
+  /** null when the route is missing or the value couldn't be read. */
+  activeGateway: ActiveGatewayProvider | null
+}
+
+/**
+ * Live `GET /fees/gateway`: the gateway every new payment uses today. Used by
+ * `useGatewayAssignments()` as the institution default until the proposed
+ * assignments API exists; components normally read it through that hook.
+ */
+export function useActiveGateway(): UseActiveGatewayResult {
+  const q = useQuery({
+    queryKey: paymentGatewayKeys.activeGateway(),
+    queryFn: () => paymentGatewaysService.getActiveGateway(),
+    staleTime: STALE,
+    retry: false,
+  })
+  return {
+    activeGateway: q.data ?? null,
+    isLoading: q.isLoading,
+    isError: q.isError,
+    error: q.error,
+    refetch: () => void q.refetch(),
+  }
+}
+
 export interface UseGatewayAssignmentsResult extends QueryState {
   defaultGatewayId: number | null
+  /** The institution default, from whichever API supplied it. */
+  institutionDefault: InstitutionDefaultGateway
   assignments: GatewayAssignment[]
   source: DataSource
 }
 
 /**
- * §3 routing per major program. Fallback: every active major program with no
- * gateway (the server picks it today), so the table still lists them.
+ * §3 routing per major program. The proposed assignments API wins when it
+ * exists. Fallback: every active major program with no gateway of its own,
+ * and the institution default read from the live `GET /fees/gateway`.
  */
 export function useGatewayAssignments(): UseGatewayAssignmentsResult {
   const q = useQuery({
@@ -108,6 +142,8 @@ export function useGatewayAssignments(): UseGatewayAssignmentsResult {
   })
   const isFallback = q.isSuccess && q.data === null
   const programs = useMajorPrograms()
+  const active = useActiveGateway()
+  const { gateways, source: gatewaysSource } = usePaymentGateways()
 
   const fallbackAssignments = useMemo<GatewayAssignment[]>(
     () =>
@@ -127,18 +163,45 @@ export function useGatewayAssignments(): UseGatewayAssignmentsResult {
   )
 
   if (isFallback) {
+    const provider = active.activeGateway
+    // A gateway derived from Settings has one card per provider, so its id
+    // is known. Real gateway ids (once §2 ships) can't be told apart by
+    // provider alone; the provider is then enough for labels.
+    const derivedId =
+      provider && gatewaysSource === "fallback"
+        ? legacyGatewayId(FALLBACK_PROVIDER_CATALOG, provider)
+        : null
+    const gatewayId =
+      derivedId !== null && gateways.some((g) => g.id === derivedId)
+        ? derivedId
+        : null
     return {
-      defaultGatewayId: null,
+      defaultGatewayId: gatewayId,
+      institutionDefault: {
+        via: provider ? "active-gateway" : null,
+        gatewayId,
+        provider,
+      },
       assignments: fallbackAssignments,
       source: "fallback",
-      isLoading: programs.isLoading,
+      isLoading: programs.isLoading || active.isLoading,
       isError: programs.isError,
       error: programs.error,
-      refetch: () => void programs.refetch(),
+      refetch: () => {
+        void programs.refetch()
+        active.refetch()
+      },
     }
   }
+  const defaultGatewayId = q.data?.defaultGatewayId ?? null
   return {
-    defaultGatewayId: q.data?.defaultGatewayId ?? null,
+    defaultGatewayId,
+    institutionDefault: {
+      via: "assignments",
+      gatewayId: defaultGatewayId,
+      provider:
+        gateways.find((g) => g.id === defaultGatewayId)?.provider ?? null,
+    },
     assignments: q.data?.assignments ?? [],
     source: "live",
     isLoading: q.isLoading,

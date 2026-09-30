@@ -28,8 +28,10 @@ import type {
 //   3. Otherwise re-read the same filters without majorProgramId (every
 //      page, ≤100 per request — the server's cap) and keep only the rows
 //      whose offering belongs to the major program, paging client-side.
-// Once the backend filters by the offering's owner, step 2 always passes and
-// this is a no-op. Result lists are per offering, so they're small.
+// B20.2 (bruno "Results Offerings - List", 2026-09-28): the backend now
+// filters by the offering's real owner and adds `majorProgramIds` to every
+// row, so step 2 passes and this is a no-op; the check stays as a guard for
+// an older deployment. Result lists are per offering, so they're small.
 // An offering missing from the offerings list (or a caller who can't read
 // it) is kept rather than guessed away: the server stays the authority.
 
@@ -41,6 +43,7 @@ const MAX_PAGES = 50
 interface OfferingOwnerIndex {
   owners: Map<number, number[]>
   semesterOf: Map<number, number>
+  sessionOf: Map<number, number>
 }
 
 type ListFilters = Omit<ResultSheetFilters, "page" | "limit">
@@ -56,11 +59,13 @@ async function loadOfferingOwners(
     })
     const owners = new Map<number, number[]>()
     const semesterOf = new Map<number, number>()
+    const sessionOf = new Map<number, number>()
     for (const o of res.data) {
       owners.set(o.id, o.major_program_ids)
       semesterOf.set(o.id, o.semester_id)
+      sessionOf.set(o.id, o.academic_session_id)
     }
-    return owners.size ? { owners, semesterOf } : null
+    return owners.size ? { owners, semesterOf, sessionOf } : null
   } catch (error) {
     // Not fatal: without the owners list the server's answer is used as is
     // (e.g. a role that can't list every offering).
@@ -83,12 +88,18 @@ function belongsTo(
 function expectsOfferings(
   index: OfferingOwnerIndex,
   majorProgramId: number,
-  semesterId: number | undefined
+  semesterId: number | undefined,
+  academicSessionId: number | undefined
 ): boolean {
   for (const [id, owners] of index.owners) {
     if (!owners.includes(majorProgramId)) continue
-    if (semesterId == null || index.semesterOf.get(id) === semesterId)
-      return true
+    if (semesterId != null && index.semesterOf.get(id) !== semesterId) continue
+    if (
+      academicSessionId != null &&
+      index.sessionOf.get(id) !== academicSessionId
+    )
+      continue
+    return true
   }
   return false
 }
@@ -99,11 +110,21 @@ function serverScopeHolds(
   total: number,
   filters: ListFilters & { majorProgramId: number }
 ): boolean {
-  if (rows.some((r) => !belongsTo(index, r.offeringId, filters.majorProgramId)))
-    return false
+  // A row's own `majorProgramIds` (B20.2) is the server's answer; the
+  // offerings list is only consulted for rows from an older server.
+  const owns = (r: ResultSheetSummary) =>
+    r.majorProgramIds && r.majorProgramIds.length > 0
+      ? r.majorProgramIds.includes(filters.majorProgramId)
+      : belongsTo(index, r.offeringId, filters.majorProgramId)
+  if (rows.some((r) => !owns(r))) return false
   return !(
     total === 0 &&
-    expectsOfferings(index, filters.majorProgramId, filters.semesterId)
+    expectsOfferings(
+      index,
+      filters.majorProgramId,
+      filters.semesterId,
+      filters.academicSessionId
+    )
   )
 }
 
@@ -136,6 +157,7 @@ function fetchAllSheets(
 function withoutMajorProgram(filters: ListFilters): ListFilters {
   return {
     semesterId: filters.semesterId,
+    academicSessionId: filters.academicSessionId,
     programId: filters.programId,
     departmentId: filters.departmentId,
     status: filters.status,
@@ -188,6 +210,7 @@ export async function fetchScopedOfferingIds(
 ): Promise<number[]> {
   const base: ListFilters = {
     semesterId: selection.semesterId,
+    academicSessionId: selection.academicSessionId,
     departmentId: selection.departmentId,
     programId: selection.programId,
   }

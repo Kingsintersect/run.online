@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import StatusBadge from "@/components/custom/StatusBadge"
 import EmptyState from "@/components/custom/EmptyState"
+import { AccountStatusBadge } from "@/modules/user-management/components/account-status-badge"
 import { useRoleDetail } from "../hooks/useRolesData"
 
 interface RoleDetailViewProps {
@@ -308,11 +309,7 @@ export default function RoleDetailView({ roleId }: RoleDetailViewProps) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadge
-                          label={user.is_active ? "Active" : "Inactive"}
-                          variant={user.is_active ? "success" : "destructive"}
-                          dot
-                        />
+                        <AccountStatusBadge user={user} />
                       </div>
                     </motion.div>
                   ))}

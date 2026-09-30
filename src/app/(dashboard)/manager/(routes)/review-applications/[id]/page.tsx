@@ -114,8 +114,10 @@ export default function ApplicationDetailPage() {
   const { options: sessionOptions } = useSessionOptions()
   const levels = levelsData?.data ?? []
 
-  // There's no real "does this application already have an offer" lookup
-  // endpoint (see admissionOfferApi.ts) — GET /admissions only filters by
+  // Primary signal: the application itself now embeds its offer as
+  // `admission` (bruno/admission/Applications - Get.bru, null until one
+  // exists) — used first below. The list lookup that follows is only the
+  // fallback for a response that predates that field. GET /admissions only filters by
   // sessionId/programId/status, not applicationId. Scoping the check to the
   // application's own program+session keeps it a bounded query instead of
   // fetching the entire admissions table, and covers every offer created the
@@ -149,11 +151,16 @@ export default function ApplicationDetailPage() {
         majorProgramId: applicationMajorProgramId ?? undefined,
         limit: 100,
       }),
-    enabled: application?.status === "approved" && !!applicationProgramId,
+    // Skipped once the embedded `admission` field answers the question.
+    enabled:
+      application?.status === "approved" &&
+      application.admission === undefined &&
+      !!applicationProgramId,
   })
   const [createdOffer, setCreatedOffer] = useState<AdmissionOffer | null>(null)
   const existingOffer =
     createdOffer ??
+    application?.admission ??
     offersForProgramSession?.data.find((o) => o.applicationId === Number(id))
 
   const createOfferForm = useForm<CreateAdmissionOfferFormValues>({
@@ -289,12 +296,13 @@ export default function ApplicationDetailPage() {
 
     setIsGeneratingNumber(true)
     try {
-      // Major-Program Scoping — sandbox/major-program-scoping/
-      // BACKEND_DEVIATIONS_2026-09-14.md A35. Best-effort, id-derived from
-      // the offer form's currently selected program.
+      // Deliberately NOT narrowed by majorProgramId: GET /admissions now
+      // really filters by it (bruno/admission/Admissions - List.bru,
+      // 2026-09-22), which would restart the count per major program and
+      // generate admission numbers that collide with another major
+      // program's — admissionNumber is unique institution-wide.
       const { meta } = await admissionOfferApi.list({
         sessionId,
-        majorProgramId: selectedOfferProgram?.majorProgramId ?? undefined,
         limit: 1,
       })
       const nextSequence = (meta?.total ?? 0) + 1

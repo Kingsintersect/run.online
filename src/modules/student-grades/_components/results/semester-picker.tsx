@@ -14,6 +14,11 @@ interface SemesterPickerProps {
   majorProgramId?: number | null
   /** Why the session field is locked, e.g. "Pick a major program first". */
   sessionDisabledReason?: string | null
+  /**
+   * The major program is SESSION-structured (B25): it has no semesters, so
+   * the semester field is shown disabled and the session alone is the term.
+   */
+  sessionBased?: boolean
 }
 
 // Real academic sessions/semesters (never the old mock SEMESTERS constant).
@@ -25,6 +30,7 @@ export function SemesterPicker({
   onSemesterChange,
   majorProgramId = null,
   sessionDisabledReason = null,
+  sessionBased = false,
 }: SemesterPickerProps) {
   // Each option names its major program ("2026/2027 — Part-Time
   // Programmes") — several programmes run identically named sessions — and
@@ -57,17 +63,23 @@ export function SemesterPicker({
         label="Semester"
         value={semesterId ? String(semesterId) : ""}
         onChange={(v) => onSemesterChange(toId(v))}
-        disabled={!sessionId}
+        disabled={!sessionId || sessionBased}
         placeholder={
-          !sessionId
-            ? "Pick a session first"
-            : loadingSemesters
-              ? "Loading…"
-              : semesters.length === 0
-                ? "No semesters in this session"
-                : "All semesters"
+          sessionBased
+            ? "Whole session (no semesters)"
+            : !sessionId
+              ? "Pick a session first"
+              : loadingSemesters
+                ? "Loading…"
+                : semesters.length === 0
+                  ? "No semesters in this session"
+                  : "All semesters"
         }
-        options={semesters.map((s) => ({ value: String(s.id), label: s.name }))}
+        options={
+          sessionBased
+            ? []
+            : semesters.map((s) => ({ value: String(s.id), label: s.name }))
+        }
       />
     </>
   )

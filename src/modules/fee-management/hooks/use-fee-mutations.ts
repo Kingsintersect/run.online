@@ -7,6 +7,7 @@ import { feeKeys } from "./query-keys"
 import type { CreateFeeTypeDto, WaiveInvoiceDto } from "../types"
 import { getErrorMessage } from "@/lib/errors"
 import { isEndpointMissing } from "@/modules/student-grades/lib/results-errors"
+import { resultsKeys } from "@/modules/student-grades/hooks/query-keys"
 
 export function useCreateFeeType() {
   const qc = useQueryClient()
@@ -67,7 +68,7 @@ export function useActivateFeeType() {
       // Invalidate the fee type record — polling in useGenerationStatus handles progress
       qc.invalidateQueries({ queryKey: feeKeys.feeType(id) })
       qc.invalidateQueries({ queryKey: feeKeys.feeTypesAll() })
-      toast.success("Fee type activated — invoice generation queued")
+      toast.success("Fee type activated — invoice generation started")
     },
     onError: (err) => {
       toast.error(
@@ -110,7 +111,12 @@ export function useWaiveInvoice() {
       // invoice refetches with its new WAIVED status.
       qc.invalidateQueries({ queryKey: feeKeys.invoicesAll() })
       qc.invalidateQueries({ queryKey: feeKeys.invoice(id) })
-      toast.success("Invoice waived")
+      // The server releases the student's fee-withheld results in the same
+      // request (bruno Invoices - Waive.bru, item 7).
+      qc.invalidateQueries({ queryKey: resultsKeys.resultStatusAll() })
+      toast.success(
+        "Invoice waived. Any results withheld for fees are released automatically."
+      )
     },
     onError: (err) => {
       toast.error(

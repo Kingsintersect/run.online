@@ -77,15 +77,6 @@ export function BulkCreateOffersDialog({
       new Map((programsRes?.data ?? []).map((p) => [p.id, p.programCategory])),
     [programsRes]
   )
-  // Major-Program Scoping — sandbox/major-program-scoping/
-  // BACKEND_DEVIATIONS_2026-09-14.md A35. Best-effort, id-derived (Program
-  // already carries a real majorProgramId; AdmissionOffer doesn't) — see
-  // admissionOfferApi.ts's note on AdmissionOfferQueryFilters.
-  const majorProgramIdByProgramId = useMemo(
-    () =>
-      new Map((programsRes?.data ?? []).map((p) => [p.id, p.majorProgramId])),
-    [programsRes]
-  )
 
   const [results, setResults] = useState<
     { applicationId: number; success: boolean; error?: string }[] | null
@@ -170,23 +161,13 @@ export function BulkCreateOffersDialog({
     const seqBySession = new Map<number, number>()
     await Promise.all(
       sessionIds.map(async (sessionId) => {
-        // Best-effort majorProgramId for this session's slice of the batch
-        // — every application in a single bulk action shares one program
-        // category (enforced above), but not necessarily one exact program,
-        // so this takes the first matching application's own program as a
-        // representative sample rather than a guaranteed-exact value.
-        const sampleApp = applications.find(
-          (a) => Number(a.admission_cycle_id) === sessionId
-        )
-        const majorProgramId = sampleApp
-          ? majorProgramIdByProgramId.get(
-              Number(sampleApp.program_choice.first_choice_program_id)
-            )
-          : undefined
         try {
+          // Not narrowed by majorProgramId: GET /admissions now really
+          // filters by it (Admissions - List.bru, 2026-09-22), which would
+          // restart the sequence per major program and collide on the
+          // institution-wide-unique admissionNumber.
           const { meta } = await admissionOfferApi.list({
             sessionId,
-            majorProgramId: majorProgramId ?? undefined,
             limit: 1,
           })
           seqBySession.set(sessionId, (meta?.total ?? 0) + 1)

@@ -15,6 +15,12 @@ export interface AcademicSession {
   // session to one MajorProgram, letting e.g. Undergraduate and Postgraduate
   // run independent calendars.
   majorProgramId?: number | null
+  // B24.4 (bruno/academic/Sessions - List.bru, 2026-09-28): set once the
+  // session is locked via the Progression module's
+  // POST /academic-sessions/:id/lock; null/absent = not locked. Optional
+  // because older responses omitted the keys entirely.
+  lockedAt?: string | null
+  lockedBy?: number | null
 }
 
 export interface Semester {
@@ -26,6 +32,10 @@ export interface Semester {
   endDate: string
   registrationStart?: string
   registrationEnd?: string
+  // B24.4 (bruno/academic/Semesters - List.bru, 2026-09-28): set when the
+  // semester itself, or its parent session, is locked. null/absent = open.
+  lockedAt?: string | null
+  lockedBy?: number | null
 }
 
 // Legacy mock-only shape used by the admissions "Requirements" screen
@@ -112,6 +122,11 @@ export interface Department {
   updatedAt: string
   programs?: Program[]
   lecturers?: DepartmentLecturer[]
+  // A25 (bruno/academic/Departments - *.bru, 2026-09-25): a Department can
+  // attach directly under a Major Program with no Faculty. When facultyId is
+  // set, the server derives majorProgramId from that faculty.
+  majorProgramId?: number | null
+  parentAcademicUnitId?: number | null
 }
 
 // Multi-structure refactor — see sandbox/schema-moodel-sync-refactor/README.md
@@ -165,12 +180,21 @@ export interface Program {
 // (who manages it, which calendar/fees/RBAC it scopes), not a structural
 // shape — see sandbox/major-program-scoping/README.md §2.1.
 
+// B25 (bruno/academic/Major Programs - *.bru, 2026-09-28). "SEMESTER" (the
+// default, every existing major program) or "SESSION" — a
+// Certificate/Foundational-style major program whose offerings run per
+// academic session with no semesters; the server manages one "Full Session"
+// semester per session behind the scenes.
+export type MajorProgramTermStructure = "SEMESTER" | "SESSION"
+
 export interface MajorProgram {
   id: number
   code: string
   name: string
   description: string | null
   isActive: boolean
+  // Optional: a missing key reads the same as "SEMESTER" (the server default).
+  termStructure?: MajorProgramTermStructure
   moodleRootCategoryId: number | null
   programCount?: number
   activeSessionId?: number | null
@@ -182,6 +206,7 @@ export interface CreateMajorProgramPayload {
   code: string
   name: string
   description?: string
+  termStructure?: MajorProgramTermStructure
 }
 
 export type UpdateMajorProgramPayload = Partial<CreateMajorProgramPayload> & {
@@ -354,6 +379,10 @@ export interface CreateDepartmentPayload {
   hodUserId?: number
   email?: string
   phoneNumber?: string
+  // A25 — see Department.majorProgramId. parentAcademicUnitId is mutually
+  // exclusive with facultyId (422 if both are sent).
+  majorProgramId?: number | null
+  parentAcademicUnitId?: number | null
 }
 
 export type UpdateDepartmentPayload = Partial<CreateDepartmentPayload> & {
@@ -377,6 +406,8 @@ export interface CreateProgramPayload {
   gradingSchemeId?: number | null
   // See MajorProgram note above.
   majorProgramId?: number | null
+  // See Program.entryLevelId (bruno/academic/Programs - Create.bru).
+  entryLevelId?: number | null
 }
 
 export type UpdateProgramPayload = Partial<CreateProgramPayload> & {
@@ -518,7 +549,11 @@ export interface CourseOfferingDetail extends CourseOffering {
 export interface CreateOfferingPayload {
   course_id: number
   academic_session_id: number
-  semester_id: number
+  // B25 (bruno/course/Offering - Create.bru, 2026-09-28): required only when
+  // the session belongs to a SEMESTER-structured major program. Omit it for a
+  // SESSION-structured one; the server resolves the session's auto-managed
+  // "Full Session" semester itself.
+  semester_id?: number
   max_capacity?: number
   status?: CourseOfferingStatus
 }

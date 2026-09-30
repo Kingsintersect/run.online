@@ -20,6 +20,8 @@ export const PROGRESSION_ERROR_MESSAGES: Record<ProgressionErrorCode, string> =
     OVERRIDE_REASON_REQUIRED: "Every override needs a reason.",
     CONFIRMATION_MISMATCH:
       "The session name you typed doesn't match the target session. Type it exactly as shown.",
+    INVALID_CREDIT_LOAD_RANGE:
+      "The minimum credit units per semester can't be more than the maximum.",
   }
 
 const NOT_AVAILABLE_MESSAGE =

@@ -68,6 +68,7 @@ import type {
   ResultSheetFilters,
   ResultSheetSummary,
   ResultStatus,
+  ResultTerm,
   SemesterSessionLink,
   RevertBody,
   SchemeGradeScale,
@@ -145,6 +146,7 @@ export async function live<T>(call: () => Promise<T>): Promise<Live<T>> {
 function sheetParams(f: ResultSheetFilters): Params {
   return {
     semesterId: f.semesterId,
+    academicSessionId: f.academicSessionId,
     majorProgramId: f.majorProgramId,
     programId: f.programId,
     departmentId: f.departmentId,
@@ -250,21 +252,29 @@ export const resultsApi = {
     sendNoContent("patch", `${R}/grades/${gradeId}/adjust`, body),
 
   // Publishing
+  // Exactly one of semesterId / academicSessionId (B25, 2026-09-28).
   getPublishPreview: (
-    semesterId: number,
+    term: ResultTerm,
     majorProgramId?: number
   ): Promise<PublishPreview> =>
     getOne(`${R}/publish/preview`, PublishPreviewSchema, {
-      semesterId,
+      ...(term.kind === "semester"
+        ? { semesterId: term.semesterId }
+        : { academicSessionId: term.academicSessionId }),
       majorProgramId,
     }),
+  // A SESSION-structured major program publishes by session: same body,
+  // permission and response as by semester (bruno "Grade - Publish (By
+  // Session)").
   publish: (
-    semesterId: number,
+    term: ResultTerm,
     body: PublishRequest
   ): Promise<PublishResultSummary> =>
     send(
       "post",
-      `${R}/grades/publish/${semesterId}`,
+      term.kind === "semester"
+        ? `${R}/grades/publish/${term.semesterId}`
+        : `${R}/grades/publish/session/${term.academicSessionId}`,
       PublishResultSchema,
       body
     ),

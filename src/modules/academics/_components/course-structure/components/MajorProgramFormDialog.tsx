@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -11,13 +11,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   useCreateMajorProgram,
   useUpdateMajorProgram,
 } from "@/hooks/useCourseStructure"
 import {
-  majorProgramSchema,
+  majorProgramFormSchema,
   type MajorProgramFormValues,
-} from "@/schemas/school.schema"
+} from "@/modules/academics/schemas"
 import type { MajorProgram } from "@/types/school"
 
 interface MajorProgramFormDialogProps {
@@ -38,13 +45,16 @@ export function MajorProgramFormDialog({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
   } = useForm<MajorProgramFormValues>({
-    resolver: zodResolver(majorProgramSchema),
-    defaultValues: { code: "", name: "" },
+    resolver: zodResolver(majorProgramFormSchema),
+    defaultValues: { code: "", name: "", termStructure: "SEMESTER" },
   })
+  const termStructure = useWatch({ control, name: "termStructure" })
+  const originalTermStructure = majorProgram?.termStructure ?? "SEMESTER"
 
   useEffect(() => {
     if (!open) return
@@ -52,6 +62,7 @@ export function MajorProgramFormDialog({
       code: majorProgram?.code ?? "",
       name: majorProgram?.name ?? "",
       description: majorProgram?.description ?? "",
+      termStructure: majorProgram?.termStructure ?? "SEMESTER",
     })
   }, [open, majorProgram, reset])
 
@@ -138,6 +149,50 @@ export function MajorProgramFormDialog({
             placeholder="Executive & degree programmes run by the Business School"
             {...register("description")}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="major-program-term-structure">Term structure</Label>
+          <Controller
+            control={control}
+            name="termStructure"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger
+                  id="major-program-term-structure"
+                  className="h-10 w-full"
+                  aria-describedby="major-program-term-structure-help"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SEMESTER">
+                    Semesters (sessions split into semesters)
+                  </SelectItem>
+                  <SelectItem value="SESSION">
+                    Full session (no semesters)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <p
+            id="major-program-term-structure-help"
+            className="text-xs text-muted-foreground"
+          >
+            {termStructure === "SESSION"
+              ? "Courses are offered for the whole academic session. There are no semesters to set up: the system keeps one automatic “Full Session” semester per session. Use this for Certificate or Foundational-style programmes."
+              : "Each academic session is split into semesters, and every course offering belongs to one semester. This is the usual setup for degree programmes."}
+          </p>
+          {isEditing && termStructure !== originalTermStructure && (
+            <p
+              role="note"
+              className="rounded-lg bg-amber-400/15 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400"
+            >
+              Changing the term structure changes how new course offerings and
+              Moodle result pulls work for this major program. Check its
+              existing sessions and offerings before saving.
+            </p>
+          )}
         </div>
       </div>
     </Modal>

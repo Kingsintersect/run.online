@@ -7,6 +7,9 @@ export type FeeCategory = z.infer<typeof Common.FeeCategorySchema>
 export type InvoiceStatus = z.infer<typeof Common.InvoiceStatusSchema>
 export type StudentType = z.infer<typeof Common.StudentTypeSchema>
 export type PaymentMethod = z.infer<typeof Common.PaymentMethodSchema>
+export type RecordedPaymentMethod = z.infer<
+  typeof Common.RecordedPaymentMethodSchema
+>
 export type PaymentStatus = z.infer<typeof Common.PaymentStatusSchema>
 
 // ── Fee Types ──────────────────────────────────────────────────────────────────
@@ -57,6 +60,13 @@ export type PaymentHistoryResponse = z.infer<
 export type PaymentDetail = z.infer<typeof Payment.PaymentDetailSchema>
 export type PaymentDetailResponse = z.infer<
   typeof Payment.PaymentDetailResponseSchema
+>
+export type GatewayLogEvent = z.infer<typeof Payment.GatewayLogEventSchema>
+export type PaymentGatewayLogs = z.infer<
+  typeof Payment.PaymentGatewayLogsSchema
+>
+export type PaymentGatewayLogsResponse = z.infer<
+  typeof Payment.PaymentGatewayLogsResponseSchema
 >
 
 // ── Reports ───────────────────────────────────────────────────────────────────

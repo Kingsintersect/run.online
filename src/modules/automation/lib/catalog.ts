@@ -23,7 +23,7 @@ export const AUTOMATION_CATALOG: AutomationCatalogEntry[] = [
     step: 2,
     name: "Release withheld results when fees are paid",
     today:
-      "A student who pays stays withheld until the semester is published again.",
+      "Already automatic on the server: a payment that clears the invoice, or a waiver, releases that student's withheld results. It just isn't listed in the automation registry yet.",
   },
   {
     key: "fees.invoice_resolve",

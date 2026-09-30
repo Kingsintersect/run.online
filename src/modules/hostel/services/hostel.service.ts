@@ -123,8 +123,8 @@ export const hostelService = {
   },
 
   // ── Allocations ──────────────────────────────────────────────────────────
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
-  // `majorProgramId` sent regardless; the frontend also filters client-side
+  // Major-Program Scoping — ?majorProgramId= live since 2026-09-22
+  // (Allocations - List.bru); the frontend also filters client-side
   // in allocation-table.tsx (via use-student-major-program-map.ts) so
   // results are correct either way. The Hostel/Block/Room structure above
   // has no program relationship at all (a physical facility, not program

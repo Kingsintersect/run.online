@@ -7,6 +7,7 @@ import type {
   AdjustmentQueueFilters,
   PullJobFilters,
   ResultScopeSelection,
+  ResultTerm,
   ResultSheetFilters,
 } from "../types"
 
@@ -98,8 +99,8 @@ export const resultsKeys = {
     [...resultsKeys.pullJobsAll(), filters] as const,
 
   publishPreviewAll: () => [...resultsKeys.all, "publish-preview"] as const,
-  publishPreview: (semesterId: number, majorProgramId: number | null) =>
-    [...resultsKeys.publishPreviewAll(), semesterId, majorProgramId] as const,
+  publishPreview: (term: ResultTerm, majorProgramId: number | null) =>
+    [...resultsKeys.publishPreviewAll(), term, majorProgramId] as const,
 
   schemesAll: () => [...resultsKeys.all, "schemes"] as const,
   schemes: (majorProgramId: number | null) =>

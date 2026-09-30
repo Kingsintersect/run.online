@@ -151,6 +151,14 @@ export function PromotionPolicyForm({
       if (error instanceof Error) {
         const e = toProgressionApiError(error)
         setServerError(e)
+        // B24.6: 422 INVALID_CREDIT_LOAD_RANGE (min > max, e.g. against a
+        // stored value this form didn't send) belongs on the minimum field.
+        if (e.code === "INVALID_CREDIT_LOAD_RANGE") {
+          form.setError("min_credit_units_per_semester", {
+            message: e.message,
+          })
+          return
+        }
         if (Object.keys(e.fieldErrors).length === 0) toast.error(e.message)
       }
     }

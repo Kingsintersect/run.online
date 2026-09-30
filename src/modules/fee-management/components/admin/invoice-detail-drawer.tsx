@@ -27,6 +27,7 @@ import { PaymentHistory } from "../shared/payment-history"
 import { WaiveInvoiceDialog } from "./waive-invoice-dialog"
 import { useCancelInvoice } from "../../hooks/use-fee-mutations"
 import { getInvoiceWaiver } from "../../lib/invoice-waiver"
+import { studentDisplayName } from "../../lib/invoice-student"
 import { StandingSummaryCompact } from "@/modules/progression/components/standing-summary-compact"
 import type { InvoiceResponse, FeeCategory } from "../../types"
 
@@ -156,7 +157,7 @@ export function InvoiceDetailDrawer({
                           Student
                         </dt>
                         <dd className="font-medium text-foreground">
-                          {invoice.student.fullName}
+                          {studentDisplayName(invoice.student) ?? "—"}
                         </dd>
                         <dd className="font-mono text-xs text-muted-foreground">
                           {invoice.student.matricNumber}

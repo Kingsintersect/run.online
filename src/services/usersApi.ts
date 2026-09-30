@@ -65,6 +65,10 @@ interface WireUserRef {
   phoneNumber: string | null
   avatar: string | null
   isActive: boolean
+  // Set once DELETE /users/:id has revoked this account's login (bruno/user/
+  // Users - Delete.bru, 2026-09-28). Documented on Users list/show; read
+  // defensively on nested user objects too.
+  deletedAt?: string | null
 }
 
 interface WireUser extends WireUserRef {
@@ -98,7 +102,10 @@ interface WireStudent {
   admissionDate: string
   graduationDate: string | null
   status: Student["status"]
-  currentCGPA: number | string | null
+  // StudentResource sends `currentCgpa` (bruno/user/Students - Show.bru);
+  // `currentCGPA` is kept as a fallback for older responses.
+  currentCgpa?: number | string | null
+  currentCGPA?: number | string | null
   dateOfBirth: string
   gender: Student["gender"]
   nationality: string
@@ -109,6 +116,7 @@ interface WireStudent {
   guardianName: string
   guardianPhone: string
   guardianEmail: string | null
+  guardianAddress?: string | null
   passportPhoto: string | null
   createdAt: string
   updatedAt: string
@@ -230,6 +238,7 @@ const mapUserRef = (u: WireUserRef): Student["user"] => ({
   phone_number: u.phoneNumber,
   avatar: u.avatar,
   is_active: u.isActive,
+  deleted_at: u.deletedAt ?? null,
 })
 
 const mapUser = (u: WireUser): User => ({
@@ -247,6 +256,7 @@ const mapUser = (u: WireUser): User => ({
   created_at: u.createdAt,
   updated_at: u.updatedAt ?? u.createdAt,
   roles: u.roles ?? [],
+  deleted_at: u.deletedAt ?? null,
 })
 
 const mapStudent = (s: WireStudent): Student => ({
@@ -276,7 +286,10 @@ const mapStudent = (s: WireStudent): Student => ({
   admission_date: s.admissionDate,
   graduation_date: s.graduationDate,
   status: s.status,
-  current_cgpa: s.currentCGPA != null ? Number(s.currentCGPA) : null,
+  current_cgpa: (() => {
+    const cgpa = s.currentCgpa ?? s.currentCGPA
+    return cgpa != null ? Number(cgpa) : null
+  })(),
   date_of_birth: s.dateOfBirth,
   gender: s.gender,
   nationality: s.nationality,
@@ -287,7 +300,8 @@ const mapStudent = (s: WireStudent): Student => ({
   guardian_name: s.guardianName,
   guardian_phone: s.guardianPhone,
   guardian_email: s.guardianEmail,
-  passport_photo: s.passportPhoto,
+  guardian_address: s.guardianAddress ?? null,
+  passport_photo: s.passportPhoto || null,
   created_at: s.createdAt,
   updated_at: s.updatedAt,
   user: mapUserRef(s.user),
@@ -451,6 +465,12 @@ export const usersApi = {
     return { data: mapStudent(res.data) }
   },
 
+  // PATCH /users/students/:id — Admin, Self. Only keys present on `payload`
+  // are sent (undefined values are dropped by JSON serialisation). Since
+  // 2026-09-28 a student updating their own record may only send contact,
+  // permanent-address, guardian and phone fields — anything else 403s with
+  // `FIELD_NOT_SELF_EDITABLE` — so self-service callers pass a
+  // `SelfUpdateStudentPayload` and never include level/mode/status.
   async updateStudent(
     id: number,
     payload: UpdateStudentPayload
@@ -462,6 +482,11 @@ export const usersApi = {
         modeOfStudy: payload.mode_of_study,
         status: payload.status,
         contactAddress: payload.contact_address,
+        permanentAddress: payload.permanent_address,
+        guardianName: payload.guardian_name,
+        guardianPhone: payload.guardian_phone,
+        guardianEmail: payload.guardian_email,
+        guardianAddress: payload.guardian_address,
         phoneNumber: payload.phone_number,
       },
       AUTH
@@ -887,6 +912,12 @@ export const usersApi = {
     const res = await apiClient.get<{
       data: {
         totalUsers: number
+        // Profile-table counts (Student/Lecturer/Staff rows), added
+        // 2026-09-14 per bruno/user/Users - Stats.bru. Preferred over the
+        // role-name counts in `byRole` when present.
+        totalStudents?: number
+        totalTutors?: number
+        totalStaff?: number
         activeUsers: number
         inactiveUsers?: number
         byRole?: Record<string, number>
@@ -905,9 +936,9 @@ export const usersApi = {
     return {
       data: {
         total_users: res.data.totalUsers,
-        total_students: byRole.student ?? 0,
-        total_tutors: byRole.tutor ?? 0,
-        total_staff: byRole.staff ?? 0,
+        total_students: res.data.totalStudents ?? byRole.student ?? 0,
+        total_tutors: res.data.totalTutors ?? byRole.tutor ?? 0,
+        total_staff: res.data.totalStaff ?? byRole.staff ?? 0,
         active_users: res.data.activeUsers,
         by_faculty: res.data.byFaculty?.map((f) => ({
           faculty_id: f.facultyId,
@@ -924,19 +955,28 @@ export const usersApi = {
 
   /* ── Eligible Roles (for staff creation) ──
    * Sourced from the real /auth/roles list, excluding roles assigned through their own
-   * dedicated flow (student via admission, tutor via "Add Tutor" above). */
+   * dedicated flow (student via admission, tutor via "Add Tutor" above).
+   * The roles table has no `slug` column (bruno/user/Users - List.bru), so the
+   * exclusion matches on `name`; `slug` is filled from the name for callers. The
+   * list is paginated (default 15), so every page is read. */
   async getStaffEligibleRoles(): Promise<ApiListResponse<EligibleRole>> {
-    const res = await apiClient.get<
-      ApiListResponse<{
-        id: number
-        name: string
-        slug: string
-        description: string | null
-      }>
-    >("/auth/roles", AUTH)
-    const eligible = res.data.filter(
-      (r) => r.slug !== "student" && r.slug !== "tutor"
-    )
+    const limit = 100
+    let page = 1
+    let all: { id: number; name: string; description: string | null }[] = []
+    for (;;) {
+      const res = await apiClient.get<{
+        data: { id: number; name: string; description: string | null }[]
+        meta?: { total?: number }
+      }>("/auth/roles", { ...AUTH, params: { page, limit } })
+      all = all.concat(res.data)
+      const total = res.meta?.total ?? all.length
+      if (all.length >= total || res.data.length === 0) break
+      page += 1
+    }
+    const excluded = new Set(["student", "tutor"])
+    const eligible = all
+      .filter((r) => !excluded.has(r.name.toLowerCase()))
+      .map((r) => ({ ...r, slug: r.name }))
     return { data: eligible, total: eligible.length }
   },
 

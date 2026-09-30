@@ -16,6 +16,7 @@ import type {
   VerifyPaymentResponse,
   PaymentHistoryResponse,
   PaymentDetailResponse,
+  PaymentGatewayLogsResponse,
   WaiveInvoiceDto,
 } from "../types"
 import { WaiveInvoiceDtoSchema } from "../schemas/invoice.schema"
@@ -26,6 +27,17 @@ import { WaiveInvoiceDtoSchema } from "../schemas/invoice.schema"
 // keep receiving the plain shape they already expect.
 const BASE = "/fees"
 const AUTH = { access_token: true } as const
+
+/**
+ * Fee type create/update: bruno's post-response script reads `res.body.id`
+ * (flat) while the rest of this module is `{ data }`-wrapped. Accept both so
+ * a redirect to the new fee type never lands on `/types/undefined`.
+ */
+function unwrapFeeType(
+  res: { data: FeeTypeResponse } | FeeTypeResponse
+): FeeTypeResponse {
+  return "data" in res ? res.data : res
+}
 
 export const feeManagementService = {
   // ── Fee Types ────────────────────────────────────────────────────────────────
@@ -58,21 +70,17 @@ export const feeManagementService = {
   },
 
   createFeeType: async (dto: CreateFeeTypeDto) => {
-    const res = await apiClient.post<{ data: FeeTypeResponse }>(
-      `${BASE}/types`,
-      dto,
-      AUTH
-    )
-    return res.data
+    const res = await apiClient.post<
+      { data: FeeTypeResponse } | FeeTypeResponse
+    >(`${BASE}/types`, dto, AUTH)
+    return unwrapFeeType(res)
   },
 
   updateFeeType: async (id: number, dto: Partial<CreateFeeTypeDto>) => {
-    const res = await apiClient.patch<{ data: FeeTypeResponse }>(
-      `${BASE}/types/${id}`,
-      dto,
-      AUTH
-    )
-    return res.data
+    const res = await apiClient.patch<
+      { data: FeeTypeResponse } | FeeTypeResponse
+    >(`${BASE}/types/${id}`, dto, AUTH)
+    return unwrapFeeType(res)
   },
 
   // Runs synchronously in this environment (no queue worker) — the response
@@ -90,11 +98,17 @@ export const feeManagementService = {
   deleteFeeType: (id: number) =>
     apiClient.delete<void>(`${BASE}/types/${id}`, AUTH),
 
-  getGenerationStatus: (id: number) =>
-    apiClient.get<GenerationStatusResponse>(
+  // `{ data: {...} }` per bruno (the bare typing here used to read every
+  // field off the envelope, so status/counts were always undefined).
+  getGenerationStatus: async (
+    id: number
+  ): Promise<GenerationStatusResponse> => {
+    const res = await apiClient.get<{ data: GenerationStatusResponse }>(
       `${BASE}/types/${id}/generation-status`,
       AUTH
-    ),
+    )
+    return res.data
+  },
 
   // Preview: estimated eligible student count for a given scope configuration.
   // No bruno/fee file confirms this endpoint — left path-corrected and
@@ -183,6 +197,8 @@ export const feeManagementService = {
   // /fees, which the contract says to keep. Validated before dispatch
   // (CLAUDE.md §4). A 404 "route could not be found" here means the server
   // doesn't expose it; the dialog reports that via isEndpointMissing().
+  // Waiving also auto-releases the student's fee-withheld results
+  // server-side (bruno backend brief item 7, 2026-09-28).
   waiveInvoice: (id: number, dto: WaiveInvoiceDto) =>
     apiClient.post<void>(
       `${BASE}/invoices/${id}/waive`,
@@ -226,6 +242,13 @@ export const feeManagementService = {
   // record with whatever gateway / verification detail the backend attaches.
   getPayment: (paymentId: number) =>
     apiClient.get<PaymentDetailResponse>(`${BASE}/payments/${paymentId}`, AUTH),
+
+  // GET /fees/payments/:id/gateway-logs — Admin or the paying student.
+  getPaymentGatewayLogs: (paymentId: number) =>
+    apiClient.get<PaymentGatewayLogsResponse>(
+      `${BASE}/payments/${paymentId}/gateway-logs`,
+      AUTH
+    ),
 
   // ── Reports ─────────────────────────────────────────────────────────────────
 

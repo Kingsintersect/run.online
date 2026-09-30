@@ -2,6 +2,7 @@ import { z } from "zod"
 import apiClient, { ApiClientError } from "@/lib/clients/apiClient"
 import { settingsApi, type SafeSetting } from "@/services/configurationApi"
 import {
+  ActiveGatewayResponseSchema,
   AssignmentHistorySchema,
   CreateGatewayPayloadSchema,
   GatewayAssignmentsSchema,
@@ -9,17 +10,20 @@ import {
   GatewayTestResultSchema,
   PaymentGatewayListSchema,
   PaymentGatewaySchema,
+  UpdateActiveGatewayPayloadSchema,
   UpdateAssignmentPayloadSchema,
   UpdateDefaultGatewayPayloadSchema,
   UpdateGatewayPayloadSchema,
 } from "../schemas"
 import type {
+  ActiveGatewayProvider,
   AssignmentHistoryEntry,
   CreateGatewayPayload,
   GatewayAssignments,
   GatewayProvider,
   GatewayTestResult,
   PaymentGateway,
+  UpdateActiveGatewayPayload,
   UpdateAssignmentPayload,
   UpdateDefaultGatewayPayload,
   UpdateGatewayPayload,
@@ -27,8 +31,8 @@ import type {
 import { FALLBACK_PROVIDER_CATALOG } from "../lib/provider-catalog"
 import { providerSettingRows, settingKeyFor } from "../lib/settings-derivation"
 
-// sandbox/payment-routing API_CONTRACTS §1–§3. Every route below is proposed
-// and not built yet. Reads return null while the route is missing so the
+// sandbox/payment-routing API_CONTRACTS §1–§3. Every /payments/* route below
+// is proposed and not built yet; `/fees/gateway` is the one live route. Reads return null while the route is missing so the
 // hooks can fall back (CLAUDE.md §14); writes throw, except gateway
 // create/update, which write through the real Settings API while the gateway
 // routes are missing — that is where the server reads credentials today.
@@ -253,6 +257,37 @@ export const paymentGatewaysService = {
       { data: GatewayAssignments },
       UpdateDefaultGatewayPayload
     >("/payments/gateway-assignments/default", body, AUTH)
+  },
+
+  /**
+   * Live: `GET /fees/gateway`, the institution-wide gateway every NEW payment
+   * uses today (bruno/fee/Payments - Active Gateway - Get.bru). Null if the
+   * route is missing on this deployment.
+   */
+  getActiveGateway(): Promise<ActiveGatewayProvider | null> {
+    return orNullWhenMissing(async () => {
+      const res = await apiClient.get<{ data: { activeGateway: string } }>(
+        "/fees/gateway",
+        AUTH
+      )
+      return ActiveGatewayResponseSchema.parse(res).data.activeGateway
+    })
+  },
+
+  /**
+   * Live: `PATCH /fees/gateway` (super_admin only, 422 on anything but
+   * credo/fcmb). Affects new payments only; in-flight payments keep
+   * verifying on the gateway they started on.
+   */
+  async setActiveGateway(
+    payload: UpdateActiveGatewayPayload
+  ): Promise<ActiveGatewayProvider> {
+    const body = UpdateActiveGatewayPayloadSchema.parse(payload)
+    const res = await apiClient.patch<
+      { data: { activeGateway: string } },
+      UpdateActiveGatewayPayload
+    >("/fees/gateway", body, AUTH)
+    return ActiveGatewayResponseSchema.parse(res).data.activeGateway
   },
 
   /** §3 history, or null while the route is missing. */

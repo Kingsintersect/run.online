@@ -101,12 +101,14 @@ export const systemMonitoringApi = {
 // contract (sandbox/payment-secrets/API_CONTRACTS.md §1) has the server
 // return `{ isSecret: true, isSet, maskedValue, value: null }` for these and
 // only ever hand out the full value from the password-checked reveal
-// endpoint. Until then `GET /configuration/settings` still returns every
-// value in plain text, so every setting read below goes through
-// `toSafeSetting()` here, in the service layer: for a secret the raw value is
-// dropped (replaced by a client-computed mask) before it can reach the React
-// Query cache, a component, the DOM or the clipboard. It is still in the
-// network response itself, which only the backend can fix.
+// endpoint. Since 2026-09-28 (bruno/configuration/Settings - List.bru,
+// backend brief item 0) the server masks every key matching
+// /secret|password|token|private_key|gateway_key/i on list/show/by-key/
+// create/update: `value: null` plus `isSecret`, `isSet`, `maskedValue`. Every
+// read below still goes through `toSafeSetting()` as a second line of
+// defence: the server's flags win (a null value with `isSet: true` stays
+// "set"), and a secret the server didn't mask is masked client-side before it
+// can reach the React Query cache, a component, the DOM or the clipboard.
 
 /** Key fragments that mark a setting as secret when the server has no flag. */
 // `token` also catches webhook tokens (e.g. `credo_webhook_token`, found in

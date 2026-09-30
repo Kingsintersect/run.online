@@ -1,5 +1,6 @@
 import type { z } from "zod"
 import type {
+  ActiveGatewayProviderSchema,
   AssignmentFormSchema,
   AssignmentHistoryEntrySchema,
   CreateGatewayPayloadSchema,
@@ -13,10 +14,16 @@ import type {
   GatewayProviderSchema,
   GatewayTestResultSchema,
   PaymentGatewaySchema,
+  UpdateActiveGatewayPayloadSchema,
   UpdateAssignmentPayloadSchema,
   UpdateDefaultGatewayPayloadSchema,
   UpdateGatewayPayloadSchema,
 } from "../schemas"
+
+export type ActiveGatewayProvider = z.infer<typeof ActiveGatewayProviderSchema>
+export type UpdateActiveGatewayPayload = z.infer<
+  typeof UpdateActiveGatewayPayloadSchema
+>
 
 export type CredentialField = z.infer<typeof CredentialFieldSchema>
 export type GatewayProvider = z.infer<typeof GatewayProviderSchema>
@@ -51,4 +58,18 @@ export type DataSource = "live" | "fallback"
 export interface Sourced<T> {
   source: DataSource
   data: T
+}
+
+/**
+ * The institution default gateway, whichever API supplied it.
+ * "assignments": the proposed `/payments/gateway-assignments` (wins when it
+ * exists). "active-gateway": the live `GET /fees/gateway` switch. null: the
+ * server told us neither.
+ */
+export interface InstitutionDefaultGateway {
+  via: "assignments" | "active-gateway" | null
+  /** Gateway id; null when unset or only a provider is known. */
+  gatewayId: number | null
+  /** Provider slug (`credo`, `fcmb`, …) when known. */
+  provider: string | null
 }

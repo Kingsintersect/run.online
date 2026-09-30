@@ -5,6 +5,7 @@ import type { SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import Modal from "@/components/custom/Modal"
 import {
   Select,
@@ -18,6 +19,11 @@ import { Button } from "@/components/ui/button"
 import { CreateEnrollmentSchema } from "../schemas"
 import type { CreateEnrollmentDto } from "../types"
 import { useCreateEnrollment } from "../hooks/use-enrollment-mutations"
+import {
+  ENROLLMENT_INVOICE_NOTE,
+  enrollmentErrorCodeOf,
+  enrollmentErrorMessage,
+} from "../lib/enrollment-errors"
 import { usersQueryOptions } from "@/services/usersApi"
 import { courseOfferingQueryOptions } from "@/services/courseOfferingApi"
 import { useAcademicCalendar } from "@/modules/timetable/hooks/useAcademicCalendar"
@@ -62,11 +68,16 @@ export function EnrollStudentDialog({
   const onSubmit: SubmitHandler<CreateEnrollmentDto> = (dto) => {
     createMutation.mutate(dto, {
       onSuccess: () => {
+        toast.success("Student enrolled.", {
+          description: ENROLLMENT_INVOICE_NOTE,
+        })
         reset()
         onClose()
       },
     })
   }
+
+  const errorCode = enrollmentErrorCodeOf(createMutation.error)
 
   return (
     <Modal
@@ -77,10 +88,19 @@ export function EnrollStudentDialog({
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-5">
         {createMutation.isError && (
-          <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-            {createMutation.error?.status === 409
-              ? "This student is already enrolled in that offering."
-              : (createMutation.error?.message ?? "Failed to enroll student.")}
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive dark:border-destructive/40"
+          >
+            {enrollmentErrorMessage(
+              errorCode,
+              createMutation.error?.message ?? "Failed to enroll student."
+            )}
+            {errorCode && (
+              <span className="ml-1 font-mono text-[10px] opacity-70">
+                ({errorCode})
+              </span>
+            )}
           </p>
         )}
 

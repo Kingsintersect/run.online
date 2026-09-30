@@ -14,6 +14,7 @@ import {
   WAIVE_NOT_AVAILABLE_MESSAGE,
 } from "../../hooks/use-fee-mutations"
 import { isEndpointMissing } from "@/modules/student-grades/lib/results-errors"
+import { studentDisplayName } from "../../lib/invoice-student"
 import type { InvoiceResponse, WaiveInvoiceDto } from "../../types"
 
 interface WaiveInvoiceDialogProps {
@@ -112,7 +113,9 @@ export function WaiveInvoiceDialog({
 
         <p className="text-sm text-muted-foreground">
           The invoice will be marked Waived and the student will no longer owe
-          its remaining balance. This is recorded against your name.
+          its remaining balance. This is recorded against your name. Any of the
+          student&apos;s results withheld for unpaid fees are released
+          automatically; no re-publish is needed.
         </p>
 
         {/* Amount being waived */}
@@ -120,7 +123,7 @@ export function WaiveInvoiceDialog({
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Student</span>
             <span className="font-medium">
-              {invoice.student?.fullName ?? "—"}
+              {studentDisplayName(invoice.student) ?? "—"}
             </span>
           </div>
           <div className="mt-1.5 flex items-center justify-between">
