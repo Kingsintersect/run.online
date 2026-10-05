@@ -9,7 +9,7 @@ import {
   useUpdateSettlementAccount,
 } from "../hooks/use-settlement-mutations"
 import type { SettlementProgramOption } from "../hooks/use-settlement-programs"
-import { isAccountInSplitRule } from "../services/settlement-accounts.service"
+import { classifySettlementError } from "../lib/settlement-errors"
 import type { SettlementAccount } from "../types"
 import { AddSettlementAccountDialog } from "./add-settlement-account-dialog"
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog"
@@ -34,15 +34,40 @@ export function SettlementAccountsTab({
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<SettlementAccount | null>(null)
   const [deleting, setDeleting] = useState<SettlementAccount | null>(null)
+  /** Inline error under one card's Active switch (e.g. 409 ACCOUNT_IN_SPLIT_RULE). */
+  const [toggleError, setToggleError] = useState<{
+    accountId: number
+    message: string
+  } | null>(null)
 
-  const deleteError =
-    remove.error && isAccountInSplitRule(remove.error)
-      ? "This account is used in a split rule. Remove it from every split rule (or delete those rules) first, or deactivate the account instead."
-      : null
+  // 409 ACCOUNT_IN_SPLIT_RULE (with the rule count), 403, … shown inline;
+  // the dialog stays open.
+  const deleteError = remove.error
+    ? classifySettlementError(remove.error, "delete-account").message
+    : null
 
   function openDelete(account: SettlementAccount) {
     remove.reset()
     setDeleting(account)
+  }
+
+  function toggleActive(account: SettlementAccount, isActive: boolean) {
+    setToggleError(null)
+    // No optimistic update: the switch is bound to the cached account, so on
+    // failure it simply stays where it was (reverted).
+    update.mutate(
+      { id: account.id, payload: { isActive } },
+      {
+        onError: (error) =>
+          setToggleError({
+            accountId: account.id,
+            message: classifySettlementError(
+              error,
+              isActive ? "update-account" : "deactivate-account"
+            ).message,
+          }),
+      }
+    )
   }
 
   return (
@@ -89,9 +114,13 @@ export function SettlementAccountsTab({
               isToggling={
                 update.isPending && update.variables?.id === account.id
               }
-              onToggleActive={(isActive) =>
-                update.mutate({ id: account.id, payload: { isActive } })
+              onToggleActive={(isActive) => toggleActive(account, isActive)}
+              toggleError={
+                toggleError?.accountId === account.id
+                  ? toggleError.message
+                  : null
               }
+              onDismissToggleError={() => setToggleError(null)}
             />
           ))}
         </div>

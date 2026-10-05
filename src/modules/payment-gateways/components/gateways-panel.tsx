@@ -15,8 +15,14 @@ import {
   useTestPaymentGateway,
   useUpdatePaymentGateway,
 } from "../hooks/use-payment-gateway-mutations"
+import {
+  parseGatewayError,
+  testErrorMessage,
+  toggleErrorMessage,
+} from "../lib/gateway-errors"
+import { providerName } from "../lib/provider-catalog"
 import type { PaymentGateway } from "../types"
-import { GatewayCard } from "./gateway-card"
+import { GatewayCard, type GatewayCardError } from "./gateway-card"
 import { GatewayFormDialog } from "./gateway-form-dialog"
 import { DeleteGatewayDialog } from "./delete-gateway-dialog"
 import { CardGridSkeleton, ErrorState, FallbackNotice } from "./panel-states"
@@ -35,6 +41,13 @@ export function GatewaysPanel() {
   const [deleting, setDeleting] = useState<PaymentGateway | null>(null)
   const [testingId, setTestingId] = useState<number | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
+  // One inline error per card (Enabled switch / Test connection), shown on
+  // the card itself rather than as a toast.
+  const [cardErrors, setCardErrors] = useState<
+    Record<number, GatewayCardError | undefined>
+  >({})
+  const setCardError = (id: number, error: GatewayCardError | null) =>
+    setCardErrors((prev) => ({ ...prev, [id]: error ?? undefined }))
 
   const isFallback = source === "fallback"
   const configuredProviders = gateways.map((g) => g.provider)
@@ -77,6 +90,7 @@ export function GatewaysPanel() {
 
   const runTest = (gw: PaymentGateway) => {
     setTestingId(gw.id)
+    setCardError(gw.id, null)
     test.mutate(gw.id, {
       onSuccess: (r) =>
         r.status === "OK"
@@ -84,19 +98,32 @@ export function GatewaysPanel() {
           : toast.error(
               `${gw.displayName}: connection failed${r.message ? ` (${r.message})` : ""}`
             ),
-      onError: (err) => toast.error(err.message),
+      // 422 GATEWAY_NOT_SUPPORTED, 429 rate limit (6/min), …
+      onError: (err) =>
+        setCardError(gw.id, {
+          message: testErrorMessage(err, providerName(providers, gw.provider)),
+          inUse: null,
+        }),
       onSettled: () => setTestingId(null),
     })
   }
 
   const setEnabled = (gw: PaymentGateway, next: boolean) => {
     setTogglingId(gw.id)
+    setCardError(gw.id, null)
     toggle.mutate(
       { id: gw.id, provider: gw.provider, payload: { isEnabled: next } },
       {
         onSuccess: () =>
           toast.success(`${gw.displayName} ${next ? "enabled" : "disabled"}`),
-        onError: (err) => toast.error(err.message),
+        // 409 GATEWAY_IN_USE (disable while assigned) lists what uses it;
+        // 422 (re-enable with incomplete credentials) shows the server's
+        // reason.
+        onError: (err) =>
+          setCardError(gw.id, {
+            message: toggleErrorMessage(err, next),
+            inUse: parseGatewayError(err).inUse,
+          }),
         onSettled: () => setTogglingId(null),
       }
     )
@@ -157,7 +184,7 @@ export function GatewaysPanel() {
           title="No payment gateways yet"
           description={
             isFallback
-              ? "No credo_, fcmb_ or flutterwave_ keys were found in Settings. Add a gateway to store its credentials."
+              ? "No credo_ or fcmb_ keys were found in Settings. Add a gateway to store its credentials."
               : "Add a gateway to start taking payments through it."
           }
           action={
@@ -187,6 +214,8 @@ export function GatewaysPanel() {
               onTest={() => runTest(gw)}
               onDelete={() => setDeleting(gw)}
               onToggleEnabled={(next) => setEnabled(gw, next)}
+              error={cardErrors[gw.id] ?? null}
+              onDismissError={() => setCardError(gw.id, null)}
             />
           ))}
         </div>

@@ -11,6 +11,7 @@ import type {
   GatewayEnvironmentSchema,
   GatewayFormBaseSchema,
   GatewayHealthStatusSchema,
+  GatewayInUseDetailsSchema,
   GatewayProviderSchema,
   GatewayTestResultSchema,
   PaymentGatewaySchema,
@@ -73,3 +74,5 @@ export interface InstitutionDefaultGateway {
   /** Provider slug (`credo`, `fcmb`, …) when known. */
   provider: string | null
 }
+
+export type GatewayInUseDetails = z.infer<typeof GatewayInUseDetailsSchema>

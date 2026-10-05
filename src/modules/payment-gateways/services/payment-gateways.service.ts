@@ -1,4 +1,3 @@
-import { z } from "zod"
 import apiClient, { ApiClientError } from "@/lib/clients/apiClient"
 import { settingsApi, type SafeSetting } from "@/services/configurationApi"
 import {
@@ -28,7 +27,10 @@ import type {
   UpdateDefaultGatewayPayload,
   UpdateGatewayPayload,
 } from "../types"
-import { FALLBACK_PROVIDER_CATALOG } from "../lib/provider-catalog"
+import {
+  FALLBACK_PROVIDER_CATALOG,
+  isEnabledProvider,
+} from "../lib/provider-catalog"
 import { providerSettingRows, settingKeyFor } from "../lib/settings-derivation"
 
 // sandbox/payment-routing API_CONTRACTS §1–§3. Every /payments/* route below
@@ -47,19 +49,6 @@ export function isRouteMissing(error: Error | null): boolean {
     (error.status === 404 &&
       /^The route .+ could not be found/i.test(error.message))
   )
-}
-
-const ErrorBodySchema = z.object({
-  code: z.string().optional(),
-  message: z.string().optional(),
-})
-
-/** 409 GATEWAY_IN_USE from `DELETE /payments/gateways/{id}`. */
-export function isGatewayInUse(error: Error | null): boolean {
-  if (!(error instanceof ApiClientError) || error.status !== 409) return false
-  const body = ErrorBodySchema.safeParse(error.data)
-  const code = body.success ? body.data.code : undefined
-  return code === "GATEWAY_IN_USE" || /GATEWAY_IN_USE/.test(error.message)
 }
 
 async function orNullWhenMissing<T>(load: () => Promise<T>): Promise<T | null> {
@@ -120,39 +109,57 @@ async function writeCredentialsToSettings(
   }
 }
 
+/**
+ * Drops blank credentials (a blank secret means "keep the current value").
+ * `clearKeys` are plain fields the admin deliberately emptied: the live PATCH
+ * sends them as `""`, which the server treats as "clear this field"
+ * (bruno/payment-routing/Gateways - Update.bru).
+ */
 function withoutBlankCredentials(
-  credentials: Record<string, string> | undefined
+  credentials: Record<string, string> | undefined,
+  clearKeys: readonly string[] = []
 ): Record<string, string> | undefined {
   if (!credentials) return undefined
   return Object.fromEntries(
     Object.entries(credentials)
       .map(([k, v]) => [k, v.trim()] as const)
-      .filter(([, v]) => v !== "")
+      .filter(([k, v]) => v !== "" || clearKeys.includes(k))
   )
 }
 
 // ── Service ─────────────────────────────────────────────────────────
 
 export const paymentGatewaysService = {
-  /** §1: provider catalog, or null while the route is missing. */
+  /**
+   * §1: provider catalog, or null while the route is missing. Limited to
+   * ENABLED_PROVIDERS: the server's catalog also lists providers this
+   * deployment doesn't use.
+   */
   listProviders(): Promise<GatewayProvider[] | null> {
     return orNullWhenMissing(async () => {
       const res = await apiClient.get<{ data: GatewayProvider[] }>(
         "/payments/gateway-providers",
         AUTH
       )
-      return GatewayProviderListSchema.parse(res.data)
+      return GatewayProviderListSchema.parse(res.data).filter((p) =>
+        isEnabledProvider(p.provider)
+      )
     })
   },
 
-  /** §2: configured gateways, or null while the route is missing. */
+  /**
+   * §2: configured gateways, or null while the route is missing. Limited to
+   * ENABLED_PROVIDERS, like the catalog.
+   */
   listGateways(): Promise<PaymentGateway[] | null> {
     return orNullWhenMissing(async () => {
       const res = await apiClient.get<{ data: PaymentGateway[] }>(
         "/payments/gateways",
         AUTH
       )
-      return PaymentGatewayListSchema.parse(res.data)
+      return PaymentGatewayListSchema.parse(res.data).filter((g) =>
+        isEnabledProvider(g.provider)
+      )
     })
   },
 
@@ -190,22 +197,28 @@ export const paymentGatewaysService = {
 
   /**
    * §2 update. A negative id is a gateway derived from Settings: its
-   * credentials are written straight to those rows. Blank secrets are dropped
-   * so the server keeps the current value.
+   * credentials are written straight to those rows, blanks skipped. Blank
+   * secrets are always dropped so the server keeps the current value;
+   * `clearKeys` (plain fields the admin emptied) go to the live API as "".
    */
   async updateGateway(
     id: number,
     provider: string,
-    payload: UpdateGatewayPayload
+    payload: UpdateGatewayPayload,
+    clearKeys: readonly string[] = []
   ): Promise<PaymentGateway | null> {
-    const body = UpdateGatewayPayloadSchema.parse({
-      ...payload,
-      credentials: withoutBlankCredentials(payload.credentials),
-    })
     if (id < 0) {
+      const body = UpdateGatewayPayloadSchema.parse({
+        ...payload,
+        credentials: withoutBlankCredentials(payload.credentials),
+      })
       await writeCredentialsToSettings(provider, body.credentials ?? {})
       return null
     }
+    const body = UpdateGatewayPayloadSchema.parse({
+      ...payload,
+      credentials: withoutBlankCredentials(payload.credentials, clearKeys),
+    })
     const res = await apiClient.patch<
       { data: PaymentGateway },
       UpdateGatewayPayload
@@ -213,7 +226,10 @@ export const paymentGatewaysService = {
     return PaymentGatewaySchema.parse(res.data)
   },
 
-  /** §2 delete. 409 GATEWAY_IN_USE when assigned or holding PENDING payments. */
+  /**
+   * §2 delete. 409 GATEWAY_IN_USE when assigned or holding PENDING payments
+   * (lib/gateway-errors.ts reads its details).
+   */
   async deleteGateway(id: number): Promise<void> {
     await apiClient.delete<void>(`/payments/gateways/${id}`, AUTH)
   },
@@ -276,8 +292,13 @@ export const paymentGatewaysService = {
 
   /**
    * Live: `PATCH /fees/gateway` (super_admin only, 422 on anything but
-   * credo/fcmb). Affects new payments only; in-flight payments keep
-   * verifying on the gateway they started on.
+   * credo/fcmb). Fallback only: once the assignments API answers, the default
+   * is set with `updateDefault()` instead. After migration this route bridges
+   * to the new default and 409s when the provider matches zero or several
+   * enabled gateway rows (bruno/fee/Payments - Active Gateway - Update.bru).
+   * Affects new payments only; in-flight payments keep
+   * verifying on the gateway they started on. Body `{ gateway, reason }`:
+   * the reason goes to the audit log when the gateway actually changes.
    */
   async setActiveGateway(
     payload: UpdateActiveGatewayPayload

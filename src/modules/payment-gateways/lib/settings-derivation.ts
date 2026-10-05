@@ -10,16 +10,16 @@ import type {
 
 // Fallback for `GET /payments/gateways` (sandbox/payment-routing
 // API_CONTRACTS §2): one "legacy" gateway per provider whose credentials are
-// found in the Settings table today, keyed by prefix (`credo_*`, `fcmb_*`,
-// `flutterwave_*`). Settings reach this file already through
+// found in the Settings table today, keyed by prefix (`credo_*`, `fcmb_*`).
+// Settings reach this file already through
 // `toSafeSetting()`, and any field the catalog marks secret is masked here
 // too, so a raw secret never gets further than the service layer.
 
 /** The one webhook route every gateway posts to today. */
 export const LEGACY_WEBHOOK_URL = `${API_BASE_URL}/fees/payments/webhook`
 
-/** `sk_test_…`, `pk_test_…`, `FLWSECK_TEST-…` mark a test key. */
-const TEST_KEY = /^(?:sk|pk)_test_|_TEST-/i
+/** `sk_test_…` and `pk_test_…` mark a test key. */
+const TEST_KEY = /^(?:sk|pk)_test_/i
 /** A sandbox API host (e.g. `api.credodemo.com`, `dev.clnx.io`) also marks TEST. */
 const TEST_HOST = /^https?:\/\/[^/]*(?:demo|sandbox|staging|\btest|\bdev\.)/i
 
@@ -81,8 +81,8 @@ function toCredential(
       value: null,
     }
   }
-  // The catalog calls it secret but the key heuristic didn't (e.g.
-  // `flutterwave_encryption_key`): mask it here instead.
+  // The catalog calls it secret but the key heuristic didn't: mask it here
+  // instead.
   const plain = row.value ?? ""
   return {
     field: field.field,

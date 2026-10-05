@@ -321,7 +321,10 @@ export const PromotionRunSchema = z.object({
   id: z.number(),
   major_program: IdNameSchema,
   source_session: IdNameSchema,
-  target_session: IdNameSchema,
+  // B30 item 12 (2026-09-29): null for a SESSION-structured major program's
+  // final session, created without a target. `.optional()` too, so a
+  // response that drops the key parses the same way.
+  target_session: IdNameSchema.nullable().optional(),
   // B26 (2026-09-28): the choice the run was created with. Optional so an
   // older response without the key still parses.
   missing_grades: z.enum(["CARRYOVER"]).nullable().optional(),
@@ -349,15 +352,31 @@ export const PromotionRunFiltersSchema = z.object({
   per_page: z.number().int().positive().max(100).optional(),
 })
 
+// B30 item 12 (2026-09-29): `target_session_id` may be omitted ONLY for a
+// SESSION-structured major program (its final session has no next one); it
+// stays required for every SEMESTER program. The wire schema can't know the
+// program's term structure, so `createPromotionRunPayloadSchema()` below adds
+// that rule for the form; the server re-checks (422) either way.
 export const CreatePromotionRunPayloadSchema = z.object({
   major_program_id: z.number().int().positive(),
   source_session_id: z.number().int().positive(),
-  target_session_id: z.number().int().positive(),
+  target_session_id: z.number().int().positive().optional(),
   // B26 (live 2026-09-28): start the run even though some students have no
   // grade; GRADES_MISSING becomes a warning and each ungraded course is
   // carried over as MISSING_GRADE. Every other blocker still refuses.
   missing_grades: z.enum(["CARRYOVER"]).optional(),
 })
+
+/** The create payload, with the target required unless `sessionBased`. */
+export function createPromotionRunPayloadSchema(sessionBased: boolean) {
+  return CreatePromotionRunPayloadSchema.refine(
+    (v) => sessionBased || v.target_session_id != null,
+    {
+      path: ["target_session_id"],
+      message: "Choose the session students move into",
+    }
+  )
+}
 
 // ─── PromotionRunItem ─────────────────────────────────────────────────────────
 

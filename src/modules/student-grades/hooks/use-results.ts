@@ -83,6 +83,49 @@ export function useResultSheet(offeringId: number) {
   })
 }
 
+export interface SheetSemesterLock {
+  /** True when the offering's semester is known to be locked. */
+  locked: boolean
+  /** ISO lock time, or null when unlocked or not known. */
+  lockedAt: string | null
+}
+
+/**
+ * Whether a sheet's semester is locked (B30 item 13). One interface either
+ * way: the sheet summary's own `semesterLockedAt` when the server sends it,
+ * otherwise the same offering's row from GET /results/offerings (one
+ * request, searched by course code in the same semester). Unknown reads as
+ * unlocked; the server's 423 SEMESTER_LOCKED stays the backstop.
+ */
+export function useSheetSemesterLock(
+  summary: ResultSheetSummary | null
+): SheetSemesterLock {
+  const own = summary?.semesterLockedAt
+  const needsList = summary != null && own === undefined
+  const offeringId = summary?.offeringId ?? 0
+  const listRow = useQuery({
+    ...createApiQueryOptions({
+      queryKey: resultsKeys.sheetListRow(offeringId),
+      queryFn: async (): Promise<string | null> => {
+        if (!summary) return null
+        const page = await resultsApi.listSheets({
+          search: summary.courseCode,
+          semesterId: summary.semesterId,
+          page: 1,
+          limit: 50,
+        })
+        const row = page.data.find((r) => r.offeringId === offeringId)
+        return row?.semesterLockedAt ?? null
+      },
+    }),
+    enabled: needsList && offeringId > 0,
+    staleTime: 30 * 1000,
+    retry: false,
+  })
+  const lockedAt = needsList ? (listRow.data ?? null) : (own ?? null)
+  return { locked: lockedAt != null, lockedAt }
+}
+
 export function useGradeItems(offeringId: number, enabled = true) {
   return useQuery({
     ...createApiQueryOptions({

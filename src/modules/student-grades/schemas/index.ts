@@ -66,6 +66,12 @@ export const ResultSheetSummarySchema = z.object({
   creditUnits: z.number(),
   semesterId: z.number(),
   semesterName: z.string(),
+  // B30 item 13 (2026-09-29): the offering's semester lock time (ISO), null
+  // while unlocked. A locked semester refuses every result write (423
+  // SEMESTER_LOCKED), so the UI disables those actions ahead of time.
+  // Optional: documented on the offerings list; the sheet GET's summary may
+  // not carry it (useSheetSemesterLock falls back to the list row).
+  semesterLockedAt: z.string().nullable().optional(),
   academicSession: z.string(),
   majorProgramId: z.number(),
   // B20.2 (2026-09-28): the offering's real owning major program(s);
@@ -185,6 +191,9 @@ export const PullJobStatusSchema = z.enum([
 
 export const GradePullJobSchema = z.object({
   id: z.number(),
+  // Never null, even for a session pull (sent with academicSessionId): the
+  // server resolves the session's auto-managed semester first (bruno
+  // "Results Moodle - Pull", B30 item 14).
   semesterId: z.number(),
   majorProgramId: z.number().nullable(),
   status: PullJobStatusSchema,

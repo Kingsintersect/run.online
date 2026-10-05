@@ -170,6 +170,10 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
             sessionBased={scope.sessionBased}
             selectedOfferingIds={selectedIds}
             recentJobId={recentPullJobId(sheets.data)}
+            lockedAt={termLockedAt(
+              sheets.data,
+              scope.sessionBased ? w.sessionId : w.semesterId
+            )}
             filterFieldIds={SCOPE_FIELD_IDS}
             scope={{
               hasMajorProgram,
@@ -281,6 +285,10 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
             sessionBased={sessionBased}
             selectedOfferingIds={selectedIds}
             recentJobId={recentPullJobId(sheets.data)}
+            lockedAt={termLockedAt(
+              sheets.data,
+              sessionBased ? w.sessionId : w.semesterId
+            )}
             filterFieldIds={{ session: "ws-session", semester: "ws-semester" }}
             onStarted={() => setSelectedIds([])}
           />
@@ -323,6 +331,23 @@ function recentPullJobId(data: SheetsQuery["data"]): number | null {
     .map((r) => r.lastPullJobId)
     .filter((id): id is number => id != null)
   return ids.length ? Math.max(...ids) : null
+}
+
+// B30 item 13: the chosen term's lock time when every listed offering says
+// its semester is locked. A pull always covers one semester (or one
+// SESSION program's session, which has a single semester), so the rows on
+// screen share its lock. null = unlocked or not known (no term, no rows).
+function termLockedAt(
+  data: SheetsQuery["data"],
+  termId: number | null
+): string | null {
+  if (termId == null || !data?.available) return null
+  const rows = data.data.data
+  if (rows.length === 0) return null
+  const first = rows[0].semesterLockedAt ?? null
+  return first != null && rows.every((r) => r.semesterLockedAt != null)
+    ? first
+    : null
 }
 
 interface SheetsListProps {

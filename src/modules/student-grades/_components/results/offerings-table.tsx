@@ -14,7 +14,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useOfferingEnrolmentCounts } from "../../hooks/use-offering-enrolment-counts"
+import { semesterLockedReason } from "../../lib/results-errors"
 import { ResultStatusBadge } from "./result-status-badge"
+import { SemesterLockBadge } from "./semester-lock-badge"
 import type { PaginationMeta, ResultSheetSummary } from "../../types"
 
 interface OfferingsTableProps {
@@ -105,7 +107,11 @@ export function OfferingsTable({
   const enrolled = useOfferingEnrolmentCounts()
   const totalPages =
     meta.totalPages ?? Math.max(1, Math.ceil(meta.total / meta.limit))
-  const pageIds = rows.map((r) => r.offeringId)
+  // B30 item 13: a locked semester's offering can't be pulled (423
+  // SEMESTER_LOCKED), so it can't be selected for a pull either.
+  const pageIds = rows
+    .filter((r) => r.semesterLockedAt == null)
+    .map((r) => r.offeringId)
   const allSelected =
     pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id))
 
@@ -129,6 +135,7 @@ export function OfferingsTable({
                     type="checkbox"
                     aria-label="Select all offerings on this page"
                     checked={allSelected}
+                    disabled={pageIds.length === 0}
                     onChange={() =>
                       onToggleAll(
                         allSelected
@@ -173,10 +180,20 @@ export function OfferingsTable({
                   <td className="px-3 py-2.5">
                     <input
                       type="checkbox"
-                      aria-label={`Select ${r.courseCode}`}
+                      aria-label={
+                        r.semesterLockedAt != null
+                          ? `${r.courseCode} can't be selected for a Moodle pull. ${semesterLockedReason(r.semesterLockedAt)}`
+                          : `Select ${r.courseCode}`
+                      }
+                      title={
+                        r.semesterLockedAt != null
+                          ? semesterLockedReason(r.semesterLockedAt)
+                          : undefined
+                      }
                       checked={selectedIds.includes(r.offeringId)}
+                      disabled={r.semesterLockedAt != null}
                       onChange={() => onToggle(r.offeringId)}
-                      className="size-4 accent-primary"
+                      className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-40"
                     />
                   </td>
                 )}
@@ -198,7 +215,12 @@ export function OfferingsTable({
                     : "Unassigned"}
                 </td>
                 <td className="px-3 py-2.5">
-                  <ResultStatusBadge status={r.status} />
+                  <div className="flex flex-wrap items-center gap-1">
+                    <ResultStatusBadge status={r.status} />
+                    {r.semesterLockedAt != null && (
+                      <SemesterLockBadge lockedAt={r.semesterLockedAt} />
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <StudentsCell

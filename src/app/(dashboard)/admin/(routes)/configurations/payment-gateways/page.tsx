@@ -3,9 +3,9 @@ import { UserRole } from "@/config/nav.config"
 import { PaymentGatewaysShell } from "@/modules/payment-gateways/components/payment-gateways-shell"
 
 // Super admin only. The admin layout also lets BURSARY in, so the page guards
-// by role. The proposed `payment-gateways.manage` permission
-// (sandbox/payment-routing) doesn't exist on the backend yet; switch this to
-// a permission check once it does.
+// by role. SUPER_ADMIN is the only role holding payment-gateways.view /
+// .manage (created 2026-09-29), which the backend enforces on every route
+// (bruno/payment-routing).
 export default function PaymentGatewaysPage() {
   return (
     <RoleGuard role={[UserRole.SUPER_ADMIN]}>

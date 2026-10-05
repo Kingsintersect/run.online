@@ -171,7 +171,12 @@ export function AssignmentHistoryPanel() {
                     {h.reason ?? "—"}
                   </td>
                   <td className={cn(td, "text-xs text-muted-foreground")}>
-                    {h.changedBy?.name ?? "System"}
+                    {/* changedBy is always null for AUTO_FAILOVER
+                        (GatewayHealthCheckJob, no human involved). */}
+                    {h.changedBy?.name ??
+                      (h.trigger === "AUTO_FAILOVER"
+                        ? "Automatic (health check)"
+                        : "Unknown")}
                   </td>
                 </tr>
               ))}

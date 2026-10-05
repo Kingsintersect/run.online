@@ -19,6 +19,7 @@ import {
 import { useCommitPromotionRun } from "../hooks/use-progression-mutations"
 import { fieldError, toProgressionApiError } from "../lib/errors"
 import { OUTCOME_LABELS, OUTCOME_ORDER } from "../lib/outcome"
+import { runTargetName } from "../lib/run-target"
 import { commitRunFormSchema } from "../schemas"
 import type { CommitRunPayload, PromotionRun } from "../types"
 
@@ -39,8 +40,13 @@ export function RunCommitDialog({
 }: RunCommitDialogProps) {
   const commit = useCommitPromotionRun(run.id)
   const error = commit.error ? toProgressionApiError(commit.error) : null
-  const targetName = run.target_session.name
-  const schema = useMemo(() => commitRunFormSchema(targetName), [targetName])
+  const targetName = runTargetName(run)
+  // B30 item 12: a SESSION program's final-session run has no target. The
+  // commit contract only defines typing the target's name, so for that case
+  // the source session's name is asked for instead and the advisory below
+  // says so; the server stays the authority (422 CONFIRMATION_MISMATCH).
+  const confirmName = targetName ?? run.source_session.name
+  const schema = useMemo(() => commitRunFormSchema(confirmName), [confirmName])
 
   const {
     register,
@@ -83,10 +89,22 @@ export function RunCommitDialog({
           <DialogHeader>
             <DialogTitle>Commit promotion run</DialogTitle>
             <DialogDescription>
-              This writes every student&apos;s final outcome into{" "}
-              <strong className="text-foreground">{targetName}</strong> and adds
-              their carryovers. It can be reversed only until students start
-              registering.
+              {targetName ? (
+                <>
+                  This writes every student&apos;s final outcome into{" "}
+                  <strong className="text-foreground">{targetName}</strong> and
+                  adds their carryovers.
+                </>
+              ) : (
+                <>
+                  This run has no next session: it closes{" "}
+                  <strong className="text-foreground">
+                    {run.source_session.name}
+                  </strong>{" "}
+                  as the program&apos;s final session.
+                </>
+              )}{" "}
+              It can be reversed only until students start registering.
             </DialogDescription>
           </DialogHeader>
 
@@ -139,6 +157,20 @@ export function RunCommitDialog({
             </p>
           )}
 
+          {!targetName && (
+            <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>
+                Students whose outcome still needs a next session (anyone not
+                graduating or advised to withdraw) are refused at commit. If
+                that happens, discard this run and start a new one with a
+                &ldquo;Students move into&rdquo; session. The server hasn&apos;t
+                yet said which name confirms a run with no next session; the
+                session being closed is asked for here.
+              </span>
+            </p>
+          )}
+
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error.message}
@@ -147,7 +179,7 @@ export function RunCommitDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="commit-confirm-name">
-              Type <span className="font-semibold">{targetName}</span> to
+              Type <span className="font-semibold">{confirmName}</span> to
               confirm
             </Label>
             <Input

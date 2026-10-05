@@ -11,11 +11,28 @@ export const InitiatePaymentDtoSchema = z.object({
   method: PaymentMethodSchema,
 })
 
+/**
+ * The gateway's bank-transfer account for method "GATEWAY_TRANSFER" (B30
+ * item 4, bruno/fee/Payments - Initiate.bru): the same shape for Credo and
+ * FCMB, never null once that method succeeds. No screen offers
+ * GATEWAY_TRANSFER yet (PaymentMethodSchema doesn't include it), so today
+ * this is always null/absent on a response.
+ */
+export const VirtualAccountSchema = z.object({
+  accountNumber: z.string(),
+  accountName: z.string(),
+  bank: z.string(),
+})
+
 export const InitiatePaymentResponseSchema = z.object({
   paymentId: z.number(),
   referenceNumber: z.string(),
-  // null when method is BANK_TRANSFER or other offline methods
+  // Hosted checkout for plain "GATEWAY"; null for BANK_TRANSFER and other
+  // offline methods, and for GATEWAY_TRANSFER (which uses virtualAccount).
   checkoutUrl: z.string().url().nullable(),
+  virtualAccount: VirtualAccountSchema.nullish(),
+  otpRequired: z.boolean().nullish(),
+  authUrl: z.string().nullish(),
   status: z.literal("PENDING"),
 })
 

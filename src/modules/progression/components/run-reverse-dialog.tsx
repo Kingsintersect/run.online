@@ -19,6 +19,7 @@ import { useReversePromotionRun } from "../hooks/use-progression-mutations"
 import { fieldError, toProgressionApiError } from "../lib/errors"
 import { ReversePayloadSchema } from "../schemas"
 import type { PromotionRun, ReversePayload } from "../types"
+import { runTargetLabel } from "../lib/run-target"
 
 interface RunReverseDialogProps {
   run: PromotionRun
@@ -71,9 +72,10 @@ export function RunReverseDialog({
           <DialogHeader>
             <DialogTitle>Reverse this run?</DialogTitle>
             <DialogDescription>
-              Students&apos; standings in {run.target_session.name} are voided
-              and they return to where they were before the commit. This is only
-              possible until students start registering.
+              Students&apos; standings from this run ({run.source_session.name}{" "}
+              → {runTargetLabel(run)}) are voided and they return to where they
+              were before the commit. This is only possible until students start
+              registering.
             </DialogDescription>
           </DialogHeader>
 

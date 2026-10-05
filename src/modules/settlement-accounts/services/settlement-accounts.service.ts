@@ -1,7 +1,7 @@
 import apiClient, { ApiClientError } from "@/lib/clients/apiClient"
 import { FALLBACK_BANKS } from "../lib/fallback-banks"
+import { isRouteMissing } from "../lib/settlement-errors"
 import {
-  ApiErrorBodySchema,
   BankListSchema,
   CreateSettlementAccountSchema,
   ResolveAccountResponseSchema,
@@ -14,7 +14,6 @@ import {
   UpsertSplitRuleSchema,
 } from "../schemas"
 import type {
-  ApiErrorBody,
   Bank,
   CreateSettlementAccount,
   ResolveAccount,
@@ -26,54 +25,15 @@ import type {
   UpsertSplitRule,
 } from "../types"
 
-// sandbox/payment-routing (shared CONTRACT §4–§5). All endpoints PROPOSED.
-// List/read calls return a tagged `{ data, source }` so the hooks expose one
+// bruno/payment-routing (documented, not yet deployed on production — every
+// route still 404s there). List/read calls return a tagged `{ data, source }` so the hooks expose one
 // interface whether the endpoint exists or not (CLAUDE.md §14). Writes are
 // never faked: in fallback mode the UI disables Save, and if a write is
-// attempted anyway the real error propagates.
+// attempted anyway the real error propagates. Error → message mapping lives
+// in ../lib/settlement-errors.ts.
 
 const AUTH = { access_token: true } as const
 const BASE = "/payments"
-
-/** Laravel's unregistered-route 404, or a 405: the endpoint isn't built yet. */
-export function isRouteMissing(error: ApiClientError): boolean {
-  return (
-    error.status === 405 ||
-    (error.status === 404 &&
-      /^The route .+ could not be found/i.test(error.message))
-  )
-}
-
-/** Parsed Laravel error body, or null when the error carries none. */
-export function readApiErrorBody(error: Error): ApiErrorBody | null {
-  if (!(error instanceof ApiClientError)) return null
-  const parsed = ApiErrorBodySchema.safeParse(error.data)
-  return parsed.success ? parsed.data : null
-}
-
-/** 409 ACCOUNT_IN_SPLIT_RULE on delete (§4). */
-export function isAccountInSplitRule(error: Error): boolean {
-  if (!(error instanceof ApiClientError) || error.status !== 409) return false
-  const body = readApiErrorBody(error)
-  return (
-    body?.code === "ACCOUNT_IN_SPLIT_RULE" ||
-    /ACCOUNT_IN_SPLIT_RULE|split rule/i.test(body?.message ?? error.message)
-  )
-}
-
-/** Whether an error thrown by a write means the endpoint isn't built yet. */
-export function isWriteRouteMissing(error: Error): boolean {
-  return error instanceof ApiClientError && isRouteMissing(error)
-}
-
-/** First validation message from a 422 body, else the error message. */
-export function describeApiError(error: Error, fallback: string): string {
-  const body = readApiErrorBody(error)
-  const firstFieldError = body?.errors
-    ? Object.values(body.errors).flat()[0]
-    : undefined
-  return firstFieldError ?? body?.message ?? error.message ?? fallback
-}
 
 async function withFallback<T>(
   load: () => Promise<T>,

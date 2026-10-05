@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { TutorCourseMoodleGrades } from "@/modules/moodle-sync/components/grades/tutor-course-grades"
-import { useResultSheet } from "../../hooks/use-results"
+import { useResultSheet, useSheetSemesterLock } from "../../hooks/use-results"
+import { semesterLockedReason } from "../../lib/results-errors"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
 import { useResultsUiStore, type SheetTab } from "../../store/results-ui.store"
 import { AdjustmentHistory } from "./adjustment-history"
@@ -29,7 +30,8 @@ interface ResultSheetViewProps {
 }
 
 // Screen B — one offering's result sheet. Every action is gated by a C6
-// permission plus the sheet's state (adjusting and mapping only in DRAFT).
+// permission plus the sheet's state (adjusting and mapping only in DRAFT)
+// and, since B30 item 13, by the semester lock (all writes frozen).
 // useMajorProgramScope().withinScope() hides actions on an out-of-scope
 // offering as a UI convenience only; the backend is the real boundary.
 export function ResultSheetView({
@@ -41,6 +43,11 @@ export function ResultSheetView({
   const sheetQuery = useResultSheet(offeringId)
   const { sheetTab, setSheetTab, resetSheetView } = useResultsUiStore()
   const [adjustRow, setAdjustRow] = useState<ResultSheetRow | null>(null)
+  // B30 item 13: a locked semester refuses every result write, so those
+  // actions are disabled up front (the 423 handling stays as the backstop).
+  const semesterLock = useSheetSemesterLock(
+    sheetQuery.data?.available ? sheetQuery.data.data.summary : null
+  )
 
   useEffect(() => {
     resetSheetView()
@@ -113,8 +120,14 @@ export function ResultSheetView({
 
   const inScope = withinScope(sheet.summary.majorProgramId)
   const isDraft = sheet.summary.status === "DRAFT"
-  const canAdjust = inScope && isDraft && can(RESULTS_PERMISSIONS.adjust)
-  const canMap = inScope && isDraft && can(RESULTS_PERMISSIONS.itemsMap)
+  const locked = semesterLock.locked
+  const canAdjust =
+    inScope && isDraft && !locked && can(RESULTS_PERMISSIONS.adjust)
+  const canMap =
+    inScope && isDraft && !locked && can(RESULTS_PERMISSIONS.itemsMap)
+  // Would be allowed but for the lock: explain rather than silently hide.
+  const mapFrozen =
+    inScope && isDraft && locked && can(RESULTS_PERMISSIONS.itemsMap)
   // Staff who work on results (anything beyond results.view) see the
   // effective scores and the adjustment history. A tutor holds only
   // results.view: the backend nulls their effective fields and 403s the
@@ -138,11 +151,21 @@ export function ResultSheetView({
               rows with entityId = offeringId (session-promotion README,
               "Audit logging requirements"). */}
           <AuditTrailLink entityType="ResultSheet" entityId={offeringId} />
-          {inScope && <SheetWorkflowBar sheet={sheet.summary} />}
+          {inScope && (
+            <SheetWorkflowBar
+              sheet={sheet.summary}
+              lockedAt={locked ? semesterLock.lockedAt : undefined}
+              locked={locked}
+            />
+          )}
         </div>
       </div>
 
-      <SheetSummaryHeader sheet={sheet} />
+      <SheetSummaryHeader
+        sheet={sheet}
+        locked={locked}
+        lockedAt={semesterLock.lockedAt}
+      />
 
       <Tabs value={sheetTab} onValueChange={(v) => setSheetTab(v as SheetTab)}>
         <TabsList>
@@ -165,6 +188,9 @@ export function ResultSheetView({
             offeringId={offeringId}
             summary={sheet.summary}
             canMap={canMap}
+            frozenReason={
+              mapFrozen ? semesterLockedReason(semesterLock.lockedAt) : null
+            }
           />
         </TabsContent>
         {canAdjust && (

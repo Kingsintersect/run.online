@@ -15,6 +15,8 @@ interface SelectFieldProps {
   placeholder: string
   disabled?: boolean
   className?: string
+  /** Id(s) of visible helper text read out with the field. */
+  describedBy?: string
 }
 
 // Labelled native <select> — keyboard and screen-reader friendly without
@@ -28,6 +30,7 @@ export function SelectField({
   placeholder,
   disabled,
   className,
+  describedBy,
 }: SelectFieldProps) {
   return (
     <div className={cn("min-w-0 space-y-1", className)}>
@@ -42,6 +45,7 @@ export function SelectField({
           id={id}
           value={value}
           disabled={disabled}
+          aria-describedby={describedBy}
           onChange={(e) => onChange(e.target.value)}
           className="h-9 w-full appearance-none rounded-lg border border-border bg-background pr-8 pl-3 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none disabled:opacity-50 dark:bg-muted/20"
         >

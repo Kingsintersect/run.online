@@ -17,15 +17,12 @@ export const progressionKeys = {
       semesterId,
       majorProgramId,
     ] as const,
-  sessionClose: (
-    sessionId: number,
-    targetSessionId: number | null,
-    majorProgramId: number | null
-  ) =>
+  // No major program in the key: the endpoint derives it from the session
+  // itself (B30 item 15), so the session id already identifies it.
+  sessionClose: (sessionId: number, targetSessionId: number | null) =>
     [
       ...progressionKeys.readinessAll(),
       "session",
-      majorProgramId,
       sessionId,
       targetSessionId,
     ] as const,

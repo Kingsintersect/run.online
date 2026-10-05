@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Suspense } from "react"
 import { useSession } from "next-auth/react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
-import { PaymentVerificationView } from "../../components"
+import { readPaymentReturnParams } from "@/modules/fee-management/lib/payment-return"
+import { PaymentFailedView, PaymentVerificationView } from "../../components"
 import {
   useVerifyApplicationPayment,
   useVerifyAcceptanceFeePayment,
@@ -67,7 +68,9 @@ const PAYMENT_TYPE_AMOUNTS: {
  * from at all).
  *
  * Gateway-agnostic, 2026-09-29: `transAmount` is Credo's own redirect param —
- * an FCMB redirect has no equivalent. When nothing identifies the fee, fall
+ * an FCMB redirect has no equivalent. Since B30 item 3 the backend's return
+ * always carries `feeType`, so the `transAmount` guess is a backward-
+ * compatibility path for legacy direct-from-gateway landings only. When nothing identifies the fee, fall
  * back to the generic verify (same reference-only endpoint) instead of
  * failing, so a redirect from either gateway can always be verified.
  */
@@ -102,26 +105,9 @@ function resolvePaymentType(searchParams: URLSearchParams): PaymentResolution {
   return generic
 }
 
-/**
- * Keys the gateway redirect may carry the payment reference under: the
- * backend's own callback `reference` param, Credo's appended `transRef`, and
- * the merchant-reference names FCMB uses (`invoiceRequestReference`, per
- * bruno/fee/Payments - Webhook.bru), plus `paymentReference` defensively.
- */
-const REFERENCE_PARAM_KEYS = [
-  "reference",
-  "transRef",
-  "invoiceRequestReference",
-  "paymentReference",
-] as const
-
-function resolveReference(searchParams: URLSearchParams): string {
-  for (const key of REFERENCE_PARAM_KEYS) {
-    const value = searchParams.get(key)
-    if (value) return value
-  }
-  return ""
-}
+// The reference/status/feeType read (plus the commented legacy gateway-param
+// fallback) lives in readPaymentReturnParams() — shared with the student
+// fees callback page, per B30 item 3 (bruno/fee/Payments - Webhook.bru).
 
 /**
  * A successful payment can be the one that promotes the account (APPLICANT
@@ -215,12 +201,28 @@ function VerifyGeneric({
 
 function VerifyPaymentContent() {
   const searchParams = useSearchParams()
-  const reference = resolveReference(searchParams)
+  const { reference, status, feeType } = readPaymentReturnParams(searchParams)
+  // `status=failed` means the backend already re-verified with the gateway
+  // and the payment didn't go through: show that honestly instead of a
+  // verify spinner. "Check again" opts back into the verify call for a payer
+  // who believes they were charged anyway.
+  const [checkAgain, setCheckAgain] = useState(false)
 
   const resolution = useMemo(
     () => resolvePaymentType(searchParams),
     [searchParams]
   )
+
+  if (reference && status === "failed" && !checkAgain) {
+    return (
+      <PaymentFailedView
+        feeLabel={feeType}
+        reference={reference}
+        retryHref="/process-admission"
+        onCheckAgain={() => setCheckAgain(true)}
+      />
+    )
+  }
 
   if (!reference) {
     return (

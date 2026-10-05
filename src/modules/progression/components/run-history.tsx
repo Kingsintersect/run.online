@@ -29,6 +29,7 @@ import { RunStatusSchema } from "../schemas"
 import { RunStatusBadge } from "./outcome-badge"
 import { RunPagination } from "./run-pagination"
 import type { PromotionRun, RunStatus } from "../types"
+import { runTargetLabel } from "../lib/run-target"
 
 const PER_PAGE = 20
 const ANY = "any"
@@ -229,7 +230,7 @@ export function RunHistory({ runsBasePath }: RunHistoryProps) {
                         className="size-3 text-muted-foreground"
                         aria-label="to"
                       />
-                      {run.target_session.name}
+                      {runTargetLabel(run)}
                     </span>
                   </td>
                   <td className="px-3 py-3">
@@ -267,7 +268,7 @@ export function RunHistory({ runsBasePath }: RunHistoryProps) {
                     <Button variant="outline" size="sm" asChild>
                       <Link
                         href={`${runsBasePath}/${run.id}`}
-                        aria-label={`Open run #${run.id}, ${run.source_session.name} to ${run.target_session.name}`}
+                        aria-label={`Open run #${run.id}, ${run.source_session.name} to ${runTargetLabel(run)}`}
                       >
                         Open
                       </Link>

@@ -33,9 +33,12 @@ import type {
   DataSource,
   GatewayEnvironment,
   GatewayFormValues,
+  GatewayInUseDetails,
   GatewayProvider,
   PaymentGateway,
 } from "../types"
+import { gatewayFormErrors, parseGatewayError } from "../lib/gateway-errors"
+import { GatewayErrorAlert } from "./gateway-error-alert"
 
 interface GatewayFormDialogProps {
   open: boolean
@@ -86,6 +89,11 @@ export function GatewayFormDialog({
   // Kept in state (mirrored into the form) because the resolver's schema
   // depends on the provider, and must exist before useForm is called.
   const [providerSlug, setProviderSlug] = useState("")
+  // Server errors that don't belong to a rendered field (unknown provider,
+  // unknown credential key, isEnabled, non-422 failures).
+  const [formErrors, setFormErrors] = useState<string[]>([])
+  // 409 GATEWAY_IN_USE: saving with Enabled off while the gateway is assigned.
+  const [inUse, setInUse] = useState<GatewayInUseDetails | null>(null)
   const provider = providers.find((p) => p.provider === providerSlug)
 
   // The provider's credential fields, merged with what the gateway has on
@@ -135,6 +143,7 @@ export function GatewayFormDialog({
     handleSubmit,
     reset,
     setValue,
+    setError,
     control,
     formState: { errors },
   } = useForm<GatewayFormValues>({
@@ -163,6 +172,8 @@ export function GatewayFormDialog({
       : EMPTY
     reset(initial)
     setProviderSlug(initial.provider)
+    setFormErrors([])
+    setInUse(null)
     create.reset()
     update.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
@@ -179,6 +190,8 @@ export function GatewayFormDialog({
   }
 
   const onSubmit = async (values: GatewayFormValues) => {
+    setFormErrors([])
+    setInUse(null)
     try {
       if (gateway) {
         const saved = await update.mutateAsync({
@@ -190,6 +203,16 @@ export function GatewayFormDialog({
             isEnabled: values.isEnabled,
             credentials: values.credentials,
           },
+          // A plain (non-secret) field that had a value and is now blank was
+          // emptied on purpose; the server clears it when sent "".
+          clearKeys: gateway.credentials
+            .filter(
+              (c) =>
+                !c.secret &&
+                (c.value ?? "") !== "" &&
+                !(values.credentials[c.field] ?? "").trim()
+            )
+            .map((c) => c.field),
         })
         toast.success(
           saved
@@ -206,8 +229,28 @@ export function GatewayFormDialog({
       }
       onOpenChange(false)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't save the gateway"
+      if (!(err instanceof Error)) {
+        setFormErrors(["Couldn't save the gateway"])
+        return
+      }
+      const inUseDetails = parseGatewayError(err).inUse
+      if (inUseDetails) {
+        setInUse(inUseDetails)
+        setFormErrors(["Can't disable this gateway while it's in use:"])
+        return
+      }
+      // 422 `errors.credentials.<key>` lands on that credential's input;
+      // everything else is listed in the alert above the form fields.
+      const mapped = gatewayFormErrors(
+        err,
+        fields.map((f) => f.field)
+      )
+      for (const f of mapped.fields)
+        setError(f.name, { type: "server", message: f.message })
+      setFormErrors(
+        mapped.form.length > 0 || mapped.fields.length > 0
+          ? mapped.form
+          : ["Couldn't save the gateway"]
       )
     }
   }
@@ -239,6 +282,19 @@ export function GatewayFormDialog({
           className="space-y-4"
           noValidate
         >
+          {formErrors.length > 0 && (
+            <GatewayErrorAlert
+              message={
+                formErrors.length === 1
+                  ? formErrors[0]
+                  : "The server rejected this gateway:"
+              }
+              items={formErrors.length > 1 ? formErrors : undefined}
+              inUse={inUse}
+              action="disable"
+            />
+          )}
+
           {isFallback && (
             <div
               id={fallbackNoteId}

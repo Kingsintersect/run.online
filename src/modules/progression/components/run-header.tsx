@@ -1,10 +1,12 @@
 import { ArrowRight } from "lucide-react"
 import { AuditTrailLink } from "@/components/audit-trail-link"
 import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import { formatDateTime } from "@/lib/utils/date.utils"
 import { isRunActive, RUN_STATUS_LABELS } from "../lib/outcome"
 import { RunStatusBadge } from "./outcome-badge"
 import type { IdName, PromotionRun } from "../types"
+import { runTargetLabel } from "../lib/run-target"
 
 function Actor({
   label,
@@ -46,7 +48,14 @@ export function RunHeader({ run }: { run: PromotionRun }) {
               className="size-4 text-muted-foreground"
               aria-label="to"
             />
-            <span>{run.target_session.name}</span>
+            <span
+              className={cn(
+                !run.target_session &&
+                  "text-base font-medium text-muted-foreground"
+              )}
+            >
+              {runTargetLabel(run)}
+            </span>
           </h1>
         </div>
         <div className="flex items-center gap-2">

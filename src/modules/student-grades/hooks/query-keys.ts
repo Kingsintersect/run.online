@@ -76,6 +76,10 @@ export const resultsKeys = {
     [...resultsKeys.sheetsAll(), "full-list", filters] as const,
   pullScope: (selection: ResultScopeSelection) =>
     [...resultsKeys.sheetsAll(), "pull-scope", selection] as const,
+  // One offering's list row, read only to learn its semester lock when the
+  // sheet GET's summary doesn't carry `semesterLockedAt` (B30 item 13).
+  sheetListRow: (offeringId: number) =>
+    [...resultsKeys.sheetsAll(), "row", offeringId] as const,
   // `*All()` prefixes match every offering's entry (used after a Moodle
   // pull, which can touch any sheet).
   sheetDetailAll: () => [...resultsKeys.all, "sheet"] as const,

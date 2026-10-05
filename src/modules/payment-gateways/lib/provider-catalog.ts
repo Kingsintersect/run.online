@@ -1,6 +1,17 @@
 import type { GatewayProvider } from "../types"
 
 /**
+ * The only payment providers this deployment uses: Credo and FCMB (product
+ * decision, 2026-10-04). The server's own catalog may list more (e.g. ones it
+ * can't route to); anything not listed here is never offered or shown.
+ */
+export const ENABLED_PROVIDERS = ["credo", "fcmb"] as const
+
+export function isEnabledProvider(provider: string): boolean {
+  return (ENABLED_PROVIDERS as readonly string[]).includes(provider)
+}
+
+/**
  * Static provider catalog used only while `GET /payments/gateway-providers`
  * doesn't exist (sandbox/payment-routing API_CONTRACTS §1). The UI labels it
  * as a fallback. Field names match the Settings keys the server reads today
@@ -70,41 +81,6 @@ export const FALLBACK_PROVIDER_CATALOG: GatewayProvider[] = [
         label: "Secret key",
         secret: true,
         required: true,
-      },
-    ],
-  },
-  {
-    provider: "flutterwave",
-    name: "Flutterwave",
-    serverSupported: false,
-    supportsSplit: true,
-    splitTypes: ["PERCENTAGE", "FLAT"],
-    credentialFields: [
-      {
-        field: "public_key",
-        label: "Public key",
-        secret: false,
-        required: true,
-        placeholder: "FLWPUBK-…",
-      },
-      {
-        field: "secret_key",
-        label: "Secret key",
-        secret: true,
-        required: true,
-        placeholder: "FLWSECK-…",
-      },
-      {
-        field: "encryption_key",
-        label: "Encryption key",
-        secret: true,
-        required: true,
-      },
-      {
-        field: "webhook_hash",
-        label: "Webhook secret hash",
-        secret: true,
-        required: false,
       },
     ],
   },

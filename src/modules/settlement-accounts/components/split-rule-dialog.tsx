@@ -1,7 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form"
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  useWatch,
+  type FieldPath,
+} from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -26,6 +32,10 @@ import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 import type { FeeTypeResponse } from "@/modules/fee-management/types"
 import { UpsertSplitRuleSchema } from "../schemas"
+import {
+  classifySettlementError,
+  partitionFieldErrors,
+} from "../lib/settlement-errors"
 import { useUpsertSplitRule } from "../hooks/use-settlement-mutations"
 import type {
   SettlementAccount,
@@ -38,6 +48,40 @@ import { SplitPreviewPanel } from "./split-preview-panel"
 
 const ALL_FEES = "_ALL_FEES_" as const
 const DEFAULT_SAMPLE_AMOUNT = "100000"
+
+const ENTRY_KEY =
+  /^entries\.(\d+)\.(settlementAccountId|splitType|value|isDefault)$/
+const TOP_LEVEL_FIELDS = [
+  "feeTypeId",
+  "feeBearer",
+  "isActive",
+  "entries",
+] as const
+
+/** Map a Laravel 422 key (`entries.0.value`, `feeTypeId`, …) to a form path. */
+function toRulePath(
+  key: string,
+  entryCount: number
+): FieldPath<UpsertSplitRule> | null {
+  const top = TOP_LEVEL_FIELDS.find((f) => f === key)
+  if (top) return top
+  const match = ENTRY_KEY.exec(key)
+  if (!match) return null
+  const index = Number(match[1])
+  if (index >= entryCount) return null
+  switch (match[2]) {
+    case "settlementAccountId":
+      return `entries.${index}.settlementAccountId`
+    case "splitType":
+      return `entries.${index}.splitType`
+    case "value":
+      return `entries.${index}.value`
+    case "isDefault":
+      return `entries.${index}.isDefault`
+    default:
+      return null
+  }
+}
 
 interface SplitRuleDialogProps {
   open: boolean
@@ -98,6 +142,8 @@ export function SplitRuleDialog({
   const [sampleAmount, setSampleAmount] = useState(DEFAULT_SAMPLE_AMOUNT)
   const [sampleTouched, setSampleTouched] = useState(false)
   const [validatedOnly, setValidatedOnly] = useState(false)
+  /** Form-level server error (409, 403, unmapped 422, …). */
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const {
     register,
@@ -106,6 +152,7 @@ export function SplitRuleDialog({
     reset,
     setValue,
     getValues,
+    setError,
     formState: { errors },
   } = useForm<UpsertSplitRule>({
     resolver: zodResolver(UpsertSplitRuleSchema),
@@ -118,6 +165,7 @@ export function SplitRuleDialog({
       reset(defaultsFor(rule, majorProgramId))
       setSampleTouched(false)
       setValidatedOnly(false)
+      setSubmitError(null)
       upsert.reset()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
@@ -173,7 +221,28 @@ export function SplitRuleDialog({
         e.isDefault ? { ...e, value: 0 } : e
       ),
     }
-    upsert.mutate(payload, { onSuccess: () => onOpenChange(false) })
+    setSubmitError(null)
+    upsert.mutate(payload, {
+      onSuccess: () => onOpenChange(false),
+      onError: (error) => {
+        const classified = classifySettlementError(error, "save-split-rule")
+        if (classified.kind !== "validation") {
+          // 409 SPLIT_RULE_EXISTS, 403, … — shown inline, dialog stays open.
+          setSubmitError(classified.message)
+          return
+        }
+        const { mapped, unmapped } = partitionFieldErrors(
+          classified.fieldErrors,
+          (key) => toRulePath(key, payload.entries.length)
+        )
+        for (const { path, message } of mapped) {
+          setError(path, { type: "server", message })
+        }
+        if (unmapped.length > 0 || mapped.length === 0) {
+          setSubmitError(unmapped.join(" ") || classified.message)
+        }
+      },
+    })
   }
 
   const entriesRootError =
@@ -212,7 +281,14 @@ export function SplitRuleDialog({
                         field.onChange(v === ALL_FEES ? null : Number(v))
                       }
                     >
-                      <SelectTrigger id="sr-fee-type" className="w-full">
+                      <SelectTrigger
+                        id="sr-fee-type"
+                        className="w-full"
+                        aria-invalid={!!errors.feeTypeId}
+                        aria-describedby={
+                          errors.feeTypeId ? "sr-fee-type-error" : undefined
+                        }
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -231,6 +307,14 @@ export function SplitRuleDialog({
                 <p className="text-xs text-muted-foreground">
                   A fee-type rule wins over the all-fees rule.
                 </p>
+                {errors.feeTypeId && (
+                  <p
+                    id="sr-fee-type-error"
+                    className="text-xs text-destructive"
+                  >
+                    {errors.feeTypeId.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -252,13 +336,19 @@ export function SplitRuleDialog({
                     </Select>
                   )}
                 />
+                {errors.feeBearer && (
+                  <p className="text-xs text-destructive">
+                    {errors.feeBearer.message}
+                  </p>
+                )}
               </div>
             </div>
 
             {replacing && (
               <p className="rounded-md bg-amber-50 p-2.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-                A rule for {replacing.feeTypeName ?? "all fees of this program"}{" "}
-                already exists; the server may replace it with this one.
+                {replacing.isActive
+                  ? `An active rule for ${replacing.feeTypeName ?? "all fees of this program"} already exists. The server only allows one active rule per fee type, so edit that one instead, or save this one as inactive.`
+                  : `An inactive rule for ${replacing.feeTypeName ?? "all fees of this program"} already exists; it stays as it is.`}
               </p>
             )}
 
@@ -471,6 +561,15 @@ export function SplitRuleDialog({
             }
           />
         </form>
+
+        {submitError && !saveDisabled && (
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive dark:bg-destructive/10"
+          >
+            {submitError}
+          </p>
+        )}
 
         {saveDisabled && (
           <p

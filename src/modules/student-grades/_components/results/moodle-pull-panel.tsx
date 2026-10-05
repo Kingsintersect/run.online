@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { CloudDownload, Loader2, X, XCircle } from "lucide-react"
+import { CloudDownload, Loader2, Lock, X, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 import { PullRequestSchema } from "../../schemas"
 import {
   isTerminalPull,
@@ -13,7 +14,10 @@ import {
   usePullJobs,
 } from "../../hooks/use-results"
 import { useStartPull } from "../../hooks/use-results-mutations"
-import { toResultsApiError } from "../../lib/results-errors"
+import {
+  semesterLockedReason,
+  toResultsApiError,
+} from "../../lib/results-errors"
 import { NotAvailableNotice } from "./not-available-notice"
 
 interface MoodlePullPanelProps {
@@ -33,6 +37,12 @@ interface MoodlePullPanelProps {
    * that job is still running.
    */
   recentJobId?: number | null
+  /**
+   * Lock time of the chosen semester (or session) when it is locked (B30
+   * item 13). A locked semester refuses a pull (423 SEMESTER_LOCKED), so
+   * the button is disabled with the reason shown.
+   */
+  lockedAt?: string | null
   /**
    * DOM ids of the scope filters. When Pull is clicked with no semester
    * chosen, focus moves to the first one (top-down) that still needs picking.
@@ -114,6 +124,7 @@ export function MoodlePullPanel({
   sessionBased = false,
   selectedOfferingIds,
   recentJobId = null,
+  lockedAt = null,
   filterFieldIds,
   scope,
   onStarted,
@@ -197,8 +208,10 @@ export function MoodlePullPanel({
     hasTerm &&
     (scope.isLoading || scopeIds == null || scopeIds.length === 0)
 
+  const locked = lockedAt != null
+
   const start = async () => {
-    if (scopeBlocked) return
+    if (scopeBlocked || locked) return
     const body = PullRequestSchema.safeParse({
       ...(sessionBased
         ? { academicSessionId: academicSessionId ?? undefined }
@@ -278,12 +291,12 @@ export function MoodlePullPanel({
         </div>
         <Button
           onClick={start}
-          disabled={startPull.isPending || running || scopeBlocked}
-          aria-describedby={
-            needsSemester
-              ? "moodle-pull-scope moodle-pull-needs-semester"
-              : "moodle-pull-scope"
-          }
+          disabled={startPull.isPending || running || scopeBlocked || locked}
+          aria-describedby={cn(
+            "moodle-pull-scope",
+            needsSemester && "moodle-pull-needs-semester",
+            locked && "moodle-pull-locked"
+          )}
         >
           {startPull.isPending || running ? (
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -293,6 +306,19 @@ export function MoodlePullPanel({
           Pull from Moodle
         </Button>
       </div>
+
+      {locked && (
+        <p
+          id="moodle-pull-locked"
+          className="flex items-start gap-1.5 rounded-lg border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-100"
+        >
+          <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>
+            {semesterLockedReason(lockedAt)} Marks can&apos;t be pulled from
+            Moodle into a locked semester.
+          </span>
+        </p>
+      )}
 
       {needsSemester && (
         <p

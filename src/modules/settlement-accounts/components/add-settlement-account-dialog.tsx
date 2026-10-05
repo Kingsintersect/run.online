@@ -24,10 +24,14 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { CreateSettlementAccountSchema } from "../schemas"
+import { UserRole } from "@/config/nav.config"
+import { cn } from "@/lib/utils"
+import { useAppStore } from "@/store"
 import {
-  describeApiError,
-  isWriteRouteMissing,
-} from "../services/settlement-accounts.service"
+  classifySettlementError,
+  partitionFieldErrors,
+  type SettlementError,
+} from "../lib/settlement-errors"
 import {
   useCreateSettlementAccount,
   useResolveAccountName,
@@ -46,6 +50,39 @@ interface AddSettlementAccountDialogProps {
   saveDisabled: boolean
 }
 
+const INSTITUTION_WIDE = "_INSTITUTION_WIDE_" as const
+
+type CreateFieldPath = "label" | "bankCode" | "accountNumber" | "majorProgramId"
+const CREATE_FIELDS: readonly CreateFieldPath[] = [
+  "label",
+  "bankCode",
+  "accountNumber",
+  "majorProgramId",
+]
+
+function toCreateField(key: string): CreateFieldPath | null {
+  return CREATE_FIELDS.find((f) => f === key) ?? null
+}
+
+/** Amber for "the server can't do this yet", red for everything else. */
+function NoticeLine({ error, id }: { error: SettlementError; id?: string }) {
+  const informational = error.kind === "name-enquiry-unavailable"
+  return (
+    <p
+      id={id}
+      role={informational ? "status" : "alert"}
+      className={cn(
+        "rounded-md p-2.5 text-xs",
+        informational
+          ? "bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+          : "bg-destructive/5 text-destructive dark:bg-destructive/10"
+      )}
+    >
+      {error.message}
+    </p>
+  )
+}
+
 interface ResolvedName {
   bankCode: string
   accountNumber: string
@@ -62,8 +99,13 @@ export function AddSettlementAccountDialog({
   const create = useCreateSettlementAccount()
   const resolve = useResolveAccountName()
   const [resolved, setResolved] = useState<ResolvedName | null>(null)
-  const [resolveError, setResolveError] = useState<string | null>(null)
+  const [resolveError, setResolveError] = useState<SettlementError | null>(null)
+  const [submitError, setSubmitError] = useState<SettlementError | null>(null)
   const [validatedOnly, setValidatedOnly] = useState(false)
+  // Institution-wide (`majorProgramId: null`) is SUPER_ADMIN-only on the
+  // server (403 otherwise). A role check, not a permission check: the
+  // backend gates it on the role itself — there's no permission for it.
+  const isSuperAdmin = useAppStore((s) => s.user?.role === UserRole.SUPER_ADMIN)
 
   const {
     register,
@@ -72,6 +114,7 @@ export function AddSettlementAccountDialog({
     reset,
     trigger,
     getValues,
+    setError,
     formState: { errors },
   } = useForm<CreateSettlementAccount>({
     resolver: zodResolver(CreateSettlementAccountSchema),
@@ -95,8 +138,10 @@ export function AddSettlementAccountDialog({
       })
       setResolved(null)
       setResolveError(null)
+      setSubmitError(null)
       setValidatedOnly(false)
       resolve.reset()
+      create.reset()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on open only
   }, [open, defaultMajorProgramId, reset])
@@ -125,11 +170,7 @@ export function AddSettlementAccountDialog({
             accountName: res.accountName,
           }),
         onError: (error) =>
-          setResolveError(
-            isWriteRouteMissing(error)
-              ? "Name enquiry isn't available on the server yet."
-              : describeApiError(error, "Couldn't find that account.")
-          ),
+          setResolveError(classifySettlementError(error, "verify-account")),
       }
     )
   }
@@ -139,7 +180,33 @@ export function AddSettlementAccountDialog({
       setValidatedOnly(true)
       return
     }
-    create.mutate(values, { onSuccess: () => onOpenChange(false) })
+    setSubmitError(null)
+    // On any failure the dialog stays open with the entered data.
+    create.mutate(values, {
+      onSuccess: () => onOpenChange(false),
+      onError: (error) => {
+        const classified = classifySettlementError(error, "create-account")
+        if (classified.kind !== "validation") {
+          setSubmitError(classified)
+          return
+        }
+        // 422 — e.g. errors.accountNumber when this bank + account pair is
+        // already registered: show it on its field.
+        const { mapped, unmapped } = partitionFieldErrors(
+          classified.fieldErrors,
+          toCreateField
+        )
+        for (const { path, message } of mapped) {
+          setError(path, { type: "server", message })
+        }
+        if (unmapped.length > 0 || mapped.length === 0) {
+          setSubmitError({
+            ...classified,
+            message: unmapped.join(" ") || classified.message,
+          })
+        }
+      },
+    })
   }
 
   return (
@@ -185,13 +252,27 @@ export function AddSettlementAccountDialog({
               name="majorProgramId"
               render={({ field }) => (
                 <Select
-                  value={field.value?.toString() ?? ""}
-                  onValueChange={(v) => field.onChange(Number(v))}
+                  value={field.value?.toString() ?? INSTITUTION_WIDE}
+                  onValueChange={(v) =>
+                    field.onChange(v === INSTITUTION_WIDE ? null : Number(v))
+                  }
                 >
-                  <SelectTrigger id="sa-program" className="w-full">
+                  <SelectTrigger
+                    id="sa-program"
+                    className="w-full"
+                    aria-invalid={!!errors.majorProgramId}
+                    aria-describedby={
+                      errors.majorProgramId ? "sa-program-error" : undefined
+                    }
+                  >
                     <SelectValue placeholder="Select major program" />
                   </SelectTrigger>
                   <SelectContent>
+                    {isSuperAdmin && (
+                      <SelectItem value={INSTITUTION_WIDE}>
+                        Institution-wide (every major program)
+                      </SelectItem>
+                    )}
                     {programs.map((p) => (
                       <SelectItem key={p.id} value={p.id.toString()}>
                         {p.name}
@@ -201,6 +282,11 @@ export function AddSettlementAccountDialog({
                 </Select>
               )}
             />
+            {errors.majorProgramId && (
+              <p id="sa-program-error" className="text-xs text-destructive">
+                {errors.majorProgramId.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -281,9 +367,7 @@ export function AddSettlementAccountDialog({
                   </span>
                 </p>
               ) : resolveError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {resolveError}
-                </p>
+                <NoticeLine error={resolveError} />
               ) : null}
             </div>
           </div>
@@ -307,6 +391,8 @@ export function AddSettlementAccountDialog({
               )}
             />
           </div>
+
+          {submitError && !saveDisabled && <NoticeLine error={submitError} />}
 
           {saveDisabled && (
             <p

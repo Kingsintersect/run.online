@@ -2,12 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import {
-  describeApiError,
-  isAccountInSplitRule,
-  isWriteRouteMissing,
-  settlementAccountsService,
-} from "../services/settlement-accounts.service"
+import { settlementAccountsService } from "../services/settlement-accounts.service"
 import type {
   CreateSettlementAccount,
   ResolveAccount,
@@ -16,16 +11,10 @@ import type {
 } from "../types"
 import { settlementKeys } from "./query-keys"
 
-export const NOT_AVAILABLE_MESSAGE =
-  "This isn't available on the server yet (sandbox/payment-routing). Nothing was saved."
-
-function toastError(error: Error, fallback: string) {
-  toast.error(
-    isWriteRouteMissing(error)
-      ? NOT_AVAILABLE_MESSAGE
-      : describeApiError(error, fallback)
-  )
-}
+// Errors are never toasted here: every caller shows them inline next to the
+// thing that failed (dialog, card, confirm), via classifySettlementError()
+// in ../lib/settlement-errors.ts — so a dialog can stay open with the
+// entered data, and a field-level 422 lands on its field.
 
 export function useCreateSettlementAccount() {
   const qc = useQueryClient()
@@ -36,7 +25,6 @@ export function useCreateSettlementAccount() {
       qc.invalidateQueries({ queryKey: settlementKeys.accountsAll() })
       toast.success(`Settlement account "${account.label}" added`)
     },
-    onError: (error) => toastError(error, "Failed to add settlement account"),
   })
 }
 
@@ -49,8 +37,6 @@ export function useUpdateSettlementAccount() {
       qc.invalidateQueries({ queryKey: settlementKeys.accountsAll() })
       toast.success("Settlement account updated")
     },
-    onError: (error) =>
-      toastError(error, "Failed to update settlement account"),
   })
 }
 
@@ -62,15 +48,10 @@ export function useDeleteSettlementAccount() {
       qc.invalidateQueries({ queryKey: settlementKeys.accountsAll() })
       toast.success("Settlement account deleted")
     },
-    onError: (error) => {
-      // 409 ACCOUNT_IN_SPLIT_RULE is shown inline in the confirm dialog.
-      if (isAccountInSplitRule(error)) return
-      toastError(error, "Failed to delete settlement account")
-    },
   })
 }
 
-/** Name enquiry. Errors (422 not found) are shown inline by the caller. */
+/** Name enquiry (rate limited 10/min; currently always 502 NAME_ENQUIRY_UNAVAILABLE). */
 export function useResolveAccountName() {
   return useMutation({
     mutationFn: (payload: ResolveAccount) =>
@@ -87,7 +68,6 @@ export function useUpsertSplitRule() {
       qc.invalidateQueries({ queryKey: settlementKeys.splitRulesAll() })
       toast.success(payload.id ? "Split rule updated" : "Split rule created")
     },
-    onError: (error) => toastError(error, "Failed to save split rule"),
   })
 }
 
@@ -99,6 +79,5 @@ export function useDeleteSplitRule() {
       qc.invalidateQueries({ queryKey: settlementKeys.splitRulesAll() })
       toast.success("Split rule deleted")
     },
-    onError: (error) => toastError(error, "Failed to delete split rule"),
   })
 }

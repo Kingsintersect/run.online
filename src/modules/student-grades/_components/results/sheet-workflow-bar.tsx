@@ -2,7 +2,14 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Loader2, RotateCcw, Send, ShieldCheck, XCircle } from "lucide-react"
+import {
+  Loader2,
+  Lock,
+  RotateCcw,
+  Send,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import {
@@ -17,7 +24,10 @@ import {
   useSubmitSheet,
 } from "../../hooks/use-results-mutations"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
-import { toResultsApiError } from "../../lib/results-errors"
+import {
+  semesterLockedReason,
+  toResultsApiError,
+} from "../../lib/results-errors"
 import { useCurrentUserId } from "../../hooks/use-current-user-id"
 import { ReasonDialog } from "./reason-dialog"
 import type { ResultSheetSummary } from "../../types"
@@ -32,7 +42,25 @@ type Dialog = "approve" | "reject" | "reopen" | null
 // 2026-09-26 the summary carries `submittedBy`, so Approve is also hidden
 // from the submitter. Reject stays available — the contract only forbids
 // approving your own submission.
-export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
+//
+// B30 item 13: when the offering's semester is locked every one of these is
+// refused (423 SEMESTER_LOCKED), so they render disabled with the reason
+// shown next to them and linked via aria-describedby. The 423 handling in
+// toResultsApiError stays as the backstop.
+interface SheetWorkflowBarProps {
+  sheet: ResultSheetSummary
+  /** The offering's semester is locked (B30 item 13). */
+  locked?: boolean
+  lockedAt?: string | null
+}
+
+const LOCK_NOTE_ID = "sheet-workflow-locked-note"
+
+export function SheetWorkflowBar({
+  sheet,
+  locked = false,
+  lockedAt = null,
+}: SheetWorkflowBarProps) {
   const id = sheet.offeringId
   const submit = useSubmitSheet(id)
   const approve = useApproveSheet(id)
@@ -43,7 +71,12 @@ export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
   const isSubmitter =
     currentUserId != null && sheet.submittedBy?.id === currentUserId
 
+  const lockProps = locked
+    ? { disabled: true, "aria-describedby": LOCK_NOTE_ID }
+    : {}
+
   const onSubmit = async () => {
+    if (locked) return
     try {
       await submit.mutateAsync()
       toast.success("Sheet submitted for approval.")
@@ -59,9 +92,22 @@ export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {locked && (
+        <span
+          id={LOCK_NOTE_ID}
+          className="inline-flex max-w-xs items-center gap-1 text-xs text-muted-foreground"
+        >
+          <Lock className="size-3.5 shrink-0" aria-hidden />
+          {semesterLockedReason(lockedAt)}
+        </span>
+      )}
       {status === "DRAFT" && (
         <PermissionGate require={RESULTS_PERMISSIONS.submit}>
-          <Button onClick={onSubmit} disabled={submit.isPending}>
+          <Button
+            onClick={onSubmit}
+            disabled={submit.isPending || locked}
+            aria-describedby={locked ? LOCK_NOTE_ID : undefined}
+          >
             {submit.isPending ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />
             ) : (
@@ -78,18 +124,26 @@ export function SheetWorkflowBar({ sheet }: { sheet: ResultSheetSummary }) {
               You submitted this sheet — someone else must approve it.
             </span>
           ) : (
-            <Button onClick={() => setDialog("approve")}>
+            <Button onClick={() => setDialog("approve")} {...lockProps}>
               <ShieldCheck className="size-4" aria-hidden /> Approve
             </Button>
           )}
-          <Button variant="destructive" onClick={() => setDialog("reject")}>
+          <Button
+            variant="destructive"
+            onClick={() => setDialog("reject")}
+            {...lockProps}
+          >
             <XCircle className="size-4" aria-hidden /> Reject
           </Button>
         </PermissionGate>
       )}
       {status === "APPROVED" && (
         <PermissionGate require={RESULTS_PERMISSIONS.reopen}>
-          <Button variant="outline" onClick={() => setDialog("reopen")}>
+          <Button
+            variant="outline"
+            onClick={() => setDialog("reopen")}
+            {...lockProps}
+          >
             <RotateCcw className="size-4" aria-hidden /> Reopen
           </Button>
         </PermissionGate>

@@ -1,5 +1,7 @@
-import { AlertOctagon, Layers, Scale } from "lucide-react"
+import { AlertOctagon, Layers, Lock, Scale } from "lucide-react"
+import { SEMESTER_LOCKED_MESSAGE } from "../../lib/results-errors"
 import { ResultStatusBadge } from "./result-status-badge"
+import { SemesterLockBadge } from "./semester-lock-badge"
 import { formatDateTime } from "./offerings-table"
 import { fmtScore } from "./format"
 import type { ResultSheet } from "../../types"
@@ -60,7 +62,18 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   )
 }
 
-export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
+interface SheetSummaryHeaderProps {
+  sheet: ResultSheet
+  /** The offering's semester is locked (B30 item 13). */
+  locked?: boolean
+  lockedAt?: string | null
+}
+
+export function SheetSummaryHeader({
+  sheet,
+  locked = false,
+  lockedAt = null,
+}: SheetSummaryHeaderProps) {
   const s = sheet.summary
   const schemeIds = new Set(
     sheet.rows
@@ -77,6 +90,7 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
               {s.courseCode}
             </h2>
             <ResultStatusBadge status={s.status} />
+            {locked && <SemesterLockBadge lockedAt={lockedAt} />}
             {schemeIds.size > 1 && (
               <span
                 title="Students in this offering come from programs with different grading schemes; each row is graded on its own scheme."
@@ -126,6 +140,25 @@ export function SheetSummaryHeader({ sheet }: { sheet: ResultSheet }) {
           <Stat label="Withheld" value={s.withheldCount} />
         </div>
       </div>
+
+      {locked && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-xl border border-zinc-300 bg-zinc-100 px-3 py-2.5 dark:border-zinc-700 dark:bg-zinc-800/50"
+        >
+          <Lock
+            className="mt-0.5 size-4 shrink-0 text-zinc-700 dark:text-zinc-200"
+            aria-hidden
+          />
+          <p className="text-xs text-zinc-800 dark:text-zinc-100">
+            <span className="font-semibold">
+              Semester locked
+              {lockedAt ? ` on ${formatDateTime(lockedAt)}` : ""}.
+            </span>{" "}
+            {SEMESTER_LOCKED_MESSAGE}
+          </p>
+        </div>
+      )}
 
       {/* Before the first pull the backend reports NONE for every sheet
           (nothing has been read from Moodle yet), so the blocking alert only

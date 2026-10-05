@@ -12,11 +12,24 @@ import {
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import type { DataSource, GatewayProvider, PaymentGateway } from "../types"
+import type {
+  DataSource,
+  GatewayInUseDetails,
+  GatewayProvider,
+  PaymentGateway,
+} from "../types"
 import { providerName } from "../lib/provider-catalog"
 import { formatDateTime } from "../lib/gateway-eligibility"
 import { EnvironmentBadge, HealthBadge } from "./gateway-badges"
 import { CopyButton } from "./copy-button"
+import { GatewayErrorAlert } from "./gateway-error-alert"
+
+/** The last Enabled-switch or Test-connection failure on this card. */
+export interface GatewayCardError {
+  message: string
+  /** 409 GATEWAY_IN_USE details (disable while assigned). */
+  inUse: GatewayInUseDetails | null
+}
 
 interface GatewayCardProps {
   gateway: PaymentGateway
@@ -33,6 +46,8 @@ interface GatewayCardProps {
   onTest: () => void
   onDelete: () => void
   onToggleEnabled: (next: boolean) => void
+  error: GatewayCardError | null
+  onDismissError: () => void
 }
 
 export function GatewayCard({
@@ -48,6 +63,8 @@ export function GatewayCard({
   onTest,
   onDelete,
   onToggleEnabled,
+  error,
+  onDismissError,
 }: GatewayCardProps) {
   const isFallback = source === "fallback"
   const switchId = `gateway-enabled-${gateway.id}`
@@ -107,6 +124,15 @@ export function GatewayCard({
       </div>
 
       <div className="flex flex-1 flex-col gap-4 px-5 py-4">
+        {error && (
+          <GatewayErrorAlert
+            message={error.message}
+            inUse={error.inUse}
+            action="disable"
+            onDismiss={onDismissError}
+          />
+        )}
+
         {provider && !provider.serverSupported && (
           <div
             role="note"

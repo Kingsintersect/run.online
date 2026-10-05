@@ -15,6 +15,7 @@ import {
 import { useDiscardPromotionRun } from "../hooks/use-progression-mutations"
 import { toProgressionApiError } from "../lib/errors"
 import type { PromotionRun } from "../types"
+import { runTargetLabel } from "../lib/run-target"
 
 interface RunDiscardDialogProps {
   run: PromotionRun
@@ -42,8 +43,8 @@ export function RunDiscardDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Discard this run?</AlertDialogTitle>
           <AlertDialogDescription>
-            The preview for {run.source_session.name} →{" "}
-            {run.target_session.name} and all {run.override_count} override
+            The preview for {run.source_session.name} → {runTargetLabel(run)}{" "}
+            and all {run.override_count} override
             {run.override_count === 1 ? "" : "s"} made on it will be thrown
             away. No student&apos;s standing changes. You can start a new run
             later.

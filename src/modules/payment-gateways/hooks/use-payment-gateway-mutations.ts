@@ -44,7 +44,15 @@ export function useUpdatePaymentGateway() {
       id: number
       provider: string
       payload: UpdateGatewayPayload
-    }) => paymentGatewaysService.updateGateway(v.id, v.provider, v.payload),
+      /** Plain credential fields the admin emptied, sent as "" to clear them. */
+      clearKeys?: readonly string[]
+    }) =>
+      paymentGatewaysService.updateGateway(
+        v.id,
+        v.provider,
+        v.payload,
+        v.clearKeys
+      ),
     onSuccess: () => invalidate(),
   })
 }

@@ -27,6 +27,7 @@ import type {
   AdmissionStagesPayload,
   ResolvedStage,
 } from "../types/admission-stages"
+import type { VirtualAccount } from "@/modules/fee-management/types"
 const AUTH = { access_token: true } as const
 
 /* ------------------------------------------------------------------ */
@@ -255,6 +256,10 @@ export const admissionService = {
       data: {
         authorizationUrl: string | null
         reference: string
+        // Only set for method "GATEWAY_TRANSFER" (B30 item 4); this route is
+        // called without a method, so a hosted checkout is expected and this
+        // stays null. Not surfaced: nothing here offers a transfer yet.
+        virtualAccount?: VirtualAccount | null
         otpRequired?: boolean | null
         authUrl?: string | null
       }

@@ -2,16 +2,27 @@ import { z } from "zod"
 import { validateSplitEntries } from "../lib/split-calculator"
 
 // Settlement accounts & split rules — sandbox/payment-routing (shared
-// CONTRACT §4–§5). Every endpoint here is PROPOSED; none exists on the
-// backend yet, so the service falls back when they 404 (CLAUDE.md §14).
+// CONTRACT §4–§5), now documented in bruno/payment-routing. Not deployed on
+// production yet, so the service falls back while they 404 (CLAUDE.md §14).
 
 // ── Shared ──────────────────────────────────────────────────────────────
 
-/** Laravel error body: `{ message, code?, errors? }` (422/403/409). */
+/**
+ * Laravel error body: `{ message, code?, errors?, details? }` (422/403/409/
+ * 502). `details` carries the conflicting ids on a 409 —
+ * `splitRuleIds` for ACCOUNT_IN_SPLIT_RULE, `splitRuleId` for
+ * SPLIT_RULE_EXISTS (bruno/payment-routing).
+ */
 export const ApiErrorBodySchema = z.looseObject({
   message: z.string().optional(),
   code: z.string().optional(),
   errors: z.record(z.string(), z.array(z.string())).optional(),
+  details: z
+    .looseObject({
+      splitRuleIds: z.array(z.number()).optional(),
+      splitRuleId: z.number().optional(),
+    })
+    .optional(),
 })
 
 // ── Banks ───────────────────────────────────────────────────────────────

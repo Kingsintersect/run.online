@@ -45,6 +45,7 @@ import type * as Payment from "../schemas/payment.schema"
 export type InitiatePaymentDto = z.infer<
   typeof Payment.InitiatePaymentDtoSchema
 >
+export type VirtualAccount = z.infer<typeof Payment.VirtualAccountSchema>
 export type InitiatePaymentResponse = z.infer<
   typeof Payment.InitiatePaymentResponseSchema
 >

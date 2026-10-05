@@ -69,7 +69,7 @@ export interface UsePaymentGatewaysResult extends QueryState {
 
 /**
  * §2 gateways. Fallback: one gateway per provider found in Settings
- * (`credo_*`, `fcmb_*`, `flutterwave_*`), with synthetic negative ids.
+ * (`credo_*`, `fcmb_*`), with synthetic negative ids.
  */
 export function usePaymentGateways(): UsePaymentGatewaysResult {
   const q = useQuery({

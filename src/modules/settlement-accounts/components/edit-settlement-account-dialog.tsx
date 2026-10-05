@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Lock } from "lucide-react"
@@ -17,6 +17,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { EditSettlementAccountFormSchema } from "../schemas"
+import {
+  classifySettlementError,
+  partitionFieldErrors,
+} from "../lib/settlement-errors"
 import { useUpdateSettlementAccount } from "../hooks/use-settlement-mutations"
 import type { EditSettlementAccountForm, SettlementAccount } from "../types"
 import { MaskedAccountNumber } from "./masked-account-number"
@@ -31,11 +35,21 @@ export function EditSettlementAccountDialog({
   onOpenChange,
 }: EditSettlementAccountDialogProps) {
   const update = useUpdateSettlementAccount()
+  // Keyed by account so an error never carries over to another account.
+  const [submitError, setSubmitError] = useState<{
+    accountId: number
+    message: string
+  } | null>(null)
+  const shownError =
+    submitError && submitError.accountId === account?.id
+      ? submitError.message
+      : null
   const {
     register,
     control,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, isDirty },
   } = useForm<EditSettlementAccountForm>({
     resolver: zodResolver(EditSettlementAccountFormSchema),
@@ -48,9 +62,39 @@ export function EditSettlementAccountDialog({
 
   function onSubmit(values: EditSettlementAccountForm) {
     if (!account) return
+    setSubmitError(null)
+    const deactivating = account.isActive && !values.isActive
     update.mutate(
       { id: account.id, payload: values },
-      { onSuccess: () => onOpenChange(false) }
+      {
+        onSuccess: () => onOpenChange(false),
+        onError: (error) => {
+          const classified = classifySettlementError(
+            error,
+            deactivating ? "deactivate-account" : "update-account"
+          )
+          if (classified.kind !== "validation") {
+            setSubmitError({
+              accountId: account.id,
+              message: classified.message,
+            })
+            return
+          }
+          const { mapped, unmapped } = partitionFieldErrors(
+            classified.fieldErrors,
+            (key) => (key === "label" ? "label" : null)
+          )
+          for (const { path, message } of mapped) {
+            setError(path, { type: "server", message })
+          }
+          if (unmapped.length > 0 || mapped.length === 0) {
+            setSubmitError({
+              accountId: account.id,
+              message: unmapped.join(" ") || classified.message,
+            })
+          }
+        },
+      }
     )
   }
 
@@ -118,6 +162,14 @@ export function EditSettlementAccountDialog({
               )}
             />
           </div>
+          {shownError && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive dark:bg-destructive/10"
+            >
+              {shownError}
+            </p>
+          )}
         </form>
 
         <DialogFooter>

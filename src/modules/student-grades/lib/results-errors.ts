@@ -34,6 +34,14 @@ export interface ResultsApiError {
 export const SEMESTER_LOCKED_MESSAGE =
   "This semester is locked, so its results are frozen: marks can't be pulled, mapped or adjusted, and sheets can't be submitted, approved, reopened or published."
 
+/** Short reason shown on actions disabled ahead of time (B30 item 13). */
+export function semesterLockedReason(lockedAt: string | null): string {
+  const d = lockedAt ? new Date(lockedAt) : null
+  const when =
+    d && !Number.isNaN(d.getTime()) ? ` on ${d.toLocaleDateString()}` : ""
+  return `Semester locked${when}: its results are frozen, so this can't be changed.`
+}
+
 /** A 423, or a SEMESTER_LOCKED code on any status. */
 export function isSemesterLocked(status: number | null, code: string | null) {
   return status === 423 || code === "SEMESTER_LOCKED"

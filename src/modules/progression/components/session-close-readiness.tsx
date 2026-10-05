@@ -8,6 +8,7 @@ import { ArrowRight, Loader2, Lock, PlayCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { useSessionOptions } from "@/hooks/use-session-options"
+import { useTermStructure } from "@/hooks/use-term-structure"
 import {
   SelectField,
   toId,
@@ -20,6 +21,7 @@ import {
 } from "../hooks/use-progression-mutations"
 import { useProgressionMajorProgram } from "../hooks/use-progression-major-program"
 import { toProgressionApiError } from "../lib/errors"
+import { createPromotionRunPayloadSchema } from "../schemas"
 import { PROGRESSION_PERMISSIONS as P } from "../lib/permissions"
 import { dashboardBase } from "../lib/readiness-links"
 import type { Readiness } from "../types"
@@ -35,11 +37,18 @@ import { ReadinessChecklist } from "./readiness-checklist"
 // READINESS_FAILED carries a fresh checklist, shown in place). When missing
 // grades are the only blocker, Start asks whether to carry those courses over
 // for the affected students or to wait for their grades.
+//
+// B30 item 12 (2026-09-29): for a SESSION-structured major program the
+// target is optional — its final session has no next one — and an empty
+// choice sends no `target_session_id`. SEMESTER programs still need one.
 export function SessionCloseReadiness() {
   const router = useRouter()
   const base = dashboardBase(usePathname())
   const mp = useProgressionMajorProgram()
   const sessions = useSessionOptions({ majorProgramId: mp.majorProgramId })
+  const { sessionBased: targetOptional } = useTermStructure({
+    majorProgramId: mp.majorProgramId,
+  })
   const [pickedSource, setPickedSource] = useState<number | null>(null)
   const [targetId, setTargetId] = useState<number | null>(null)
   const [lockOpen, setLockOpen] = useState(false)
@@ -55,10 +64,12 @@ export function SessionCloseReadiness() {
   const effectiveTarget =
     targetId != null && targetId !== sourceId ? targetId : null
 
+  // A target is needed unless the program is SESSION-structured.
+  const hasTargetChoice = effectiveTarget != null || targetOptional
   const readiness = useSessionCloseReadiness(
     sourceId,
     effectiveTarget,
-    mp.majorProgramId
+    targetOptional
   )
   const lock = useLockSession()
   const createRun = useCreatePromotionRun()
@@ -78,12 +89,16 @@ export function SessionCloseReadiness() {
   const canStart =
     mp.majorProgramId != null &&
     sourceId != null &&
-    effectiveTarget != null &&
+    hasTargetChoice &&
     (live?.ready === true || onlyMissingGrades) &&
     rejected == null
 
   const sourceLabel = sessions.labelFor(sourceId) ?? "this session"
-  const targetLabel = sessions.labelFor(effectiveTarget) ?? "the next session"
+  const targetLabel =
+    sessions.labelFor(effectiveTarget) ??
+    (effectiveTarget == null && targetOptional
+      ? "their next session"
+      : "the next session")
 
   const lockSession = async () => {
     if (sourceId == null) return
@@ -107,20 +122,25 @@ export function SessionCloseReadiness() {
   }
 
   const startRun = async (carryOverMissing = false) => {
-    if (
-      !canStart ||
-      mp.majorProgramId == null ||
-      sourceId == null ||
-      effectiveTarget == null
-    )
+    if (!canStart || mp.majorProgramId == null || sourceId == null) return
+    // No target → no `target_session_id` key at all (SESSION programs only;
+    // the schema refuses a missing target for a SEMESTER program).
+    const payload = createPromotionRunPayloadSchema(targetOptional).safeParse({
+      major_program_id: mp.majorProgramId,
+      source_session_id: sourceId,
+      ...(effectiveTarget != null
+        ? { target_session_id: effectiveTarget }
+        : {}),
+      ...(carryOverMissing ? { missing_grades: "CARRYOVER" as const } : {}),
+    })
+    if (!payload.success) {
+      toast.error(
+        payload.error.issues[0]?.message ?? "Check the sessions chosen."
+      )
       return
+    }
     try {
-      const run = await createRun.mutateAsync({
-        major_program_id: mp.majorProgramId,
-        source_session_id: sourceId,
-        target_session_id: effectiveTarget,
-        ...(carryOverMissing ? { missing_grades: "CARRYOVER" as const } : {}),
-      })
+      const run = await createRun.mutateAsync(payload.data)
       setMissingOpen(false)
       toast.success(
         carryOverMissing
@@ -209,26 +229,50 @@ export function SessionCloseReadiness() {
           />
           <SelectField
             id="close-target-session"
-            label="Students move into"
+            label={
+              targetOptional
+                ? "Students move into (optional)"
+                : "Students move into"
+            }
             value={effectiveTarget ? String(effectiveTarget) : ""}
             onChange={(v) => {
               setTargetId(toId(v))
               setRejected(null)
             }}
-            placeholder="Choose the next session"
+            placeholder={
+              targetOptional
+                ? "No next session (final session)"
+                : "Choose the next session"
+            }
             disabled={sourceId == null}
+            describedBy={
+              targetOptional ? "close-target-session-help" : undefined
+            }
             options={sessions.options
               .filter((o) => o.session.id !== sourceId)
               .map((o) => ({ value: o.value, label: o.label }))}
             className="w-full sm:max-w-xs"
           />
         </div>
+        {targetOptional && (
+          <p
+            id="close-target-session-help"
+            className="max-w-2xl text-xs text-muted-foreground"
+          >
+            This program runs by whole session. Leave &ldquo;Students move
+            into&rdquo; empty only if this is the program&apos;s final session.
+            Students who still need a next session (anyone not graduating or
+            advised to withdraw) will be refused at commit, and the run would
+            have to be started again with a session chosen.
+          </p>
+        )}
 
         {mp.majorProgramId == null && !mp.isLoading ? (
           <p className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
             Choose a major program to see its sessions.
           </p>
         ) : sourceId != null &&
+          !targetOptional &&
           !sessions.isLoading &&
           sessions.options.every((o) => o.session.id === sourceId) ? (
           <p className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
@@ -242,7 +286,7 @@ export function SessionCloseReadiness() {
             </Link>{" "}
             first.
           </p>
-        ) : sourceId == null || effectiveTarget == null ? (
+        ) : sourceId == null || !hasTargetChoice ? (
           <p className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
             Choose the session being closed and the session students move into
             to see the readiness checklist.
@@ -312,16 +356,23 @@ export function SessionCloseReadiness() {
           </PermissionGate>
         )}
 
-        {sourceId != null && effectiveTarget != null && (
+        {sourceId != null && hasTargetChoice && (
           <section
             aria-label="Session close actions"
             className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <p className="text-xs text-muted-foreground">
               Lock <span className="font-medium">{sourceLabel}</span> first,
-              then start the run into{" "}
-              <span className="font-medium">{targetLabel}</span>. The run builds
-              a preview you can review and adjust before anything is committed.
+              then start the run{" "}
+              {effectiveTarget != null ? (
+                <>
+                  into <span className="font-medium">{targetLabel}</span>
+                </>
+              ) : (
+                "with no next session (the program's final session)"
+              )}
+              . The run builds a preview you can review and adjust before
+              anything is committed.
             </p>
             <div className="flex shrink-0 flex-wrap gap-2">
               <PermissionGate require={P.sessionLock}>
@@ -353,7 +404,7 @@ export function SessionCloseReadiness() {
             </div>
           </section>
         )}
-        {sourceId != null && effectiveTarget != null && !canStart && (
+        {sourceId != null && hasTargetChoice && !canStart && (
           <p id="start-run-hint" className="text-xs text-muted-foreground">
             Start promotion run is available once the readiness checklist
             reports the session as ready. Missing grades don&apos;t block it on

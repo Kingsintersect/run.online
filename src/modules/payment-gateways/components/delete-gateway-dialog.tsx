@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { useDeletePaymentGateway } from "../hooks/use-payment-gateway-mutations"
-import { isGatewayInUse } from "../services/payment-gateways.service"
+import { parseGatewayError } from "../lib/gateway-errors"
 import type { PaymentGateway } from "../types"
+import { GatewayErrorAlert } from "./gateway-error-alert"
 
 interface DeleteGatewayDialogProps {
   gateway: PaymentGateway | null
@@ -26,7 +27,9 @@ export function DeleteGatewayDialog({
   onOpenChange,
 }: DeleteGatewayDialogProps) {
   const remove = useDeletePaymentGateway()
-  const inUse = isGatewayInUse(remove.error)
+  // Shown inline instead of a toast; 409 GATEWAY_IN_USE lists what uses it.
+  const failure = remove.error ? parseGatewayError(remove.error) : null
+  const inUse = failure?.inUse ?? null
 
   const close = (open: boolean) => {
     if (remove.isPending) return
@@ -41,9 +44,6 @@ export function DeleteGatewayDialog({
         toast.success(`${gateway.displayName} deleted`)
         close(false)
       },
-      onError: (err) => {
-        if (!isGatewayInUse(err)) toast.error(err.message)
-      },
     })
   }
 
@@ -57,22 +57,16 @@ export function DeleteGatewayDialog({
             This can&apos;t be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {inUse && (
-          <div
-            role="alert"
-            className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
-          >
-            <AlertTriangle
-              className="mt-0.5 size-3.5 shrink-0"
-              aria-hidden="true"
-            />
-            <span>
-              This gateway is still in use: a major program is routed to it (as
-              primary or fallback), or it has pending payments. Move those
-              programs to another gateway in Program routing and let pending
-              payments settle, then try again.
-            </span>
-          </div>
+        {failure && (
+          <GatewayErrorAlert
+            message={
+              inUse
+                ? "This gateway is still in use, so it can't be deleted:"
+                : failure.message
+            }
+            inUse={inUse}
+            action="delete"
+          />
         )}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={remove.isPending}>
@@ -82,7 +76,7 @@ export function DeleteGatewayDialog({
             type="button"
             variant="destructive"
             onClick={confirm}
-            disabled={remove.isPending || inUse}
+            disabled={remove.isPending || inUse !== null}
           >
             {remove.isPending && (
               <Loader2

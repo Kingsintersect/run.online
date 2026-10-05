@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import {
   AlertTriangle,
@@ -8,30 +8,45 @@ import {
   CheckCircle2,
   Loader2,
   RefreshCw,
+  RotateCcw,
+  XCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { useVerifyPayment } from "../../hooks/use-payment"
+import type { PaymentReturnStatus } from "../../lib/payment-return"
 
 interface PaymentStatusPanelProps {
-  /** Gateway reference from the callback URL query param */
+  /** Payment reference from the return URL's `reference` param */
   reference: string | null
+  /**
+   * The backend's verdict from the return URL's `status` param (B30 item 3).
+   * null when absent (a legacy direct-from-gateway landing).
+   */
+  returnStatus?: PaymentReturnStatus | null
 }
 
-export function PaymentStatusPanel({ reference }: PaymentStatusPanelProps) {
+export function PaymentStatusPanel({
+  reference,
+  returnStatus = null,
+}: PaymentStatusPanelProps) {
   const verify = useVerifyPayment()
   const hasFired = useRef(false)
+  // `status=failed`: the backend already re-verified and the payment didn't
+  // go through, so skip the verify call unless the payer asks to check again.
+  const [checkAgain, setCheckAgain] = useState(false)
+  const skipVerify = returnStatus === "failed" && !checkAgain
 
-  // Fire verification exactly once on mount — never based on redirect params alone
+  // Fire verification exactly once — never based on redirect params alone
   useEffect(() => {
-    if (reference && !hasFired.current) {
+    if (reference && !skipVerify && !hasFired.current) {
       hasFired.current = true
       verify.mutate(reference)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [skipVerify])
 
   // Missing reference
   if (!reference) {
@@ -45,6 +60,53 @@ export function PaymentStatusPanel({ reference }: PaymentStatusPanelProps) {
           </Button>
         </Link>
       </div>
+    )
+  }
+
+  // The backend reported the payment as failed on the return URL
+  if (skipVerify) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        role="alert"
+        className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-16 text-center"
+      >
+        <div className="flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <XCircle size={32} className="text-destructive" aria-hidden="true" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-foreground">
+            Payment Not Completed
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            The payment gateway didn&apos;t confirm this payment, so nothing has
+            been applied to your invoice. You can pay again from My Fees.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Reference:{" "}
+            <span className="font-mono break-all text-foreground">
+              {reference}
+            </span>
+          </p>
+        </div>
+        <div className="flex w-full flex-col gap-3 sm:flex-row">
+          <Button asChild className="flex-1 gap-1.5">
+            <Link href="/student/fees">
+              <RotateCcw size={13} aria-hidden="true" />
+              Pay again
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1 gap-1.5"
+            onClick={() => setCheckAgain(true)}
+          >
+            <RefreshCw size={13} aria-hidden="true" />I was charged: check again
+          </Button>
+        </div>
+      </motion.div>
     )
   }
 

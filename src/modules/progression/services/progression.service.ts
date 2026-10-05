@@ -233,18 +233,19 @@ export const progressionApi = {
   },
 
   // Session close ──────────────────────────────────────────────────────────
+  // No `major_program_id`: the endpoint never reads one — it derives the
+  // major program from the session in the URL (bruno "Academic Sessions -
+  // Close Readiness", B30 item 15). `target_session_id` is optional; without
+  // it the target-session blockers aren't checked (a SESSION-structured
+  // program's final session has no next session).
   getSessionCloseReadiness(
     sessionId: number,
-    targetSessionId: number,
-    majorProgramId?: number | null
+    targetSessionId: number | null
   ): Promise<Readiness> {
     return getOne(
       `/academic-sessions/${sessionId}/close-readiness`,
       ReadinessSchema,
-      {
-        target_session_id: targetSessionId,
-        major_program_id: majorProgramId ?? undefined,
-      }
+      { target_session_id: targetSessionId ?? undefined }
     )
   },
 

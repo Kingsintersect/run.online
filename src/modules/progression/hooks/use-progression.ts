@@ -10,7 +10,7 @@
 // Queries (this file):
 //   usePromotionPolicy(majorProgramId)            policy; data null = none saved yet
 //   useSemesterRolloverReadiness(semesterId)      rollover checklist for a semester
-//   useSessionCloseReadiness(sessionId, targetId) promotion-readiness checklist
+//   useSessionCloseReadiness(sessionId, targetId, allowNoTarget) promotion-readiness checklist
 //   usePromotionRuns(filters)                     paginated run history
 //   usePromotionRun(runId, {poll})                one run; polls while QUEUED/PREVIEWING/COMMITTING
 //   usePromotionRunItems(runId, filters)          paginated/filtered/searched run items (keepPreviousData)
@@ -86,32 +86,30 @@ export function useSemesterRolloverReadiness(
   })
 }
 
+/**
+ * `allowNoTarget`: a SESSION-structured major program may check (and start a
+ * run) without a target session (B30 item 12); every other program needs one.
+ */
 export function useSessionCloseReadiness(
   sessionId: number | null,
   targetSessionId: number | null,
-  majorProgramId: number | null = null
+  allowNoTarget = false
 ) {
   return useQuery({
     ...createApiQueryOptions({
-      queryKey: progressionKeys.sessionClose(
-        sessionId ?? 0,
-        targetSessionId,
-        majorProgramId
-      ),
+      queryKey: progressionKeys.sessionClose(sessionId ?? 0, targetSessionId),
       queryFn: () =>
         live(() =>
           progressionApi.getSessionCloseReadiness(
             sessionId ?? 0,
-            targetSessionId ?? 0,
-            majorProgramId
+            targetSessionId
           )
         ),
     }),
     enabled:
       sessionId != null &&
       sessionId > 0 &&
-      targetSessionId != null &&
-      targetSessionId > 0,
+      ((targetSessionId != null && targetSessionId > 0) || allowNoTarget),
   })
 }
 

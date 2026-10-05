@@ -35,6 +35,7 @@ import {
   useUpdateGatewayAssignment,
 } from "../hooks/use-payment-gateway-mutations"
 import { gatewayEligibility, gatewayLabel } from "../lib/gateway-eligibility"
+import { routingErrorMessages } from "../lib/gateway-errors"
 import { providerName } from "../lib/provider-catalog"
 import type {
   ActiveGatewayProvider,
@@ -43,6 +44,7 @@ import type {
   GatewayProvider,
   PaymentGateway,
 } from "../types"
+import { GatewayErrorAlert } from "./gateway-error-alert"
 
 export type AssignmentTarget =
   | { kind: "program"; assignment: GatewayAssignment }
@@ -71,6 +73,8 @@ export function AssignmentDialog({
   providers,
 }: AssignmentDialogProps) {
   const [step, setStep] = useState<"form" | "confirm">("form")
+  // The server's refusal, shown in the confirm step; the dialog stays open.
+  const [serverErrors, setServerErrors] = useState<string[]>([])
   const updateProgram = useUpdateGatewayAssignment()
   const updateDefault = useUpdateDefaultGateway()
   const setActive = useSetActiveGateway()
@@ -103,6 +107,7 @@ export function AssignmentDialog({
   useEffect(() => {
     if (!target) return
     setStep("form")
+    setServerErrors([])
     updateProgram.reset()
     updateDefault.reset()
     setActive.reset()
@@ -179,13 +184,14 @@ export function AssignmentDialog({
   const save = async () => {
     if (!target) return
     const v = getValues()
+    setServerErrors([])
     try {
       if (target.kind === "active-gateway") {
         const gateway = ActiveGatewayProviderSchema.parse(v.gatewayId)
-        // The reason is UI-only here: PATCH /fees/gateway takes just
-        // `{ gateway }` and keeps no history. It is still asked for so the
-        // switch gets the same deliberate review step as any routing change.
-        const now = await setActive.mutateAsync({ gateway })
+        // PATCH /fees/gateway records the reason in the audit log when the
+        // gateway actually changes (B30 item 1). Re-picking the current
+        // gateway is a server-side no-op and logs nothing.
+        const now = await setActive.mutateAsync({ gateway, reason: v.reason })
         toast.success(
           `New payments now go through ${providerName(providers, now)}`
         )
@@ -211,8 +217,15 @@ export function AssignmentDialog({
       }
       onOpenChange(false)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't save the routing"
+      // GATEWAY_NOT_READY / GATEWAY_NOT_SUPPORTED / DEFAULT_REQUIRED, the
+      // fallback field rules, and the legacy switch's 409.
+      setServerErrors(
+        err instanceof Error
+          ? routingErrorMessages(err, {
+              providerName: chosenProvider?.name ?? null,
+              legacy: target.kind === "active-gateway",
+            })
+          : ["Couldn't save the routing"]
       )
     }
   }
@@ -417,7 +430,7 @@ export function AssignmentDialog({
               <Textarea
                 id="assignment-reason"
                 rows={2}
-                placeholder="e.g. Moving Certificate collections to Flutterwave"
+                placeholder="e.g. Moving Certificate collections to FCMB"
                 aria-invalid={!!errors.reason}
                 aria-required="true"
                 aria-describedby={reasonHelpId}
@@ -430,7 +443,7 @@ export function AssignmentDialog({
               ) : (
                 <p id={reasonHelpId} className="text-xs text-muted-foreground">
                   {isActiveSwitch
-                    ? "For your own review only: the server doesn't store a reason for this switch yet."
+                    ? "Recorded in the audit log with the switch. Nothing is logged if you pick the gateway that's already active."
                     : "Kept in the routing history."}
                 </p>
               )}
@@ -438,6 +451,14 @@ export function AssignmentDialog({
           </form>
         ) : (
           <div className="space-y-4">
+            {serverErrors.length > 0 && (
+              <GatewayErrorAlert
+                message={serverErrors[0]}
+                items={
+                  serverErrors.length > 1 ? serverErrors.slice(1) : undefined
+                }
+              />
+            )}
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/40 p-3 text-sm">
               <span className="text-muted-foreground">{beforeLabel}</span>
               <ArrowRight
@@ -500,7 +521,10 @@ export function AssignmentDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setStep("form")}
+                onClick={() => {
+                  setServerErrors([])
+                  setStep("form")
+                }}
                 disabled={isSaving}
               >
                 Back

@@ -75,9 +75,11 @@ export const FeeTypeResponseSchema = z.object({
   createdAt: z.string().datetime({ offset: true }),
 })
 
+// jobId is the FeeGenerationJob's integer id on activate and on generation
+// status alike (bruno, B30 item 7, 2026-09-29).
 export const ActivateFeeTypeResponseSchema = z.object({
   feeTypeId: z.number(),
-  jobId: z.string(),
+  jobId: z.number(),
   eligibleStudentCount: z.number(),
   status: z.literal("QUEUED"),
 })
@@ -87,7 +89,7 @@ export const ActivateFeeTypeResponseSchema = z.object({
 // Counts are rendered as `?? 0` while QUEUED/RUNNING, as the note asks.
 export const GenerationStatusResponseSchema = z.object({
   feeTypeId: z.number(),
-  jobId: z.union([z.number(), z.string()]),
+  jobId: z.number(),
   status: z.enum(["QUEUED", "RUNNING", "DONE", "FAILED"]),
   eligibleCount: z.number().nullish(),
   processedCount: z.number().nullish(),

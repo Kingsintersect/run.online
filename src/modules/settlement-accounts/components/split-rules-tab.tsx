@@ -7,6 +7,7 @@ import { useFeeTypes } from "@/modules/fee-management/hooks/use-fee-types"
 import { useSettlementAccounts } from "../hooks/use-settlement-accounts"
 import { useDeleteSplitRule } from "../hooks/use-settlement-mutations"
 import { useSplitRules } from "../hooks/use-split-rules"
+import { classifySettlementError } from "../lib/settlement-errors"
 import type { SplitRule } from "../types"
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog"
 import { EmptyState, ErrorRetry, ListSkeleton } from "./query-states"
@@ -124,6 +125,11 @@ export function SplitRulesTab({ majorProgramId }: SplitRulesTabProps) {
         description={`The rule for ${deletingTitle} will be removed. New payments will fall back to the next matching rule, or the default account.`}
         confirmLabel="Delete rule"
         isPending={remove.isPending}
+        errorMessage={
+          remove.error
+            ? classifySettlementError(remove.error, "delete-split-rule").message
+            : null
+        }
         onConfirm={() =>
           deleting &&
           remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })

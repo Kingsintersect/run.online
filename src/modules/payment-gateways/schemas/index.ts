@@ -153,8 +153,13 @@ export const ActiveGatewayResponseSchema = z.object({
   data: z.object({ activeGateway: ActiveGatewayProviderSchema }),
 })
 
+// B30 item 1 (2026-09-29): the server accepts an optional `reason` (max 500)
+// and writes it to the audit log (AuditLog entityType "Setting", action
+// "UPDATE") when the gateway actually changes. The UI always asks for one, so
+// the payload requires it here.
 export const UpdateActiveGatewayPayloadSchema = z.object({
   gateway: ActiveGatewayProviderSchema,
+  reason: ReasonSchema,
 })
 
 export const AssignmentHistoryEntrySchema = z.object({
@@ -223,6 +228,9 @@ interface RequiredCredential {
  */
 export function buildGatewayFormSchema(required: RequiredCredential[]) {
   return GatewayFormBaseSchema.superRefine((v, ctx) => {
+    // A gateway may be saved disabled with credentials missing, to prepare
+    // it ahead of time (bruno/payment-routing/Gateways - Create.bru).
+    if (!v.isEnabled) return
     for (const field of required) {
       if (field.isSet) continue
       if (!(v.credentials[field.field] ?? "").trim()) {
@@ -235,3 +243,26 @@ export function buildGatewayFormSchema(required: RequiredCredential[]) {
     }
   })
 }
+
+// ── Error bodies (bruno/payment-routing) ────────────────────────────
+// Laravel's `{ message, errors }` 422 shape, plus the routing API's own
+// `{ message, code, details }` for GATEWAY_IN_USE / GATEWAY_NOT_READY /
+// GATEWAY_NOT_SUPPORTED / DEFAULT_REQUIRED. Every field is optional so one
+// schema reads all of them; lib/gateway-errors.ts maps them to messages.
+
+/** `details` of 409 GATEWAY_IN_USE (Gateways - Delete/Update.bru). */
+export const GatewayInUseDetailsSchema = z.object({
+  majorProgramIds: z.array(z.number()).catch([]),
+  isDefault: z.boolean().catch(false),
+  pendingPayments: z.number().catch(0),
+})
+
+export const GatewayErrorBodySchema = z.object({
+  message: z.string().optional(),
+  code: z.string().optional(),
+  details: GatewayInUseDetailsSchema.optional().catch(undefined),
+  errors: z
+    .record(z.string(), z.union([z.array(z.string()), z.string()]))
+    .optional()
+    .catch(undefined),
+})

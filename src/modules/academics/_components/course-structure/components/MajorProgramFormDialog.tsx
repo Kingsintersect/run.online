@@ -188,9 +188,11 @@ export function MajorProgramFormDialog({
               role="note"
               className="rounded-lg bg-amber-400/15 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400"
             >
-              Changing the term structure changes how new course offerings and
-              Moodle result pulls work for this major program. Check its
-              existing sessions and offerings before saving.
+              Changing the term structure only affects new course offerings and
+              Moodle result pulls. Existing semesters and offerings are left
+              exactly as they are, and nothing checks them, so only change this
+              for a program without academic history, or after deciding how its
+              existing records should be handled.
             </p>
           )}
         </div>

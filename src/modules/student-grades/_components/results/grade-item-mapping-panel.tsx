@@ -1,7 +1,7 @@
 "use client"
 
 import { toast } from "sonner"
-import { Loader2, Tags } from "lucide-react"
+import { Loader2, Lock, Tags } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { cn } from "@/lib/utils"
 import { useGradeItems } from "../../hooks/use-results"
@@ -38,12 +38,18 @@ interface GradeItemMappingPanelProps {
   summary: ResultSheetSummary
   /** results.items.map held AND the sheet is DRAFT (C7: 409 otherwise). */
   canMap: boolean
+  /**
+   * Set when mapping would be allowed but the semester is locked (B30 item
+   * 13): the reason is shown instead of the per-item pickers.
+   */
+  frozenReason?: string | null
 }
 
 export function GradeItemMappingPanel({
   offeringId,
   summary,
   canMap,
+  frozenReason = null,
 }: GradeItemMappingPanelProps) {
   const items = useGradeItems(offeringId)
   const mapItem = useMapGradeItem(offeringId)
@@ -121,6 +127,12 @@ export function GradeItemMappingPanel({
         {canMap &&
           " You can override any item here without editing Moodle; the draft rows are recomputed."}
       </p>
+      {frozenReason && (
+        <p className="flex items-start gap-1.5 rounded-xl border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-100">
+          <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>Mapping is read only. {frozenReason}</span>
+        </p>
+      )}
       {unmapped.length > 0 && (
         <p
           role="alert"

@@ -19,14 +19,11 @@ import { useFeeManagementUiStore } from "../../store/fee-management-ui.store"
 import { useInvoice } from "../../hooks/use-invoices"
 import type { InitiatePaymentDto, PaymentMethod } from "../../types"
 
-// Offline bank details — rendered when checkoutUrl is null
-const BANK_DETAILS = {
-  bankName: "First Bank of Nigeria",
-  accountName: "University Bursary Account",
-  accountNumber: "2020202020",
-  sortCode: "011-2",
-  note: "Use your invoice number as the payment narration.",
-} as const
+// There is no backend source for the university's own bank account, so none
+// is shown here (it used to be a hardcoded placeholder that looked real). The
+// server's gateway-issued `virtualAccount` is shown when it sends one
+// (bruno/fee/Payments - Initiate.bru, B30 item 4); otherwise only the payment
+// reference, with the bursary as the source of the account details.
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   GATEWAY: "Online (Card / Transfer)",
@@ -134,7 +131,7 @@ export function PaymentModal() {
       footer={
         offlineData ? (
           <Button onClick={handleClose} className="w-full">
-            Done — I have the bank details
+            Done
           </Button>
         ) : (
           <>
@@ -170,10 +167,13 @@ export function PaymentModal() {
           </p>
           <dl className="space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-sm">
             {Object.entries({
-              "Bank Name": BANK_DETAILS.bankName,
-              "Account Name": BANK_DETAILS.accountName,
-              "Account Number": BANK_DETAILS.accountNumber,
-              "Sort Code": BANK_DETAILS.sortCode,
+              ...(offlineData.virtualAccount
+                ? {
+                    Bank: offlineData.virtualAccount.bank,
+                    "Account Name": offlineData.virtualAccount.accountName,
+                    "Account Number": offlineData.virtualAccount.accountNumber,
+                  }
+                : {}),
               Reference: offlineData.referenceNumber,
             }).map(([label, value]) => (
               <div
@@ -185,7 +185,11 @@ export function PaymentModal() {
               </div>
             ))}
           </dl>
-          <p className="text-xs text-muted-foreground">{BANK_DETAILS.note}</p>
+          <p className="text-xs text-muted-foreground">
+            {offlineData.virtualAccount
+              ? "Transfer the exact amount to this account. Your payment is confirmed automatically once the transfer arrives."
+              : "Get the university's official account details from the bursary, and use this reference as the payment narration. The bursary confirms the payment once it arrives."}
+          </p>
         </div>
       ) : (
         <div className="space-y-5">
