@@ -1,4 +1,5 @@
 import apiClient, { RequestOptions } from "@/lib/clients/apiClient"
+import { isEndpointMissing } from "@/modules/student-grades/lib/results-errors"
 import type {
   AuditQueryParams,
   AuditLogsResponse,
@@ -115,14 +116,21 @@ export const auditApi = {
   },
 
   /**
-   * GET /audit/stats
-   * Fetches audit statistics
+   * GET /audit/logs/stats (Bruno audit/Stats.bru, A48 fixed 2026-10-02).
+   * The route used to live at the bare `/audit/stats`, which QHUB no longer
+   * serves (404 "route could not be found", probed 2026-10-05). A backend
+   * that hasn't deployed the move yet still only has the old path, so fall
+   * back to it only when the new route is missing.
    */
   getStats: async (options?: RequestOptions): Promise<AuditStats> => {
-    return apiClient.get<AuditStats>("/audit/stats", {
-      access_token: true,
-      ...options,
-    })
+    const opts = { access_token: true, ...options }
+    try {
+      return await apiClient.get<AuditStats>("/audit/logs/stats", opts)
+    } catch (error) {
+      if (error instanceof Error && isEndpointMissing(error))
+        return apiClient.get<AuditStats>("/audit/stats", opts)
+      throw error
+    }
   },
 
   // Note: `GET /audit/export` and `POST /audit/log` are NOT real endpoints

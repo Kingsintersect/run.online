@@ -50,9 +50,13 @@ export const unreadCountResponseSchema = z.object({
   data: z.object({ unreadCount: z.number() }),
 })
 
-// PATCH /notifications/:id/read -> the full serialized notification, wrapped
+// PATCH /notifications/:id/read -> { data: { id, status, readAt } } per Bruno
+// (notification/Notifications - Mark Read.bru); a backend that returns the
+// full serialized notification still fits, the extra fields are optional.
 export const markReadResponseSchema = z.object({
-  data: notificationItemSchema,
+  data: notificationItemSchema
+    .partial()
+    .required({ id: true, status: true, readAt: true }),
 })
 
 // GET /notifications/:id -> { data: Notification } (own notification only)

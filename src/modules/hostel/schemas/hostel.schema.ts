@@ -16,8 +16,12 @@ export const HostelResponseSchema = z.object({
   hostelType: HostelTypeSchema,
   address: z.string().nullable().optional(),
   isActive: z.boolean(),
-  // Present on GET /hostels/:id (includes blocks); absent on list/mutation responses.
-  blocks: z.array(z.lazy(() => BlockSummarySchema)).optional(),
+  // Present on GET /hostels/:id (includes blocks); `null` on the list
+  // (live QHUB 2026-10-05) and absent on mutation responses.
+  blocks: z
+    .array(z.lazy(() => BlockSummarySchema))
+    .nullable()
+    .optional(),
 })
 
 // Minimal block shape nested inside a hostel's detail response — the full

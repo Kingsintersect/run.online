@@ -128,6 +128,10 @@ interface WireStudent {
     faculty?: WireRelationRef
   }
   currentLevel?: WireRelationRef & { numericValue: number }
+  // Top-level department/faculty refs (live on QHUB 2026-10-05; StudentResource
+  // no longer nests them under `program`). Null when the program has none.
+  department?: (WireRelationRef & { faculty?: WireRelationRef }) | null
+  faculty?: WireRelationRef | null
 }
 
 interface WireStaffProfile {
@@ -142,6 +146,11 @@ interface WireStaffProfile {
   updatedAt: string
   user: WireUserRef
   department?: WireRelationRef & { faculty?: WireRelationRef }
+  // Flat names, as LecturerResource sends them live (QHUB 2026-10-05) instead
+  // of a nested `department` object.
+  departmentName?: string | null
+  facultyId?: number | null
+  facultyName?: string | null
   majorProgramId?: number | null
   majorProgramName?: string | null
 }
@@ -267,14 +276,19 @@ const mapStudent = (s: WireStudent): Student => ({
   program_name: s.program?.name ?? "—",
   // A program is owned by a department (and through it a faculty) or
   // directly by a faculty; both shapes occur in one institution.
-  department_name: s.program?.department?.name ?? "—",
+  department_name: s.program?.department?.name ?? s.department?.name ?? "—",
   faculty_name:
-    s.program?.department?.faculty?.name ?? s.program?.faculty?.name ?? "—",
-  program_owned_by: s.program?.department
-    ? "department"
-    : s.program?.faculty
-      ? "faculty"
-      : null,
+    s.program?.department?.faculty?.name ??
+    s.program?.faculty?.name ??
+    s.department?.faculty?.name ??
+    s.faculty?.name ??
+    "—",
+  program_owned_by:
+    s.program?.department || s.department
+      ? "department"
+      : s.program?.faculty || s.faculty
+        ? "faculty"
+        : null,
   // Nullable — sandbox/program-structure-depth/. `0` was
   // previously used as a "no level" sentinel; `null` is the correct
   // representation now that FOUNDATIONAL/CERTIFICATE students genuinely
@@ -312,8 +326,8 @@ const mapTutor = (l: WireLecturer): Tutor => ({
   user_id: l.userId,
   staff_number: l.staffNumber,
   department_id: l.departmentId ?? 0,
-  department_name: l.department?.name ?? "—",
-  faculty_name: l.department?.faculty?.name ?? "—",
+  department_name: l.department?.name ?? l.departmentName ?? "—",
+  faculty_name: l.department?.faculty?.name ?? l.facultyName ?? "—",
   major_program_id: l.majorProgramId ?? null,
   major_program_name: l.majorProgramName ?? null,
   designation: l.designation,
@@ -346,7 +360,7 @@ const mapStaff = (s: WireStaff): Staff => ({
   user_id: s.userId,
   staff_number: s.staffNumber,
   department_id: s.departmentId,
-  department_name: s.department?.name ?? null,
+  department_name: s.department?.name ?? s.departmentName ?? null,
   major_program_id: s.majorProgramId ?? null,
   major_program_name: s.majorProgramName ?? null,
   designation: s.designation,

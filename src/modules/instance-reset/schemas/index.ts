@@ -1,7 +1,7 @@
 import { z } from "zod"
 
-// Instance reset (proposed, /api/v1/system/instance-reset). None of these
-// routes exist on the server yet; every response is parsed so a shape drift
+// Instance reset (/api/v1/system/instance-reset; live on QHUB, absent on
+// RUN). Every response is parsed so a shape drift
 // shows up as an error instead of a half-rendered screen, and every payload is
 // parsed before it is sent.
 
@@ -42,7 +42,24 @@ export const ResetGroupSchema = z.object({
   totalRows: CountSchema,
 })
 
-export const ResetGroupListSchema = z.array(ResetGroupSchema)
+/**
+ * The wire shape of GET /groups. As deployed (QHUB, 2026-10-05) the `lms`
+ * group's Moodle entities carry only `{ type, count }`, no `label`, so the
+ * label is optional here; the service fills it from the local catalogue.
+ */
+export const ApiResetGroupSchema = ResetGroupSchema.extend({
+  moodle: z
+    .object({
+      entities: z.array(
+        MoodleEntitySchema.extend({
+          label: z.string().nullable().optional(),
+        })
+      ),
+    })
+    .nullable(),
+})
+
+export const ApiResetGroupListSchema = z.array(ApiResetGroupSchema)
 
 /** The local catalogue's shape: the API group without any counts. */
 export const PlannedResetGroupSchema = ResetGroupSchema.omit({
@@ -189,11 +206,12 @@ export const TypedConfirmationFormSchema = z.object(ConfirmationFields)
 
 /**
  * The typed-confirmation form: the name must match `institutionName`
- * exactly (case-sensitive, no trimming), as the server checks it.
+ * exactly (case-sensitive). The server trims the typed value before comparing
+ * (Bruno "Runs - Create"), so surrounding spaces are ignored here too.
  */
 export function typedConfirmationSchema(institutionName: string) {
   return TypedConfirmationFormSchema.refine(
-    (v) => v.confirmation === institutionName,
+    (v) => v.confirmation.trim() === institutionName,
     {
       path: ["confirmation"],
       message: "This doesn't match the institution name exactly.",

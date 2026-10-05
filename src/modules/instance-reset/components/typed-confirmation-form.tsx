@@ -77,7 +77,7 @@ export function TypedConfirmationForm({
 
   const typed = useWatch({ control, name: "confirmation" })
   const password = useWatch({ control, name: "password" })
-  const nameMatches = typed === institutionName
+  const nameMatches = typed.trim() === institutionName
   const canSubmit =
     nameMatches && password.length > 0 && !isPending && !blockedReason
 

@@ -43,14 +43,20 @@ export function ManageRolesModal({
   const revokeMut = useRevokeUserRole()
 
   // Scope selected for a not-yet-assigned role, keyed by role id — cleared
-  // once that role is actually assigned. Can't show the CURRENT scope of an
-  // already-assigned role yet: GET /auth/users/:userId/roles doesn't return
-  // major_program_id on the backend today, only once
-  // sandbox/major-program-scoping/ ships will an existing grant's scope be
-  // visible here to edit.
+  // once that role is actually assigned.
   const [pendingScope, setPendingScope] = useState<Record<number, number[]>>({})
 
   const assignedIds = new Set((assignedRoles ?? []).map((r) => r.id))
+  // GET /auth/users/:userId/roles returns one row per grant, each with its
+  // major-program scope (null = unscoped), so a role scoped to two major
+  // programs appears twice. Group the scope names per role for display.
+  const assignedScopes = new Map<number, string[]>()
+  for (const grant of assignedRoles ?? []) {
+    if (!grant.majorProgramName) continue
+    const names = assignedScopes.get(grant.id) ?? []
+    names.push(grant.majorProgramName)
+    assignedScopes.set(grant.id, names)
+  }
   const isLoading = rolesLoading || assignedLoading
 
   const toggleScope = (roleId: number, majorProgramId: number) => {
@@ -128,6 +134,13 @@ export function ManageRolesModal({
                     )}
                   </Button>
                 </div>
+                {assigned && (
+                  <p className="pl-6 text-xs text-muted-foreground">
+                    {assignedScopes.get(role.id)?.length
+                      ? `Scoped to: ${assignedScopes.get(role.id)?.join(", ")}`
+                      : "All major programs (unscoped)"}
+                  </p>
+                )}
                 {!assigned && isScopable && (
                   <div className="flex flex-wrap items-center gap-1.5 pl-6">
                     <span className="text-xs text-muted-foreground">

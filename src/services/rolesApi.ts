@@ -259,14 +259,35 @@ export const rolePermissionsApi = {
 // sandbox/API_GAPS_2026-09.md §9. Returns [] on error so the Users tab
 // renders an empty state instead of an error screen.
 
+/**
+ * One row of GET /auth/users/:userId/roles. Live (QHUB, 2026-10-05) every row
+ * carries its grant's major-program scope; a role scoped to two major programs
+ * comes back as two rows with the same `id`. Null scope = unscoped grant.
+ */
+export type UserRoleGrant = UserRoleSummary & {
+  majorProgramId: number | null
+  majorProgramName: string | null
+}
+
 export const userRolesApi = {
   listForUser: async (
     userId: number
-  ): Promise<ApiListResponse<UserRoleSummary>> => {
-    return apiClient.get<ApiListResponse<UserRoleSummary>>(
-      `/auth/users/${userId}/roles`,
-      AUTH
+  ): Promise<ApiListResponse<UserRoleGrant>> => {
+    const res = await apiClient.get<{
+      data: (UserRoleSummary & {
+        majorProgramId?: number | null
+        majorProgramName?: string | null
+      })[]
+    }>(`/auth/users/${userId}/roles`, AUTH)
+    const data = res.data.map(
+      (r): UserRoleGrant => ({
+        id: r.id,
+        name: r.name,
+        majorProgramId: r.majorProgramId ?? null,
+        majorProgramName: r.majorProgramName ?? null,
+      })
     )
+    return { data, total: data.length }
   },
 
   assign: async (payload: AssignRolesPayload): Promise<AssignRolesResponse> => {

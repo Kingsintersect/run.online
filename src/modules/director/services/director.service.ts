@@ -363,8 +363,14 @@ export const directorService = {
     let monthlyTrend: FinancialSummary["monthlyTrend"] = []
     let trendFailed = false
     try {
+      // `collected`/`expected` arrive as decimal strings ("2282500.00",
+      // live QHUB 2026-10-05), so they're converted before charting.
       const res = await apiClient.get<{
-        data: { month: string; collected: number; expected: number }[]
+        data: {
+          month: string
+          collected: number | string
+          expected: number | string
+        }[]
       }>("/fees/reports/collections-trend", {
         ...AUTH,
         // Major-Program Scoping — A33, sent ahead of the backend; a
@@ -372,7 +378,11 @@ export const directorService = {
         // client-side, same reasoning as fetchFeesSummaryData above.
         params: { months: 12, majorProgramId: filter?.majorProgramId },
       })
-      monthlyTrend = res.data
+      monthlyTrend = res.data.map((m) => ({
+        month: m.month,
+        collected: Number(m.collected) || 0,
+        expected: Number(m.expected) || 0,
+      }))
     } catch {
       monthlyTrend = []
       trendFailed = true

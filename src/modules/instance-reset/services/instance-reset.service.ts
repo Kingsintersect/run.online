@@ -3,7 +3,7 @@ import { isEndpointMissing } from "@/modules/student-grades/lib/results-errors"
 import {
   LockPayloadSchema,
   PreviewPayloadSchema,
-  ResetGroupListSchema,
+  ApiResetGroupListSchema,
   ResetPreviewSchema,
   ResetStatusSchema,
   RunDetailSchema,
@@ -11,6 +11,7 @@ import {
   RunSummarySchema,
   StartRunPayloadSchema,
 } from "../schemas"
+import { PLANNED_RESET_GROUPS } from "../lib/reset-catalog"
 import type {
   LockPayload,
   PreviewPayload,
@@ -22,14 +23,30 @@ import type {
   StartRunPayload,
 } from "../types"
 
-// Proposed /api/v1/system/instance-reset (super_admin only). Not built yet.
-// Reads return null while the route is missing (Laravel's "route could not be
-// found" 404, or a 405) so the hooks can fall back to the planned catalogue
-// (CLAUDE.md §14). Writes never fall back: they throw, and the UI keeps every
-// destructive control disabled until the reads answer for real.
+// /api/v1/system/instance-reset (super_admin only). Live on QHUB since
+// 2026-10-05 (Bruno instance-reset/*); RUN's collection doesn't carry it, so
+// reads still return null while the route is missing (Laravel's "route could
+// not be found" 404, or a 405) and the hooks fall back to the planned
+// catalogue (CLAUDE.md §14). Writes never fall back: they throw, and the UI
+// keeps every destructive control disabled until the reads answer for real.
 
 const BASE = "/system/instance-reset"
 const AUTH = { access_token: true } as const
+
+/** Moodle entity labels from the local catalogue, keyed by entity type. */
+const MOODLE_LABELS = new Map<string, string>(
+  PLANNED_RESET_GROUPS.flatMap((g) =>
+    (g.moodle?.entities ?? []).map((e): [string, string] => [e.type, e.label])
+  )
+)
+
+function moodleLabel(type: string, label: string | null | undefined): string {
+  if (label) return label
+  const known = MOODLE_LABELS.get(type)
+  if (known) return known
+  const words = type.replace(/_/g, " ")
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
 
 async function orNullWhenMissing<T>(load: () => Promise<T>): Promise<T | null> {
   try {
@@ -59,9 +76,21 @@ export const instanceResetService = {
         `${BASE}/groups`,
         AUTH
       )
-      return ResetGroupListSchema.parse(res.data).sort(
-        (a, b) => a.order - b.order
-      )
+      return ApiResetGroupListSchema.parse(res.data)
+        .map(
+          (g): ResetGroup => ({
+            ...g,
+            moodle: g.moodle
+              ? {
+                  entities: g.moodle.entities.map((e) => ({
+                    ...e,
+                    label: moodleLabel(e.type, e.label),
+                  })),
+                }
+              : null,
+          })
+        )
+        .sort((a, b) => a.order - b.order)
     })
   },
 

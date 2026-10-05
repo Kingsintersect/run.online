@@ -6,10 +6,11 @@ import type { AuditAction, AuditEntityType } from "../types/audit.types"
 // categories (Results, Session migration). Action labels live next to their
 // colours and icons in `ACTION_CONFIG` (`_components/ActionBadge.tsx`).
 //
-// `GET /audit/logs` takes a single `entityType` (a comma list returns 0 rows,
-// probed 2026-09-25), so a category is a set of presets: picking the category
-// selects one entity type inside it, and each further pick is one query.
-// Never fan out one request per entity type.
+// A category is a set of presets: picking the category selects one entity
+// type inside it, and each further pick is one query. Never fan out one
+// request per entity type. (A48, fixed 2026-10-02 and confirmed on QHUB
+// 2026-10-05: `entityType` now also accepts a comma list, so a future
+// "whole category at once" option can send every preset in one request.)
 //
 // Entity type names: the ones the backend already writes are copied from live
 // logs (GradePullJob, MoodleGradeItemMapping, MoodleSyncGrade,

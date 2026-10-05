@@ -167,6 +167,17 @@ export const storeRefreshToken = (token: string | null): void => {
   }
 }
 
+/** The access token persisted in localStorage (shared by every tab). */
+const readStoredAccessToken = (): string | null => {
+  if (typeof window === "undefined") return null
+
+  try {
+    return localStorage.getItem("access_token")
+  } catch {
+    return null
+  }
+}
+
 export const storeAccessToken = (token: string | null): void => {
   apiClient.setAccessToken(token, "local")
 }
@@ -392,6 +403,23 @@ const refreshWithBackend = async (): Promise<string | null> => {
 
       return nextAccessToken
     } catch (error) {
+      // POST /auth/refresh rotates: the token just sent is revoked the moment
+      // it's used (Bruno auth/Refresh Token.bru). Another tab sharing this
+      // localStorage can win that race and store the new pair while this
+      // request is in flight; this one then gets 401 "revoked". Wiping
+      // storage here would sign out the tab that just refreshed too, so
+      // adopt the pair it stored instead.
+      const rotatedElsewhere = getStoredRefreshToken()
+      const adoptedAccessToken = readStoredAccessToken()
+      if (
+        rotatedElsewhere &&
+        rotatedElsewhere !== refreshToken &&
+        adoptedAccessToken
+      ) {
+        logRefreshDebug("adopted-token-rotated-by-another-tab")
+        apiClient.setAccessToken(adoptedAccessToken, "memory")
+        return adoptedAccessToken
+      }
       logRefreshDebug("failed", {
         error: error instanceof Error ? error.message : "unknown",
       })

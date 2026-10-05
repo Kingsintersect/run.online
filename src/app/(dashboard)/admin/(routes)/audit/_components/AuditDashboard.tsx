@@ -1,26 +1,31 @@
-"use client";
+"use client"
 
-import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import gsap from "gsap";
-import Link from "next/link";
+import { useEffect, useRef } from "react"
+import { motion } from "framer-motion"
+import gsap from "gsap"
+import Link from "next/link"
 import {
-  LayoutList, GitBranch, Layers, ChevronRight, ShieldCheck,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { AuditCharts } from "./AuditCharts";
-import { AuditTable } from "./AuditTable";
-import { AuditGroupedView } from "./AuditGroupedView";
-import { AuditDetailModal } from "./AuditDetailModal";
-import { useAuditStore } from "../store/audit.store";
+  LayoutList,
+  GitBranch,
+  Layers,
+  ChevronRight,
+  ShieldCheck,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { UNIVERSITY_NAME } from "@/config/global.config"
+import { AuditCharts } from "./AuditCharts"
+import { AuditTable } from "./AuditTable"
+import { AuditGroupedView } from "./AuditGroupedView"
+import { AuditDetailModal } from "./AuditDetailModal"
+import { useAuditStore } from "../store/audit.store"
 
 // ─── Page header with GSAP entrance ─────────────────────────────────────────
 
 function AuditHeader() {
-  const headerRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!headerRef.current) return;
+    if (!headerRef.current) return
     const ctx = gsap.context(() => {
       gsap.from(".audit-header-item", {
         y: -24,
@@ -28,13 +33,16 @@ function AuditHeader() {
         duration: 0.6,
         stagger: 0.08,
         ease: "power3.out",
-      });
-    }, headerRef);
-    return () => ctx.revert();
-  }, []);
+      })
+    }, headerRef)
+    return () => ctx.revert()
+  }, [])
 
   return (
-    <div ref={headerRef} className="flex flex-wrap items-start justify-between gap-4">
+    <div
+      ref={headerRef}
+      className="flex flex-wrap items-start justify-between gap-4"
+    >
       <div className="audit-header-item flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md">
           <ShieldCheck className="h-5 w-5 text-white" />
@@ -44,34 +52,40 @@ function AuditHeader() {
             Audit Centre
           </h1>
           <p className="text-xs text-muted-foreground">
-            Unified activity trail — UNIZIK Student Portal
+            Unified activity trail — {UNIVERSITY_NAME} Portal
           </p>
         </div>
       </div>
 
       {/* Breadcrumb */}
       <nav className="audit-header-item flex items-center gap-1 text-xs text-muted-foreground">
-        <Link href="/admin" className="hover:text-primary transition-colors">
+        <Link href="/admin" className="transition-colors hover:text-primary">
           Admin
         </Link>
         <ChevronRight className="h-3 w-3" />
         <span className="text-foreground">Audit</span>
       </nav>
     </div>
-  );
+  )
 }
 
 // ─── Quick Nav Cards ─────────────────────────────────────────────────────────
 
 interface QuickNavCardProps {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  description: string;
-  index: number;
+  href: string
+  icon: React.ElementType
+  label: string
+  description: string
+  index: number
 }
 
-function QuickNavCard({ href, icon: Icon, label, description, index }: QuickNavCardProps) {
+function QuickNavCard({
+  href,
+  icon: Icon,
+  label,
+  description,
+  index,
+}: QuickNavCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -83,22 +97,24 @@ function QuickNavCard({ href, icon: Icon, label, description, index }: QuickNavC
         className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary hover:shadow-md"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted transition-colors group-hover:bg-primary group-hover:text-white">
-          <Icon className="h-4 w-4 transition-colors group-hover:text-white text-primary" />
+          <Icon className="h-4 w-4 text-primary transition-colors group-hover:text-white" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground truncate">{description}</p>
+          <p className="text-sm font-semibold text-foreground">{label}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {description}
+          </p>
         </div>
         <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </Link>
     </motion.div>
-  );
+  )
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function AuditDashboard() {
-  const { viewMode, setViewMode } = useAuditStore();
+  const { viewMode, setViewMode } = useAuditStore()
 
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8">
@@ -164,7 +180,9 @@ export function AuditDashboard() {
                 variant={viewMode === "grouped" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("grouped")}
-                className={viewMode === "grouped" ? "bg-primary text-white" : ""}
+                className={
+                  viewMode === "grouped" ? "bg-primary text-white" : ""
+                }
               >
                 <Layers className="mr-1.5 h-3.5 w-3.5" />
                 Grouped
@@ -179,5 +197,5 @@ export function AuditDashboard() {
         <AuditDetailModal />
       </div>
     </div>
-  );
+  )
 }
