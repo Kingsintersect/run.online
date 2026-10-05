@@ -72,6 +72,40 @@ export const CategoryHealthSchema = z.object({
   issues: z.array(CategoryHealthIssueSchema),
 })
 
+// POST /moodle-sync/categories/repair-hierarchy[?dryRun=1] (bruno "Category
+// Sync - Repair Hierarchy", B23 fixed 2026-10-02). A dry run names the moved
+// count `wouldFix` instead of `fixed` and writes nothing; both runs refuse
+// any move touching a MAJOR_PROGRAM-linked unit or creating a cycle. The
+// refused entries' element shape isn't documented ("[]" in the example), so
+// only their count is relied on.
+const RepairRefusedEntrySchema = z.union([
+  z.number(),
+  z.string(),
+  z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.null()])
+  ),
+])
+
+export const CategoryRepairResultSchema = z
+  .object({
+    dryRun: z.boolean().optional(),
+    checked: z.number(),
+    fixed: z.number().optional(),
+    wouldFix: z.number().optional(),
+    skippedAlreadyCorrect: z.number(),
+    skippedMajorProgram: z.array(RepairRefusedEntrySchema).default([]),
+    skippedWouldCreateCycle: z.array(RepairRefusedEntrySchema).default([]),
+  })
+  .transform((r) => ({
+    dryRun: r.dryRun ?? false,
+    checked: r.checked,
+    moved: r.fixed ?? r.wouldFix ?? 0,
+    skippedAlreadyCorrect: r.skippedAlreadyCorrect,
+    refusedMajorProgram: r.skippedMajorProgram.length,
+    refusedCycle: r.skippedWouldCreateCycle.length,
+  }))
+
 // Resolving a flagged (needsMapping: true) row pulled from Moodle with no
 // resolvable idnumber — either link it to an existing Faculty/Department/
 // Program/Level/Semester entity, or fix its type/parent as a pure

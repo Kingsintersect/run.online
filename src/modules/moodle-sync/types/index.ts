@@ -169,3 +169,9 @@ export type EnrollmentDriftFilters = z.infer<
 export type ResolveDriftReason = z.infer<
   typeof EnrollmentDriftSchemas.ResolveDriftReasonSchema
 >
+
+// POST /moodle-sync/categories/repair-hierarchy (normalised: `moved` is
+// `fixed`, or `wouldFix` on a dry run).
+export type CategoryRepairResult = z.output<
+  typeof CategorySchemas.CategoryRepairResultSchema
+>

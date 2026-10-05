@@ -90,12 +90,15 @@ interface SheetScoreTableProps {
   showEffective: boolean
   /** Renders the per-row "Adjust" button when the viewer may adjust. */
   onAdjustRow?: (row: ResultSheetRow) => void
+  /** The per-row button's label ("Adjust", or "Amend" on a published sheet). */
+  adjustLabel?: string
 }
 
 export function SheetScoreTable({
   rows,
   showEffective,
   onAdjustRow,
+  adjustLabel = "Adjust",
 }: SheetScoreTableProps) {
   const {
     rowFilter,
@@ -342,10 +345,10 @@ export function SheetScoreTable({
                             size="xs"
                             variant="ghost"
                             onClick={() => onAdjustRow(r)}
-                            aria-label={`Adjust ${r.matricNumber}`}
+                            aria-label={`${adjustLabel} ${r.matricNumber}`}
                           >
                             <SlidersHorizontal className="size-3" aria-hidden />
-                            Adjust
+                            {adjustLabel}
                           </Button>
                         </td>
                       )}

@@ -59,6 +59,11 @@ export const PaginationMetaSchema = z.object({
 // ─── Offerings / result sheets ────────────────────────────────────────────────
 
 export const ResultSheetSummarySchema = z.object({
+  // The ResultSheet row's own id (null while an offering is still DRAFT with
+  // no sheet row yet). Added 2026-10-02 (bruno "Results Offerings - List",
+  // A48); it's what the audit log keys sheet transitions on. Optional so an
+  // older deployment still parses.
+  sheetId: z.number().nullable().optional(),
   offeringId: z.number(),
   courseId: z.number(),
   courseCode: z.string(),
@@ -68,14 +73,18 @@ export const ResultSheetSummarySchema = z.object({
   semesterName: z.string(),
   // B30 item 13 (2026-09-29): the offering's semester lock time (ISO), null
   // while unlocked. A locked semester refuses every result write (423
-  // SEMESTER_LOCKED), so the UI disables those actions ahead of time.
-  // Optional: documented on the offerings list; the sheet GET's summary may
-  // not carry it (useSheetSemesterLock falls back to the list row).
+  // SEMESTER_LOCKED), so the UI disables those actions ahead of time. The
+  // sheet GET's summary carries it too (confirmed 2026-10-03 and live
+  // 2026-10-06); optional only for an older deployment, where
+  // useSheetSemesterLock falls back to the list row.
   semesterLockedAt: z.string().nullable().optional(),
   academicSession: z.string(),
-  majorProgramId: z.number(),
-  // B20.2 (2026-09-28): the offering's real owning major program(s);
-  // `majorProgramId` above stays the session's. Optional for older servers.
+  // The SESSION's major program, kept for backward compat. Live QHUB returns
+  // null here (sessions shared across major programs, probe 2026-10-06), so
+  // it must be nullable or the whole list fails to parse.
+  majorProgramId: z.number().nullable(),
+  // B20.2 (2026-09-28): the offering's real owning major program(s) — use
+  // these for scope checks. Optional for older servers.
   majorProgramIds: z.array(z.number()).optional(),
   departmentName: z.string().nullable(),
   status: GradeStatusSchema,

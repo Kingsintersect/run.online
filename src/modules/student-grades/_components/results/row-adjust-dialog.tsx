@@ -18,7 +18,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { SingleAdjustSchema } from "../../schemas"
-import { useAdjustGrade } from "../../hooks/use-results-mutations"
+import {
+  useAdjustGrade,
+  useAmendPublishedGrade,
+} from "../../hooks/use-results-mutations"
 import { fieldError, toResultsApiError } from "../../lib/results-errors"
 import type { ResultsApiError } from "../../lib/results-errors"
 import { fmtScore } from "./format"
@@ -28,6 +31,11 @@ interface RowAdjustDialogProps {
   offeringId: number
   row: ResultSheetRow | null
   onClose: () => void
+  /**
+   * "adjust": a DRAFT row (PATCH /results/grades/:id/adjust).
+   * "amend": a PUBLISHED row, SUPER_ADMIN only (POST /results/grades/:id/amend).
+   */
+  mode?: "adjust" | "amend"
 }
 
 const DEFAULTS: SingleAdjustBody = {
@@ -44,6 +52,7 @@ export function RowAdjustDialog({
   offeringId,
   row,
   onClose,
+  mode = "adjust",
 }: RowAdjustDialogProps) {
   return (
     <Dialog open={row != null} onOpenChange={(o) => !o && onClose()}>
@@ -54,6 +63,7 @@ export function RowAdjustDialog({
             offeringId={offeringId}
             row={row}
             onClose={onClose}
+            mode={mode}
           />
         )}
       </DialogContent>
@@ -66,8 +76,12 @@ function RowAdjustForm({
   offeringId,
   row,
   onClose,
+  mode = "adjust",
 }: RowAdjustDialogProps & { row: ResultSheetRow }) {
-  const adjust = useAdjustGrade(offeringId)
+  const adjustMutation = useAdjustGrade(offeringId)
+  const amendMutation = useAmendPublishedGrade(offeringId)
+  const amending = mode === "amend"
+  const adjust = amending ? amendMutation : adjustMutation
   const [serverError, setServerError] = useState<ResultsApiError | null>(null)
   const form = useForm<SingleAdjustBody>({
     resolver: zodResolver(SingleAdjustSchema),
@@ -78,7 +92,11 @@ function RowAdjustForm({
     setServerError(null)
     try {
       await adjust.mutateAsync({ gradeId: row.gradeId, body })
-      toast.success(`Adjustment saved for ${row.matricNumber}.`)
+      toast.success(
+        amending
+          ? `Published result amended for ${row.matricNumber}. The student is notified and their CGPA is recalculated.`
+          : `Adjustment saved for ${row.matricNumber}.`
+      )
       onClose()
     } catch (error) {
       if (error instanceof Error) setServerError(toResultsApiError(error))
@@ -89,10 +107,14 @@ function RowAdjustForm({
   return (
     <form onSubmit={submit} noValidate className="space-y-4">
       <DialogHeader>
-        <DialogTitle>Adjust one student</DialogTitle>
+        <DialogTitle>
+          {amending ? "Amend a published result" : "Adjust one student"}
+        </DialogTitle>
         <DialogDescription>
           {row.studentName} ({row.matricNumber}) · raw CA {fmtScore(row.rawCa)},
           raw exam {fmtScore(row.rawExam)}
+          {amending &&
+            ". This result is already published: the change is audited, the student is notified and their CGPA is recalculated."}
         </DialogDescription>
       </DialogHeader>
 
@@ -194,7 +216,7 @@ function RowAdjustForm({
           {adjust.isPending && (
             <Loader2 className="size-4 animate-spin" aria-hidden />
           )}
-          Save adjustment
+          {amending ? "Amend result" : "Save adjustment"}
         </Button>
       </DialogFooter>
     </form>

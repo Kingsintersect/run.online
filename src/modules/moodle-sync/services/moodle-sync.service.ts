@@ -1,9 +1,14 @@
+import type { z } from "zod"
 import apiClient, { ApiClientError } from "@/lib/clients/apiClient"
-import { CategoryHealthSchema } from "../schemas/category.schema"
+import {
+  CategoryHealthSchema,
+  CategoryRepairResultSchema,
+} from "../schemas/category.schema"
 import { academicUnitsApi } from "@/services/academicStructureApi"
 import { offeringsApi } from "@/services/courseOfferingApi"
 import type {
   CategoryHealth,
+  CategoryRepairResult,
   CategorySyncResponse,
   CoursesBulkPushPayload,
   CourseSyncResponse,
@@ -87,6 +92,9 @@ interface RawCategorySync {
   needsMapping: boolean
   syncError: string | null
   lastSyncAt: string | null
+  // A36 (2026-09-26, live): nearest ancestor unit's major program, resolved
+  // server-side; null when the server can't resolve it.
+  majorProgramId?: number | null
 }
 
 interface UnitLookupEntry {
@@ -141,7 +149,11 @@ function mapCategorySync(
     needsMapping: raw.needsMapping,
     syncError: raw.syncError,
     lastSyncAt: raw.lastSyncAt,
-    majorProgramId: resolveMajorProgramId(raw.academicUnitId, unitsById),
+    // Prefer the server's own resolution (A36); derive it from the unit tree
+    // only when the server sends none.
+    majorProgramId:
+      raw.majorProgramId ??
+      resolveMajorProgramId(raw.academicUnitId, unitsById),
   }
 }
 
@@ -428,13 +440,17 @@ export const moodleSyncService = {
     ),
 
   // POST /moodle-sync/categories/repair-hierarchy — re-parents each mapped
-  // portal node under its Moodle parent's node. Idempotent; see
-  // lib/repair-plan.ts for the preview the UI shows first.
-  repairCategoryHierarchy: async () => {
+  // portal node under its Moodle parent's node. Idempotent. Since B23
+  // (2026-10-02) the server itself refuses moves touching a major-program
+  // node or making a cycle, and reports them. Its `?dryRun=1` preview is not
+  // used: a backend without the B23 fix would ignore the flag and really
+  // run the repair, and a POST can't be probed safely. lib/repair-plan.ts
+  // keeps computing the preview the dialog shows first.
+  repairCategoryHierarchy: async (): Promise<CategoryRepairResult> => {
     const res = await apiClient.post<{
-      data: { checked: number; fixed: number; skippedAlreadyCorrect: number }
+      data: z.input<typeof CategoryRepairResultSchema>
     }>(`${BASE}/categories/repair-hierarchy`, undefined, AUTH)
-    return res.data
+    return CategoryRepairResultSchema.parse(res.data)
   },
 
   deleteCategoryMapping: (id: number) =>
@@ -777,7 +793,12 @@ export const moodleSyncService = {
   ): Promise<{ data: AssessmentResponse[] }> => {
     const res = await apiClient.get<{ data: RawAssessmentListItem[] }>(
       `/assessments`,
-      { ...AUTH, params: { offeringId: filters.courseId, type: filters.type } }
+      // `courseOfferingId` is the param the controller reads (bruno
+      // "Assessments - List"); `offeringId` is only an alias (A42.1).
+      {
+        ...AUTH,
+        params: { courseOfferingId: filters.courseId, type: filters.type },
+      }
     )
     return { data: (res.data ?? []).map(mapAssessmentListItem) }
   },
@@ -836,7 +857,7 @@ export const moodleSyncService = {
       ...AUTH,
       params: {
         type: filters.type,
-        offeringId: filters.courseOfferingId,
+        courseOfferingId: filters.courseOfferingId,
         semesterId: filters.semesterId,
         isVisible: filters.isVisible,
         upcoming: filters.upcoming,
@@ -856,14 +877,11 @@ export const moodleSyncService = {
   },
 
   // `GET /assessments` has no `lecturerId` filter, and `GET /assessments/my`
-  // is student-only (403s a tutor) — confirmed live 2026-09-23. Worse:
-  // `?offeringId=` itself is documented but a confirmed no-op server-side —
-  // `?offeringId=1` and `?offeringId=2` both returned the identical
-  // unfiltered 17-row list live, so per-offering server calls can't be
-  // trusted to filter anything (flagged for the backend separately, see
-  // sandbox/BACKEND_DEVIATIONS_2026-09-14.md). Each assessment row also
-  // carries no offering/course id at all — only `course.code`/`course.title`
-  // strings — so an exact match isn't possible either way. This derives a
+  // is student-only (403s a tutor) — confirmed live 2026-09-23. The
+  // per-offering filter (`courseOfferingId`, alias `offeringId`) works since
+  // A42.1 (2026-09-26) and rows now carry `courseOfferingId`, but one call
+  // per offering would be N requests, so this still makes one list call and
+  // matches client-side. This derives a
   // best-effort match instead: fetch the tutor's own assigned offerings
   // (the same `?lecturerId=` call Course Assignments already uses) and the
   // full assessment list once, then keep only assessments whose course code
@@ -963,11 +981,11 @@ export const moodleSyncService = {
     return normalizeAssessmentSyncStatus(res)
   },
 
-  // Retry = re-run the pull (upsert-based, idempotent). `/assessments/sync/:id/retry`
-  // exists too, but re-calling sync is equivalent and one less path to depend on.
+  // POST /assessments/sync/:moodleCourseId/retry (bruno "Assessments - Retry
+  // Sync"): same response shape as a course sync.
   retryAssessmentSync(moodleCourseId: number): Promise<AssessmentSyncResult> {
     return apiClient.post<AssessmentSyncResult>(
-      `/assessments/sync/${moodleCourseId}`,
+      `/assessments/sync/${moodleCourseId}/retry`,
       undefined,
       AUTH
     )

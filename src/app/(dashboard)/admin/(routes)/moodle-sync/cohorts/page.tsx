@@ -201,7 +201,7 @@ export default function MoodleSyncCohortsPage() {
                     {c.name}
                   </p>
                   <p className="font-mono text-xs text-muted-foreground">
-                    {c.idnumber}
+                    {c.idnumber ?? c.academicSessionName}
                     {c.levelName ? ` · ${c.levelName}` : ""}
                   </p>
                 </div>

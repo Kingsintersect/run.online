@@ -11,6 +11,7 @@ import {
   useApplyReconcile,
   usePreviewReconcile,
 } from "../../hooks/use-sync-mutations"
+import { NON_APPLIABLE_RECONCILE_KINDS } from "../../schemas/reconcile.schema"
 import type {
   ReconcileChange,
   ReconcileChangeKind,
@@ -20,7 +21,9 @@ import type {
 // Moodle Sync Reconcile — sandbox/moodle-sync-reconciliation/.
 
 const KIND_ORDER: ReconcileChangeKind[] = [
+  "MISMATCHED",
   "REMOVED_IN_MOODLE",
+  "REAPPEARED_UNMAPPED",
   "MOVED",
   "RENAMED",
   "CREATE",
@@ -39,6 +42,8 @@ const KIND_META: Record<
   MOVED: { label: "Moved", variant: "purple" },
   REMOVED_IN_MOODLE: { label: "Removed in Moodle", variant: "orange" },
   NEEDS_MAPPING: { label: "Needs mapping", variant: "warning" },
+  REAPPEARED_UNMAPPED: { label: "Back in Moodle", variant: "info" },
+  MISMATCHED: { label: "Linked to the wrong portal node", variant: "orange" },
 }
 
 function placeOf(snapshot: ReconcileChange["before"]): string {
@@ -60,6 +65,10 @@ function describeChange(change: ReconcileChange): string {
       return `Was under ${placeOf(change.before)} — will be flagged, not deleted`
     case "NEEDS_MAPPING":
       return "No matching portal record — resolve it after applying"
+    case "REAPPEARED_UNMAPPED":
+      return "Was flagged as removed and is back in Moodle — will be marked synced again"
+    case "MISMATCHED":
+      return `Mapped to Moodle category "${change.before?.moodleCategoryName ?? change.before?.moodleCategoryId ?? "?"}", but this category's ID number names "${change.after?.academicUnitName ?? change.after?.idnumber ?? "?"}". Apply won't change it — use Re-link on the tree to fix it.`
   }
 }
 
@@ -116,7 +125,13 @@ export function ReconcileButton({ module, moduleLabel }: ReconcileButtonProps) {
     module === "courses"
       ? (data?.changes ?? []).filter((c) => c.kind === "CREATE").length
       : 0
-  const pendingChanges = (data?.changes.length ?? 0) - skippedCreates
+  // MISMATCHED rows are refused by apply (a silent no-op per change), so
+  // they're shown but never counted as something Apply will do.
+  const mismatched = (data?.changes ?? []).filter((c) =>
+    (NON_APPLIABLE_RECONCILE_KINDS as readonly string[]).includes(c.kind)
+  ).length
+  const pendingChanges =
+    (data?.changes.length ?? 0) - skippedCreates - mismatched
   const grouped = KIND_ORDER.map((kind) => ({
     kind,
     items: (data?.changes ?? []).filter((c) => c.kind === kind),
@@ -218,7 +233,19 @@ export function ReconcileButton({ module, moduleLabel }: ReconcileButtonProps) {
               </p>
             )}
 
-            {pendingChanges === 0 ? (
+            {mismatched > 0 && (
+              <p
+                role="alert"
+                className="rounded-xl border border-orange-300/50 bg-orange-50 px-3 py-2 text-xs text-orange-800 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200"
+              >
+                {mismatched} Moodle categor
+                {mismatched === 1 ? "y is" : "ies are"} linked to the wrong
+                portal node. Reconcile can&apos;t fix that safely; use Re-link
+                on those rows in the tree.
+              </p>
+            )}
+
+            {pendingChanges === 0 && mismatched === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border py-10 text-sm text-muted-foreground">
                 <CheckCircle2 className="size-6 text-emerald-600 dark:text-emerald-400" />
                 Already in sync — nothing to apply.

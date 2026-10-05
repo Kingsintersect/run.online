@@ -118,11 +118,23 @@ export function ResultSheetView({
   const sheet = sheetQuery.data?.data
   if (!sheet) return null
 
-  const inScope = withinScope(sheet.summary.majorProgramId)
+  // The offering's real owners (B20.2) decide scope; `majorProgramId` is the
+  // session's and is null when sessions are shared across major programs.
+  const owners = sheet.summary.majorProgramIds ?? []
+  const inScope =
+    owners.length > 0
+      ? owners.some((id) => withinScope(id))
+      : withinScope(sheet.summary.majorProgramId)
   const isDraft = sheet.summary.status === "DRAFT"
   const locked = semesterLock.locked
   const canAdjust =
     inScope && isDraft && !locked && can(RESULTS_PERMISSIONS.adjust)
+  // A PUBLISHED sheet can't be reopened; a SUPER_ADMIN corrects one row at a
+  // time with an audited amendment (results.amend_published).
+  const canAmend =
+    inScope &&
+    sheet.summary.status === "PUBLISHED" &&
+    can(RESULTS_PERMISSIONS.amendPublished)
   const canMap =
     inScope && isDraft && !locked && can(RESULTS_PERMISSIONS.itemsMap)
   // Would be allowed but for the lock: explain rather than silently hide.
@@ -146,11 +158,14 @@ export function ResultSheetView({
       <div className="flex flex-wrap items-center justify-between gap-2">
         {back}
         <div className="flex flex-wrap items-center gap-2">
-          {/* The sheet resource exposes no sheet id; result_sheets is 1:1
-              with the offering, so the backend is asked to log ResultSheet
-              rows with entityId = offeringId (session-promotion README,
-              "Audit logging requirements"). */}
-          <AuditTrailLink entityType="ResultSheet" entityId={offeringId} />
+          {/* Sheet transitions are logged under the ResultSheet row's own
+              id (`sheetId`, bruno A48, 2026-10-02). It's null until the
+              sheet row exists, when there's nothing logged yet; the
+              offering id stands in then (and on an older server). */}
+          <AuditTrailLink
+            entityType="ResultSheet"
+            entityId={sheet.summary.sheetId ?? offeringId}
+          />
           {inScope && (
             <SheetWorkflowBar
               sheet={sheet.summary}
@@ -180,7 +195,8 @@ export function ResultSheetView({
           <SheetScoreTable
             rows={sheet.rows}
             showEffective={isResultsStaff}
-            onAdjustRow={canAdjust ? setAdjustRow : undefined}
+            onAdjustRow={canAdjust || canAmend ? setAdjustRow : undefined}
+            adjustLabel={canAmend ? "Amend" : "Adjust"}
           />
         </TabsContent>
         <TabsContent value="items" className="mt-4">
@@ -209,6 +225,7 @@ export function ResultSheetView({
         offeringId={offeringId}
         row={adjustRow}
         onClose={() => setAdjustRow(null)}
+        mode={canAmend ? "amend" : "adjust"}
       />
     </div>
   )

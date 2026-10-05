@@ -17,7 +17,9 @@ export const CohortSyncResponseSchema = z.object({
   levelId: z.number().nullable(),
   levelName: z.string().nullable(),
   moodleCohortId: z.number().nullable(),
-  idnumber: z.string(),
+  // Not in the live list rows (probe 2026-10-06); optional so its absence
+  // renders a fallback instead of a blank.
+  idnumber: z.string().optional(),
   name: z.string(),
   syncStatus: SyncStatusSchema,
   syncError: z.string().nullable(),

@@ -92,9 +92,10 @@ export interface SheetSemesterLock {
 
 /**
  * Whether a sheet's semester is locked (B30 item 13). One interface either
- * way: the sheet summary's own `semesterLockedAt` when the server sends it,
- * otherwise the same offering's row from GET /results/offerings (one
- * request, searched by course code in the same semester). Unknown reads as
+ * way: the sheet summary's own `semesterLockedAt` (documented on the sheet
+ * GET since 2026-10-03, live on QHUB), otherwise — only on an older
+ * deployment that omits the key — the same offering's row from GET
+ * /results/offerings (one request, searched by course code). Unknown reads as
  * unlocked; the server's 423 SEMESTER_LOCKED stays the backstop.
  */
 export function useSheetSemesterLock(

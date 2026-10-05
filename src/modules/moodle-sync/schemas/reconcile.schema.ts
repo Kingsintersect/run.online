@@ -14,15 +14,35 @@ export const ReconcileChangeKindSchema = z.enum([
   "MOVED",
   "REMOVED_IN_MOODLE",
   "NEEDS_MAPPING",
+  // B3g: a mapping flagged REMOVED_IN_MOODLE whose Moodle record is back
+  // (otherwise unchanged). Applying returns it to SYNCED.
+  "REAPPEARED_UNMAPPED",
+  // B23 item 2 (bruno "Reconcile - Preview Categories", 2026-10-02): the
+  // live category's idnumber names a portal node whose mapping row points
+  // at a DIFFERENT Moodle category. Apply refuses it (a silent no-op); the
+  // fix is a deliberate Re-link via "Category Sync - Resolve".
+  "MISMATCHED",
 ])
 
+/** Kinds that apply never writes, so they don't count as pending changes. */
+export const NON_APPLIABLE_RECONCILE_KINDS = ["MISMATCHED"] as const
+
 // `parentName` is set for categories, `categoryName` for courses, `role` for
-// users — the one "where does this sit" field that module has.
+// users — the one "where does this sit" field that module has. A MISMATCHED
+// change carries the mapping's stored Moodle category in `before`
+// (moodleCategoryId / moodleCategoryName) and the portal node the idnumber
+// names in `after` (academicUnitId / academicUnitName / idnumber), with no
+// `name` on either.
 const ReconcileSnapshotSchema = z.object({
-  name: z.string(),
+  name: z.string().optional(),
   parentName: z.string().nullable().optional(),
   categoryName: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
+  moodleCategoryId: z.number().nullable().optional(),
+  moodleCategoryName: z.string().nullable().optional(),
+  academicUnitId: z.number().nullable().optional(),
+  academicUnitName: z.string().nullable().optional(),
+  idnumber: z.string().nullable().optional(),
 })
 
 export const ReconcileChangeSchema = z.object({

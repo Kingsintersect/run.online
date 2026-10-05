@@ -9,9 +9,12 @@
 // Errors are thrown as ApiClientError. The hooks wrap calls in `live()` so a
 // route that doesn't exist yet degrades to `{available: false}`.
 //
-// Probe 2026-09-25 (GET-only, production): every progression route is missing
-// except activate, which is live as PATCH /academic/semesters/{id}/activate
-// and PATCH /academic/sessions/{id}/activate — used as fallbacks below.
+// Every route here is documented in both Bruno collections (bruno/progression,
+// 2026-09-28) and live on QHUB (probe 2026-10-06: lists/readiness 200, the
+// POST-only lock/activate/debt-override routes answer GET with 405, i.e.
+// registered). The activate fallbacks below stay only for a deployment that
+// still lacks the progression routes; note the legacy PATCH routes deactivate
+// other semesters/sessions institution-wide, not per major program.
 
 import { z } from "zod"
 import apiClient from "@/lib/clients/apiClient"

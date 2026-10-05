@@ -139,6 +139,16 @@ export function useAdjustGrade(offeringId: number) {
   })
 }
 
+/** POST /results/grades/:id/amend — a correction to a PUBLISHED grade. */
+export function useAmendPublishedGrade(offeringId: number) {
+  const invalidate = useInvalidateSheet(offeringId)
+  return useMutation({
+    mutationFn: (v: { gradeId: number; body: SingleAdjustBody }) =>
+      resultsApi.amendPublishedGrade(v.gradeId, v.body),
+    onSuccess: invalidate,
+  })
+}
+
 export function useRevertBatch(offeringId: number) {
   const invalidate = useInvalidateSheet(offeringId)
   return useMutation({

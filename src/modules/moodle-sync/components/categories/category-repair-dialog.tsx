@@ -19,12 +19,13 @@ import { useRepairCategoryHierarchy } from "../../hooks/use-sync-mutations"
 import { planHierarchyRepair } from "../../lib/repair-plan"
 
 // "Repair hierarchy": re-parents each mapped portal node under its Moodle
-// parent's node (POST /moodle-sync/categories/repair-hierarchy). The backend
-// has no dry run and trusts the mappings completely, so the dialog first
-// shows exactly what it would move, computed from the loaded mappings and
-// tree, and refuses to run while any move is unsafe (a crossed mapping would
-// otherwise move a faculty under a semester, or a major program under
-// another one). Fix those mappings with "Re-link" on the tree first.
+// parent's node (POST /moodle-sync/categories/repair-hierarchy). The dialog
+// first shows exactly what it would move, computed from the loaded mappings
+// and tree, and refuses to run while any move is unsafe (a crossed mapping
+// would otherwise move a faculty under a semester, or a major program under
+// another one). Fix those mappings with "Re-link" on the tree first. Since
+// B23 the server also refuses major-program and cycle-making moves itself
+// and reports them; its ?dryRun=1 preview isn't used (see the service).
 export function RepairHierarchyButton() {
   const [open, setOpen] = useState(false)
   const { data: mappings = [], isLoading: loadingMappings } =
@@ -51,8 +52,12 @@ export function RepairHierarchyButton() {
   const run = async () => {
     try {
       const r = await repair.mutateAsync()
+      const refused = r.refusedMajorProgram + r.refusedCycle
       toast.success(
-        `Hierarchy repaired: ${r.fixed} node${r.fixed === 1 ? "" : "s"} moved, ${r.skippedAlreadyCorrect} already correct.`
+        `Hierarchy repaired: ${r.moved} node${r.moved === 1 ? "" : "s"} moved, ${r.skippedAlreadyCorrect} already correct.` +
+          (refused > 0
+            ? ` The server refused ${refused} unsafe move${refused === 1 ? "" : "s"} (major-program nodes or loops); Re-link those rows.`
+            : "")
       )
       setOpen(false)
     } catch (err) {

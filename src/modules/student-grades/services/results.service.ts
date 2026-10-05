@@ -250,6 +250,15 @@ export const resultsApi = {
     sendNoContent("post", `${R}/adjustments/${batchId}/revert`, body),
   adjustGrade: (gradeId: number, body: SingleAdjustBody): Promise<void> =>
     sendNoContent("patch", `${R}/grades/${gradeId}/adjust`, body),
+  // SUPER_ADMIN only (results.amend_published), PUBLISHED rows only (409
+  // GRADE_NOT_PUBLISHED). Same body as a single-row adjust; the server
+  // audits it, re-queues CGPA and notifies the student (bruno "Results
+  // Grade - Amend Published").
+  amendPublishedGrade: (
+    gradeId: number,
+    body: SingleAdjustBody
+  ): Promise<void> =>
+    sendNoContent("post", `${R}/grades/${gradeId}/amend`, body),
 
   // Publishing
   // Exactly one of semesterId / academicSessionId (B25, 2026-09-28).
