@@ -12,7 +12,9 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky || true"
+    "prepare": "husky || true",
+    "test:smoke": "node tests/smoke/run.mjs",
+    "test:smoke:public": "node tests/smoke/run.mjs --public"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [

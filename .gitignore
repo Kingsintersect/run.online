@@ -13,6 +13,10 @@
 
 # testing
 /coverage
+# Playwright smoke-suite output (reports, screenshots)
+/tests/smoke/.output/
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -50,3 +54,4 @@ test.txt
 .zip*
 run_api.code-workspace
 TUTOR_FORM_FIX_HANDOFF.txt
+!tests/smoke/.env.example
