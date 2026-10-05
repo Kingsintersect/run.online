@@ -11,6 +11,7 @@ import ThemeToggle from "@/components/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { requestPasswordReset } from "@/lib/auth/backendAuth"
+import { useHydrated } from "@/lib/auth/use-auth-form-guard"
 
 const forgotPasswordSchema = z.object({
   email: z
@@ -20,12 +21,14 @@ const forgotPasswordSchema = z.object({
 })
 
 export default function ForgotPasswordPage() {
+  const hydrated = useHydrated()
   const [email, setEmail] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!hydrated || submitting) return
 
     const parsed = forgotPasswordSchema.safeParse({ email })
     if (!parsed.success) {
@@ -68,7 +71,7 @@ export default function ForgotPasswordPage() {
         </div>
         <div className="hidden sm:block">
           <p className="text-xs font-semibold tracking-[0.18em] text-primary uppercase">
-            Redeemer's University of Nigeria Portal
+            Redeemer&apos;s University of Nigeria Portal
           </p>
           <p className="text-[11px] text-muted-foreground">
             Knowledge • Innovation • Service
@@ -122,7 +125,11 @@ export default function ForgotPasswordPage() {
                 send you a link to reset your password.
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+              <form
+                method="post"
+                onSubmit={handleSubmit}
+                className="mt-8 space-y-4"
+              >
                 <label className="block space-y-2">
                   <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                     Email
@@ -146,7 +153,8 @@ export default function ForgotPasswordPage() {
                 <Button
                   type="submit"
                   size="lg"
-                  disabled={submitting}
+                  disabled={!hydrated || submitting}
+                  aria-disabled={!hydrated || submitting}
                   className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
                 >
                   {submitting ? "Sending..." : "Send Reset Link"}

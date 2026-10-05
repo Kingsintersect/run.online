@@ -1,11 +1,18 @@
 "use client"
 
-import { FormEvent, useEffect, useMemo, useState, Suspense } from "react"
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+} from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { motion } from "framer-motion"
-import { signIn, useSession } from "next-auth/react"
+import { signIn, signOut, useSession } from "next-auth/react"
 import { toast } from "sonner"
 import z from "zod"
 import { LockKeyhole, AtSign, ArrowRight, Eye, EyeOff } from "lucide-react"
@@ -15,6 +22,12 @@ import { Input } from "@/components/ui/input"
 import { passwordSchema } from "@/lib/validations/zod"
 import { resolveSignInRedirect, UserRole } from "@/config/nav.config"
 import { resolveStudentLandingPath } from "@/lib/auth/post-sign-in"
+import {
+  SESSION_EXPIRED_REASON,
+  SIGNIN_PREFILL_KEY,
+  useHydrated,
+  useStripSensitiveParams,
+} from "@/lib/auth/use-auth-form-guard"
 
 const signInFormSchema = z.object({
   identifier: z.string().min(1, "Email or username is required"),
@@ -26,14 +39,60 @@ function SignInFormContent() {
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
 
+  const hydrated = useHydrated()
+
+  // Prefill once, at mount: the just-registered email handed over by the
+  // sign-up page (sessionStorage, never the URL), or a legacy `?email=` link.
+  // Captured into state before useStripSensitiveParams removes it from the
+  // URL. The value is never logged.
+  // (This component sits under a Suspense boundary and reads
+  // useSearchParams, so it renders on the client — reading sessionStorage
+  // in the initializer can't cause a hydration mismatch.)
+  const [identifier, setIdentifier] = useState(() => {
+    const fromQuery = searchParams.get("email")
+    if (fromQuery) return fromQuery
+    if (typeof window === "undefined") return ""
+    try {
+      return sessionStorage.getItem(SIGNIN_PREFILL_KEY) ?? ""
+    } catch {
+      return ""
+    }
+  })
   const [password, setPassword] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  const queryIdentifier = useMemo(
-    () => searchParams.get("email") ?? "",
-    [searchParams]
+  // `?reason=session-expired` is set by AuthSessionBridge after it ended a
+  // stale session. Captured once so the notice survives stripping the param.
+  const [sessionExpired] = useState(
+    () => searchParams.get("reason") === SESSION_EXPIRED_REASON
   )
+  // Set when the user submits this form, so a session that becomes
+  // authenticated *from this form* is always redirected onward, even on a
+  // page that was opened with the session-expired notice.
+  const signedInHereRef = useRef(false)
+  const staleSignOutRef = useRef(false)
+
+  // Credentials must never stay in the URL (identifier/password from an old
+  // native GET submission, email from a legacy sign-up redirect). `reason`
+  // is dropped too so a reload doesn't re-show the notice.
+  useStripSensitiveParams([
+    "identifier",
+    "password",
+    "email",
+    "username",
+    "reason",
+  ])
+
+  // One-shot hand-off: drop the sign-up prefill once it has been read.
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem(SIGNIN_PREFILL_KEY)
+    } catch {
+      // Storage unavailable — nothing to clean up.
+    }
+  }, [])
+
   const callbackUrl = useMemo(
     () => searchParams.get("callbackUrl") ?? "",
     [searchParams]
@@ -45,8 +104,26 @@ function SignInFormContent() {
     }
   }, [searchParams])
 
+  // Arrived here because a stale session was ended, yet next-auth still
+  // reports "authenticated" — the bridge's signOut() didn't get through
+  // (e.g. a network blip). Clear it from here, once, instead of bouncing the
+  // user back to a dashboard whose tokens are dead (that would loop:
+  // dashboard -> 401 -> sign-in -> dashboard ...).
+  useEffect(() => {
+    if (!sessionExpired || signedInHereRef.current) return
+    if (status !== "authenticated" || staleSignOutRef.current) return
+    staleSignOutRef.current = true
+    void signOut({ redirect: false }).catch(() => {
+      // Nothing more to do — the form stays usable and signing in again
+      // replaces the stale session cookie.
+    })
+  }, [sessionExpired, status])
+
   useEffect(() => {
     if (status !== "authenticated" || !session?.user?.role) return
+    // Never auto-redirect a session the expiry flow just ended (see above);
+    // only one created by submitting this form.
+    if (sessionExpired && !signedInHereRef.current) return
     const role = session.user.role
     // Role-aware: a callbackUrl from another role's area (e.g. left over
     // from someone else's expired session) is ignored in favour of this
@@ -65,16 +142,14 @@ function SignInFormContent() {
     return () => {
       cancelled = true
     }
-  }, [callbackUrl, router, status, session])
+  }, [callbackUrl, router, sessionExpired, status, session])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const formData = new FormData(event.currentTarget)
-    const values = {
-      identifier: String(formData.get("identifier") ?? ""),
-      password,
-    }
+    if (!hydrated || submitting) return
+
+    const values = { identifier, password }
     const parsed = signInFormSchema.safeParse(values)
 
     if (!parsed.success) {
@@ -83,11 +158,10 @@ function SignInFormContent() {
     }
 
     setSubmitting(true)
-
-    const identifier = parsed.data.identifier
+    signedInHereRef.current = true
 
     const result = await signIn("credentials", {
-      identifier,
+      identifier: parsed.data.identifier,
       password,
       redirect: false,
     })
@@ -95,6 +169,7 @@ function SignInFormContent() {
     setSubmitting(false)
 
     if (!result || result.error) {
+      signedInHereRef.current = false
       toast.error(
         "Invalid credentials. Please check your email/username and password."
       )
@@ -154,7 +229,25 @@ function SignInFormContent() {
             where you left off.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          {sessionExpired && (
+            <p
+              role="status"
+              className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200"
+            >
+              Your session expired. Please sign in again.
+            </p>
+          )}
+
+          {/*
+            method="post" + no action + no `name` attributes + a submit button
+            that stays disabled until hydration: even a pre-hydration native
+            submission can never serialise credentials into the URL.
+          */}
+          <form
+            method="post"
+            onSubmit={handleSubmit}
+            className="mt-8 space-y-4"
+          >
             <label className="block space-y-2">
               <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Email or Username
@@ -166,9 +259,10 @@ function SignInFormContent() {
                 />
                 <Input
                   type="text"
-                  name="identifier"
+                  autoComplete="username"
                   required
-                  defaultValue={queryIdentifier}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                   placeholder="you@example.com or username"
                 />
@@ -194,6 +288,7 @@ function SignInFormContent() {
                 />
                 <Input
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -214,7 +309,8 @@ function SignInFormContent() {
             <Button
               type="submit"
               size="lg"
-              disabled={submitting}
+              disabled={!hydrated || submitting}
+              aria-disabled={!hydrated || submitting}
               className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
             >
               {submitting ? "Signing in..." : "Sign In"}

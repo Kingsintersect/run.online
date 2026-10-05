@@ -8,6 +8,7 @@ import { CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 import z from "zod"
 import { registerWithBackend } from "@/lib/auth/backendAuth"
+import { SIGNIN_PREFILL_KEY, useHydrated } from "@/lib/auth/use-auth-form-guard"
 import ThemeToggle from "@/components/ThemeToggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,7 @@ type RegisterForm = {
 
 export default function SignUpPage() {
   const router = useRouter()
+  const hydrated = useHydrated()
   const [submitting, setSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -73,6 +75,7 @@ export default function SignUpPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!hydrated || submitting) return
 
     const parsed = registerSchema.safeParse(form)
     if (!parsed.success) {
@@ -106,9 +109,14 @@ export default function SignUpPage() {
       const response = await registerWithBackend(payload)
 
       toast.success(response.message ?? "Account created successfully.")
-      router.push(
-        `/auth/signin?registered=1&email=${encodeURIComponent(form.email)}`
-      )
+      // Hand the email to the sign-in form via sessionStorage, never the
+      // URL (it would otherwise sit in history and server logs).
+      try {
+        sessionStorage.setItem(SIGNIN_PREFILL_KEY, payload.email)
+      } catch {
+        // Storage unavailable — the user types it on the sign-in page.
+      }
+      router.push("/auth/signin?registered=1")
     } catch (error) {
       const message =
         error instanceof Error
@@ -144,7 +152,7 @@ export default function SignUpPage() {
               </div>
               <div>
                 <p className="text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
-                  Redeemer's University of Nigeria Portal
+                  Redeemer&apos;s University of Nigeria Portal
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Knowledge • Innovation • Service
@@ -181,7 +189,10 @@ export default function SignUpPage() {
         </section>
 
         <section className="flex items-center p-4 sm:p-6 lg:p-10">
+          {/* method="post" + submit disabled until hydration: a native
+              pre-hydration submission can never put fields in the URL. */}
           <motion.form
+            method="post"
             onSubmit={handleSubmit}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -338,7 +349,8 @@ export default function SignUpPage() {
 
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={!hydrated || submitting}
+                aria-disabled={!hydrated || submitting}
                 className="rounded-xl"
               >
                 {submitting ? "Submitting..." : "Create Account"}

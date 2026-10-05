@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { signOut, useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { UserRole } from "@/config/nav.config"
@@ -13,6 +13,12 @@ import {
   storeAccessToken,
   storeRefreshToken,
 } from "@/lib/auth/backendAuth"
+import { SESSION_EXPIRED_REASON } from "@/lib/auth/use-auth-form-guard"
+
+const SIGN_IN_PATH = "/auth/signin"
+
+const onAuthPage = (): boolean =>
+  typeof window !== "undefined" && window.location.pathname.startsWith("/auth/")
 
 // Asks the backend directly whether the current access token is still
 // accepted. Sent with an explicit header (not `access_token: true`), so a
@@ -58,6 +64,65 @@ export default function AuthSessionBridge({
   // In-flight (or just-finished, cached ~5 s) "is the session still valid?"
   // check, shared by every 401 that arrives in the same burst.
   const verifyingRef = useRef<Promise<boolean> | null>(null)
+  // Latest next-auth status, readable from apiClient's hook callbacks (which
+  // are registered from an effect and would otherwise see a stale value).
+  const statusRef = useRef(status)
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+  // A 401 that arrived while next-auth was still "loading" (before the
+  // session -> store sync had run). Re-checked once the session resolves
+  // instead of being silently dropped.
+  const pendingUnauthorizedRef = useRef(false)
+  // One startup probe per page load (see the session effect below).
+  const probedRef = useRef(false)
+
+  // Ends a dead session cleanly: tokens, next-auth cookie, then app state,
+  // then a hard navigation to sign-in with a "session expired" notice.
+  //
+  // Order matters. The next-auth cookie is cleared *before* the zustand
+  // store is logged out. The old flow logged the store out first, so
+  // DashboardLayoutTemplate did router.replace("/auth/signin") while
+  // next-auth still said "authenticated", and the sign-in page bounced
+  // straight back to the dashboard — a client-side ping-pong that, if
+  // signOut() never completed, left a page that never rendered.
+  //
+  // Loop prevention: on an /auth/* page this never navigates (it only
+  // clears state and shows a toast), so the sign-in page can't reload
+  // itself forever if the cookie refuses to clear. And the sign-in page
+  // never auto-redirects a session it was sent to because of expiry.
+  const endSession = useCallback(async () => {
+    if (sessionExpiredRef.current) return
+    sessionExpiredRef.current = true
+    pendingUnauthorizedRef.current = false
+
+    clearStoredAuthTokens()
+    appliedSessionSig.current = null
+    try {
+      await signOut({ redirect: false })
+    } catch {
+      // The cookie may survive a network failure; the sign-in page retries
+      // clearing it when it sees ?reason=session-expired.
+    }
+    logout()
+
+    if (onAuthPage()) {
+      toast.error("Your session expired. Please sign in again.")
+      // The same page load can sign in again; let a later expiry be handled.
+      sessionExpiredRef.current = false
+      probedRef.current = false
+      return
+    }
+
+    const params = new URLSearchParams({
+      reason: SESSION_EXPIRED_REASON,
+      callbackUrl: window.location.pathname + window.location.search,
+    })
+    // Full navigation (not router.replace): resets every bit of in-memory
+    // app/query state along with the session, so no stale authenticated
+    // view data is left behind.
+    window.location.replace(`${SIGN_IN_PATH}?${params.toString()}`)
+  }, [logout])
 
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
@@ -74,10 +139,18 @@ export default function AuthSessionBridge({
           ? null
           : localStorage.getItem("refresh_token")
 
+      // Re-seeding from the session cookie is how a stale session used to
+      // survive: a failed refresh (POST /auth/refresh -> 401 "revoked")
+      // clears localStorage, but the next-auth cookie still holds the old
+      // access + revoked refresh tokens. On the next load they were copied
+      // back here and the user looked signed in with dead tokens. So
+      // whenever tokens come from the cookie, they're probed once (below).
+      let seededFromSession = false
       if (storedAccessToken) {
         apiClient.setAccessToken(storedAccessToken, "local")
       } else if (session.user.accessToken) {
         storeAccessToken(session.user.accessToken)
+        seededFromSession = true
       }
 
       if (!storedRefreshToken && session.user.refreshToken) {
@@ -114,13 +187,34 @@ export default function AuthSessionBridge({
           majorProgramScope: session.user.majorProgramScope,
         })
       }
+
+      // Startup probe: once per page load, when the tokens were just copied
+      // from the cookie or a 401 arrived before the session resolved. Sent
+      // through apiClient's normal authenticated path, so a dead access
+      // token triggers a refresh attempt, and a failed refresh reaches
+      // onUnauthorized -> endSession(). A valid session costs one
+      // GET /auth/me.
+      if (
+        !probedRef.current &&
+        (seededFromSession || pendingUnauthorizedRef.current)
+      ) {
+        probedRef.current = true
+        pendingUnauthorizedRef.current = false
+        void apiClient
+          .get("/auth/me", { access_token: true })
+          .catch(() => undefined)
+      }
       return
     }
 
-    if (status === "unauthenticated" && isAuthenticated) {
-      appliedSessionSig.current = null
-      clearStoredAuthTokens()
-      logout()
+    if (status === "unauthenticated") {
+      pendingUnauthorizedRef.current = false
+      probedRef.current = false
+      if (isAuthenticated) {
+        appliedSessionSig.current = null
+        clearStoredAuthTokens()
+        logout()
+      }
     }
   }, [isAuthenticated, logout, session, setUser, status])
 
@@ -142,9 +236,20 @@ export default function AuthSessionBridge({
       // happens to fire next.
       onUnauthorized: async (error) => {
         if (sessionExpiredRef.current) return
-        // Nothing to log out of — e.g. a stray 401 before the session ever
-        // hydrated, or this firing again after the flow below already ran.
-        if (!useAppStore.getState().isAuthenticated) return
+        // next-auth hasn't resolved the session yet. This 401 used to be
+        // dropped here (the store wasn't "authenticated" yet), leaving the
+        // page stuck on failed queries with the stale cookie still in place.
+        // Defer it: the session effect probes once the status settles.
+        if (statusRef.current === "loading") {
+          pendingUnauthorizedRef.current = true
+          return
+        }
+        // Nothing to log out of: no next-auth session and no app session.
+        if (
+          statusRef.current !== "authenticated" &&
+          !useAppStore.getState().isAuthenticated
+        )
+          return
 
         // One endpoint answering 401 doesn't prove the session is dead: on
         // 2026-09-26 GET /assessments/sync/status returned 401 to valid admin
@@ -164,26 +269,11 @@ export default function AuthSessionBridge({
           )
           return
         }
-        if (sessionExpiredRef.current) return
-        sessionExpiredRef.current = true
 
-        clearStoredAuthTokens()
-        logout()
-        toast.error("Your session has expired. Please log in again.")
-
-        const returnTo =
-          typeof window === "undefined"
-            ? "/"
-            : window.location.pathname + window.location.search
-        // Full browser navigation (next-auth's default redirect) — resets
-        // every bit of in-memory app/query state along with the session,
-        // rather than leaving stale authenticated-view data behind.
-        await signOut({
-          callbackUrl: `/auth/signin?callbackUrl=${encodeURIComponent(returnTo)}`,
-        })
+        await endSession()
       },
     })
-  }, [logout, update])
+  }, [endSession, update])
 
   return <>{children}</>
 }

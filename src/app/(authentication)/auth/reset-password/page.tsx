@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { passwordSchema } from "@/lib/validations/zod"
 import { resetPasswordWithToken } from "@/lib/auth/backendAuth"
+import {
+  useHydrated,
+  useStripSensitiveParams,
+} from "@/lib/auth/use-auth-form-guard"
 
 const resetPasswordFormSchema = z
   .object({
@@ -35,6 +39,9 @@ function ResetPasswordFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get("token") ?? ""
+  const hydrated = useHydrated()
+  // Never leave password fields in the URL (the reset `token` is kept).
+  useStripSensitiveParams(["password", "newPassword", "confirmPassword"])
 
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -44,6 +51,7 @@ function ResetPasswordFormContent() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!hydrated || submitting) return
 
     const parsed = resetPasswordFormSchema.safeParse({
       newPassword,
@@ -130,7 +138,11 @@ function ResetPasswordFormContent() {
               in again afterward.
             </p>
 
-            <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            <form
+              method="post"
+              onSubmit={handleSubmit}
+              className="mt-8 space-y-4"
+            >
               <label className="block space-y-2">
                 <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   New Password
@@ -184,7 +196,8 @@ function ResetPasswordFormContent() {
               <Button
                 type="submit"
                 size="lg"
-                disabled={submitting}
+                disabled={!hydrated || submitting}
+                aria-disabled={!hydrated || submitting}
                 className="mt-2 h-11 w-full rounded-xl text-sm font-semibold"
               >
                 {submitting ? "Resetting..." : "Reset Password"}
@@ -218,7 +231,7 @@ export default function ResetPasswordPage() {
         </div>
         <div className="hidden sm:block">
           <p className="text-xs font-semibold tracking-[0.18em] text-primary uppercase">
-            Redeemer's University of Nigeria Portal
+            Redeemer&apos;s University of Nigeria Portal
           </p>
           <p className="text-[11px] text-muted-foreground">
             Knowledge • Innovation • Service
