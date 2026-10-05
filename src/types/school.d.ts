@@ -302,8 +302,8 @@ export type AcademicUnitLinkKind =
   // "faculty" via resolveFacultyAcademicUnit), so Moodle sync can push one
   // root category per major program (matching the "CERTIFICATE PROGRAMS" /
   // "FOUNDATIONAL/JUPEB PROGRAMS" / "PART-TIME PROGRAMS" top-level Moodle
-  // categories the university already organizes courses under). Not yet a
-  // recognized `linkedEntity.type` on the real backend.
+  // categories the university already organizes courses under). Live on the
+  // backend since A18 (Bruno re-alignment, 2026-10-06).
   | "major_program"
 
 export interface AcademicUnitType {
@@ -326,7 +326,7 @@ export interface AcademicUnit {
   sortOrder: number
   linkedEntity: AcademicUnitLinkedEntity | null
   isActive: boolean
-  childCount: number
+  childCount: number | null
 }
 
 export interface AcademicUnitDetail extends AcademicUnit {

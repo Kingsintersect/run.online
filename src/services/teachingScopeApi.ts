@@ -14,8 +14,9 @@ export const teachingScopeKeys = {
 
 export const teachingScopeApi = {
   /**
-   * The caller's teaching scope, or `null` when the server has no such route
-   * yet (404/405), in which case the client derives it (useMyTeachingScope).
+   * The caller's teaching scope (bruno/user/Me - Teaching Scope.bru), or
+   * `null` when a backend predates the route (404/405). useMyTeachingScope
+   * then reports the scope as unavailable rather than empty.
    */
   async getMine(): Promise<TeachingScopeEntry[] | null> {
     try {

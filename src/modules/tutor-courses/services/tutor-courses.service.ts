@@ -78,12 +78,12 @@ export const tutorCoursesService = {
     return timetableService.deleteSchedule(scheduleId)
   },
 
-  // Proposed, not yet built backend-side — see
-  // sandbox/tutor-moodle-sync/API_CONTRACTS.md §3. Mirrors the real, live
-  // student endpoint (`GET /students/me/courses/:offeringId/launch`)
-  // exactly, just under the lecturer's own namespace. Until the backend
-  // ships it, every call here 404s — the UI treats that the same as "not
-  // set up on Moodle yet" (see MoodleLaunchButton), never a broken page.
+  // Live (bruno/user/Lecturers - Launch Course.bru, since 2026-09-23):
+  // returns `{ redirectUrl }`, mirroring the student endpoint
+  // (`GET /students/me/courses/:offeringId/launch`). Not-ready states are
+  // 409s (tutor or course not Moodle-synced, or not assigned). A 404 is
+  // still treated as "not set up on Moodle yet" (see MoodleLaunchButton) in
+  // case a backend predates the route.
   async launchMoodleCourse(offeringId: number): Promise<MoodleLaunchResult> {
     return apiClient.get<MoodleLaunchResult>(
       `/users/lecturers/me/courses/${offeringId}/launch`,

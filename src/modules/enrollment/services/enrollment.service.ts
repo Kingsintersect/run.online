@@ -21,7 +21,7 @@ import { dedupeAsync } from "@/lib/utils/dedupe-async"
 import { canAny } from "@/lib/permissions/can"
 import { offeringsApi } from "@/services/courseOfferingApi"
 import { usersApi } from "@/services/usersApi"
-import { timetableService } from "@/modules/timetable/services/timetable.service"
+import { schedulesApi } from "@/services/courseOfferingApi"
 import type { CourseOffering } from "@/types/school"
 import type { Student } from "@/types/users"
 import type {
@@ -59,7 +59,9 @@ const AUTH = { access_token: true } as const
 
 interface RawEnrollment {
   id: number
-  studentId: number
+  // Absent on GET /enrollments/student/:id rows (confirmed live 2026-10-06) —
+  // the caller passes the id it asked for instead.
+  studentId?: number
   offeringId?: number
   semesterId?: number
   status: EnrollmentStatus
@@ -98,7 +100,7 @@ interface RawAttendance {
   attendanceDate: string
   status: AttendanceStatus
   remarks: string | null
-  createdAt: string
+  createdAt?: string
   student?: {
     matricNumber?: string
     user?: { firstName?: string | null; lastName?: string | null }
@@ -161,15 +163,18 @@ function mapEnrollment(
   // The real By-Offering response doesn't echo `offeringId` back on each row
   // (see RawEnrollment's own note) — the caller already knows it, since it's
   // what was passed to the request in the first place.
-  fallbackOfferingId?: number
+  fallbackOfferingId?: number,
+  // Same for By-Student, whose rows omit `studentId`.
+  fallbackStudentId?: number
 ): EnrollmentRecord {
   const offeringId = raw.offeringId ?? fallbackOfferingId ?? 0
+  const studentId = raw.studentId ?? fallbackStudentId ?? 0
   const offering = offeringsById.get(offeringId)
-  const student = studentsById.get(raw.studentId)
+  const student = studentsById.get(studentId)
   const lecturerUser = raw.offering?.lecturers?.[0]?.lecturer?.user
   return {
     id: raw.id,
-    studentId: raw.studentId,
+    studentId,
     offeringId,
     semesterId: raw.semesterId ?? offering?.semester_id ?? 0,
     status: raw.status,
@@ -205,7 +210,7 @@ function mapAttendance(
     attendanceDate: raw.attendanceDate,
     status: raw.status,
     remarks: raw.remarks,
-    createdAt: raw.createdAt,
+    createdAt: raw.createdAt ?? "",
     studentName: raw.student?.user
       ? fullName(raw.student.user)
       : fullName(student?.user),
@@ -258,7 +263,9 @@ export const enrollmentApi = {
       }),
       buildLookups(),
     ])
-    return res.data.map((r) => mapEnrollment(r, offeringsById, studentsById))
+    return res.data.map((r) =>
+      mapEnrollment(r, offeringsById, studentsById, undefined, studentId)
+    )
   },
 
   async getByOffering(offeringId: number): Promise<EnrollmentRecord[]> {
@@ -289,8 +296,9 @@ export const enrollmentApi = {
   },
 
   // Per-offering failures come back in `errors` as `{ offeringId, code,
-  // message }` (code added 2026-09-28). The documented body is the bare
-  // `{ enrolled, errors }`; a `{ data: {...} }` envelope is accepted too.
+  // message }` (code added 2026-09-28). The body is `{ data: { enrolled,
+  // errors } }` (bruno/enrollment/Enrollment - Bulk Create.bru, corrected
+  // 2026-09-29, B30 item 18); a bare body is still accepted.
   async bulkCreate(dto: BulkEnrollDto): Promise<BulkEnrollResult> {
     const body = BulkEnrollSchema.parse(dto)
     const res = await apiClient.post<
@@ -354,11 +362,13 @@ export const enrollmentApi = {
     id: number,
     dto: DropEnrollmentDto = {}
   ): Promise<DropEnrollmentResult> {
-    return apiClient.patch<DropEnrollmentResult, DropEnrollmentDto>(
-      `${BASE}/${id}/drop`,
-      dto,
-      AUTH
-    )
+    // The controller returns `{id, status, droppedAt}` bare (not `{data}`);
+    // an envelope is accepted too in case it is added later.
+    const res = await apiClient.patch<
+      DropEnrollmentResult | { data: DropEnrollmentResult },
+      DropEnrollmentDto
+    >(`${BASE}/${id}/drop`, dto, AUTH)
+    return "data" in res ? res.data : res
   },
 
   // Mints a one-time Moodle SSO login URL for this enrolled course offering
@@ -432,11 +442,14 @@ export const enrollmentApi = {
   async bulkRecordAttendance(
     dto: BulkAttendanceDto
   ): Promise<BulkAttendanceResult> {
-    return apiClient.post<BulkAttendanceResult>(
-      `${BASE}/attendance/bulk`,
-      dto,
-      AUTH
-    )
+    // `{ data: { recorded, errors } }` — wrapped, like every other write in
+    // this controller (AttendanceController::bulkStore()). The .bru prose
+    // shows the inner object only; a bare body is still accepted.
+    const res = await apiClient.post<
+      BulkAttendanceResult | { data: BulkAttendanceResult }
+    >(`${BASE}/attendance/bulk`, dto, AUTH)
+    const body = "data" in res ? res.data : res
+    return { recorded: body.recorded ?? 0, errors: body.errors ?? [] }
   },
 
   async getAttendanceBySchedule(
@@ -485,7 +498,10 @@ export const enrollmentApi = {
   // No dedicated aggregate/percentage endpoint exists (see
   // sandbox/enrollment/enrollment_workflow.md §6 for the formula this
   // mirrors) — composed client-side from three already-real sources: this
-  // student's enrollments, this offering's weekly schedules (Timetable),
+  // student's enrollments, each offering's weekly schedules (GET
+  // /courses/offerings/:id/schedules — any authenticated user; the
+  // /timetable/schedules/offering/:id twin is Admin/Staff/Tutor only, so a
+  // student got a 403 there and every course read 0 sessions),
   // and this student's attendance rows, matching present+late as "attended"
   // over every session recorded.
   async getAttendanceSummary(studentId: number): Promise<AttendanceSummary[]> {
@@ -496,7 +512,12 @@ export const enrollmentApi = {
 
     const schedulesByOffering = await Promise.all(
       enrollments.map((e) =>
-        timetableService.getSchedulesByOffering(e.offeringId).catch(() => [])
+        e.offeringId > 0
+          ? schedulesApi
+              .listByOffering(e.offeringId)
+              .then((r) => r.data)
+              .catch(() => [])
+          : Promise.resolve([])
       )
     )
 

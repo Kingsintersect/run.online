@@ -36,9 +36,8 @@ export const ScheduleFilterSchema = z.object({
   dayOfWeek: DayOfWeekEnum.optional(),
   venue: z.string().optional(),
   classType: ClassTypeEnum.optional(),
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35.
-  // Sent ahead of the backend per CLAUDE.md §14 (see timetableService.
-  // getAllSchedules).
+  // Major-Program Scoping — live server-side since 2026-09-22 (bruno/
+  // timetable/Schedules - List.bru; A35). See timetableService.getAllSchedules.
   majorProgramId: z.number().int().optional(),
   page: z.number().int().min(1).optional(),
   limit: z.number().int().min(1).max(100).optional(),

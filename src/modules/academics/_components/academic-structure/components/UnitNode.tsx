@@ -37,7 +37,9 @@ export function UnitNode({
 }: UnitNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const hasChildren = unit.childCount > 0
+  // childCount is null on some live rows (unknown): stay expandable so the
+  // children query can answer, and let the server decide on delete.
+  const hasChildren = (unit.childCount ?? 1) > 0
   const { data, isLoading } = useAcademicUnits(
     { parentId: unit.id },
     { enabled: expanded }
@@ -46,7 +48,7 @@ export function UnitNode({
   const children = data?.data ?? []
 
   const handleDeleteClick = () => {
-    if (unit.childCount > 0) {
+    if ((unit.childCount ?? 0) > 0) {
       toast.error("Remove or move this node's children first.")
       return
     }

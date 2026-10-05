@@ -91,6 +91,10 @@ function groupByDay(slots: TimetableSlot[]): TimetableGrouped {
 
 // ── Raw shape + defensive mapping (see file header for the nested-vs-flat note) ──
 
+// `/timetable/schedules*` rows (ScheduleController::serialize(), live
+// 2026-10-06): flat FK ids plus `course: {code, title}` and `lecturerName`.
+// The nested `offering.course` / `lecturer.user` forms are older shapes, still
+// read when present.
 interface RawScheduleRelations {
   id: number
   offeringId: number
@@ -100,10 +104,41 @@ interface RawScheduleRelations {
   endTime: string
   venue: string
   classType: TimetableSlot["classType"]
+  course?: { code?: string; title?: string; creditUnits?: number } | null
+  lecturerName?: string | null
   offering?: {
     course?: { code?: string; title?: string; creditUnits?: number }
   }
   lecturer?: { user?: { firstName?: string | null; lastName?: string | null } }
+}
+
+// Personal timetables — GET /timetable/my, /timetable/student/:id and
+// /timetable/lecturer/:id (TimetableService::shapeTimetable(), confirmed live
+// 2026-10-06). NOT `{data}`-wrapped: the body is `{activeSemester,
+// schedules}`, where `schedules` is a flat array, or a MONDAY..SUNDAY map when
+// `groupByDay=true`. Each row carries `scheduleId` + course/lecturer names but
+// no offering or lecturer id.
+interface RawPersonalSlot {
+  scheduleId?: number
+  id?: number
+  offeringId?: number
+  lecturerId?: number
+  dayOfWeek: DayOfWeek
+  startTime: string
+  endTime: string
+  venue: string
+  classType: TimetableSlot["classType"]
+  courseCode?: string | null
+  courseTitle?: string | null
+  creditUnits?: number | null
+  lecturerName?: string | null
+}
+
+interface RawPersonalTimetable {
+  activeSemester?: number | null
+  schedules?: RawPersonalSlot[] | Partial<Record<DayOfWeek, RawPersonalSlot[]>>
+  // Tolerated legacy envelope.
+  data?: RawPersonalSlot[]
 }
 
 // Shared offering/tutor name lookups, reused by every mapper below — a list
@@ -146,11 +181,14 @@ function mapSlot(
 ): TimetableSlot {
   const offering = offeringsById.get(raw.offeringId)
   const tutor = tutorsById.get(raw.lecturerId)
-  const tutorName = raw.lecturer?.user
-    ? `${raw.lecturer.user.firstName ?? ""} ${raw.lecturer.user.lastName ?? ""}`.trim()
-    : tutor
-      ? `${tutor.user.first_name ?? ""} ${tutor.user.last_name ?? ""}`.trim()
-      : ""
+  const tutorName = raw.lecturerName?.trim()
+    ? raw.lecturerName.trim()
+    : raw.lecturer?.user
+      ? `${raw.lecturer.user.firstName ?? ""} ${raw.lecturer.user.lastName ?? ""}`.trim()
+      : tutor
+        ? `${tutor.user.first_name ?? ""} ${tutor.user.last_name ?? ""}`.trim()
+        : ""
+  const course = raw.course ?? raw.offering?.course
   return {
     id: raw.id,
     dayOfWeek: raw.dayOfWeek,
@@ -158,14 +196,61 @@ function mapSlot(
     endTime: raw.endTime,
     venue: raw.venue,
     classType: raw.classType,
-    courseCode: raw.offering?.course?.code ?? offering?.course_code ?? "—",
-    courseTitle: raw.offering?.course?.title ?? offering?.course_title ?? "—",
-    creditUnits:
-      raw.offering?.course?.creditUnits ?? offering?.credit_units ?? 0,
+    courseCode: course?.code ?? offering?.course_code ?? "—",
+    courseTitle: course?.title ?? offering?.course_title ?? "—",
+    creditUnits: course?.creditUnits ?? offering?.credit_units ?? 0,
     tutorId: raw.lecturerId,
     tutorName: tutorName || "—",
     offeringId: raw.offeringId,
   }
+}
+
+// The personal-timetable rows have no offering id, but screens such as the
+// tutor attendance recorder need one to load the roster. It is resolved by
+// course code within the timetable's own semester (a course is offered at
+// most once per semester — bruno/course/Offering - Create.bru). 0 = unknown.
+function mapPersonalTimetable(
+  res: RawPersonalTimetable,
+  offeringsById: Map<number, CourseOffering>
+): TimetableSlot[] {
+  const rows: RawPersonalSlot[] = Array.isArray(res.schedules)
+    ? res.schedules
+    : res.schedules
+      ? DAY_ORDER.flatMap(
+          (d) =>
+            (res.schedules as Partial<Record<DayOfWeek, RawPersonalSlot[]>>)[
+              d
+            ] ?? []
+        )
+      : (res.data ?? [])
+  const semesterId = res.activeSemester ?? null
+  const offeringByCode = new Map<string, CourseOffering>()
+  for (const o of offeringsById.values()) {
+    if (semesterId != null && o.semester_id !== semesterId) continue
+    if (!offeringByCode.has(o.course_code)) offeringByCode.set(o.course_code, o)
+  }
+  return rows.map((r) => {
+    const offering =
+      r.offeringId != null
+        ? offeringsById.get(r.offeringId)
+        : r.courseCode
+          ? offeringByCode.get(r.courseCode)
+          : undefined
+    return {
+      id: r.scheduleId ?? r.id ?? 0,
+      dayOfWeek: r.dayOfWeek,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      venue: r.venue,
+      classType: r.classType,
+      courseCode: r.courseCode ?? offering?.course_code ?? "—",
+      courseTitle: r.courseTitle ?? offering?.course_title ?? "—",
+      creditUnits: r.creditUnits ?? offering?.credit_units ?? 0,
+      tutorId: r.lecturerId ?? 0,
+      tutorName: r.lecturerName?.trim() || "—",
+      offeringId: r.offeringId ?? offering?.id ?? 0,
+    }
+  })
 }
 
 // ── timetableService ──────────────────────────────────────────────────────────
@@ -178,14 +263,16 @@ export const timetableService = {
   async getMyTimetable(
     params: { semesterId?: number; groupByDay?: boolean } = {}
   ): Promise<TimetableSlot[] | TimetableGrouped> {
-    const [res, { offeringsById, tutorsById }] = await Promise.all([
-      apiClient.get<{ data: RawScheduleRelations[] }>("/timetable/my", {
+    // Always requested flat; grouping happens client-side so one mapper
+    // handles every response.
+    const [res, { offeringsById }] = await Promise.all([
+      apiClient.get<RawPersonalTimetable>("/timetable/my", {
         ...AUTH,
-        params,
+        params: { semesterId: params.semesterId },
       }),
       buildLookups(),
     ])
-    const slots = res.data.map((r) => mapSlot(r, offeringsById, tutorsById))
+    const slots = mapPersonalTimetable(res, offeringsById)
     return params.groupByDay ? groupByDay(slots) : sortByDay(slots)
   },
 
@@ -194,14 +281,14 @@ export const timetableService = {
     tutorId: number,
     params: { semesterId?: number } = {}
   ): Promise<TimetableSlot[]> {
-    const [res, { offeringsById, tutorsById }] = await Promise.all([
-      apiClient.get<{ data: RawScheduleRelations[] }>(
-        `/timetable/lecturer/${tutorId}`,
-        { ...AUTH, params }
-      ),
+    const [res, { offeringsById }] = await Promise.all([
+      apiClient.get<RawPersonalTimetable>(`/timetable/lecturer/${tutorId}`, {
+        ...AUTH,
+        params,
+      }),
       buildLookups(),
     ])
-    return sortByDay(res.data.map((r) => mapSlot(r, offeringsById, tutorsById)))
+    return sortByDay(mapPersonalTimetable(res, offeringsById))
   },
 
   // Admin/Staff: an arbitrary student's timetable view.
@@ -209,14 +296,14 @@ export const timetableService = {
     studentId: number,
     params: { semesterId?: number } = {}
   ): Promise<TimetableSlot[]> {
-    const [res, { offeringsById, tutorsById }] = await Promise.all([
-      apiClient.get<{ data: RawScheduleRelations[] }>(
-        `/timetable/student/${studentId}`,
-        { ...AUTH, params }
-      ),
+    const [res, { offeringsById }] = await Promise.all([
+      apiClient.get<RawPersonalTimetable>(`/timetable/student/${studentId}`, {
+        ...AUTH,
+        params,
+      }),
       buildLookups(),
     ])
-    return sortByDay(res.data.map((r) => mapSlot(r, offeringsById, tutorsById)))
+    return sortByDay(mapPersonalTimetable(res, offeringsById))
   },
 
   // Admin schedule management — full CRUD over /timetable/schedules.
@@ -379,14 +466,37 @@ export const timetableService = {
     semesterId: number
     excludeScheduleId?: number
   }): Promise<VenueAvailability> {
-    const res = await apiClient.get<{ data: VenueAvailability }>(
-      "/timetable/venue-availability",
-      {
-        ...AUTH,
-        params,
-      }
-    )
-    return res.data
+    // Not `{data}`-wrapped (confirmed live 2026-10-06): the body is
+    // `{venue, dayOfWeek, busySlots, freeWindows}` directly, and each busy
+    // slot names its lecturer as `lecturerName`.
+    type WireBusySlot = Omit<
+      VenueAvailability["busySlots"][number],
+      "tutorName"
+    > & {
+      lecturerName?: string | null
+      tutorName?: string
+    }
+    type WireAvailability = Omit<VenueAvailability, "busySlots"> & {
+      busySlots?: WireBusySlot[]
+    }
+    const res = await apiClient.get<
+      WireAvailability & { data?: WireAvailability }
+    >("/timetable/venue-availability", {
+      ...AUTH,
+      params,
+    })
+    const body: WireAvailability = res.data ?? res
+    return {
+      venue: body.venue ?? params.venue,
+      dayOfWeek: body.dayOfWeek ?? params.dayOfWeek,
+      busySlots: (body.busySlots ?? []).map((s) => ({
+        startTime: s.startTime,
+        endTime: s.endTime,
+        courseCode: s.courseCode,
+        tutorName: s.lecturerName?.trim() || s.tutorName || "—",
+      })),
+      freeWindows: body.freeWindows ?? [],
+    }
   },
 }
 
@@ -394,6 +504,10 @@ export const timetableService = {
 // Real, per bruno/timetable/Calendar Events - *.bru. Moodle-sourced,
 // read-only aside from the visibility toggle. `offeringId` (not
 // `courseOfferingId`) is the real query-param name per bruno.
+//
+// Live rows (2026-10-06) carry `courseCode`/`courseTitle` themselves, so the
+// shared offering list is only fetched when some row lacks them but names an
+// `offeringId` (older shape) — and a failed lookup never fails the page.
 
 interface RawCalendarEvent {
   id: number
@@ -404,6 +518,8 @@ interface RawCalendarEvent {
   endDate: string | null
   meetingUrl: string | null
   isVisible: boolean
+  courseCode?: string | null
+  courseTitle?: string | null
   offeringId?: number | null
   offering?: { course?: { code?: string; title?: string } }
 }
@@ -423,8 +539,45 @@ function mapCalendarEvent(
     endDate: raw.endDate,
     meetingUrl: raw.meetingUrl,
     isVisible: raw.isVisible,
-    courseCode: raw.offering?.course?.code ?? offering?.course_code,
-    courseTitle: raw.offering?.course?.title ?? offering?.course_title,
+    courseCode:
+      raw.courseCode ?? raw.offering?.course?.code ?? offering?.course_code,
+    courseTitle:
+      raw.courseTitle ?? raw.offering?.course?.title ?? offering?.course_title,
+  }
+}
+
+async function mapCalendarEvents(
+  rows: RawCalendarEvent[]
+): Promise<CalendarEvent[]> {
+  const needsLookup = rows.some(
+    (r) => !r.courseCode && !r.offering?.course?.code && r.offeringId != null
+  )
+  const offerings = needsLookup
+    ? await offeringsApi
+        .listShared()
+        .catch(() => ({ data: [] as CourseOffering[] }))
+    : { data: [] as CourseOffering[] }
+  const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
+  return rows.map((e) => mapCalendarEvent(e, offeringsById))
+}
+
+type CalendarListMeta = { total: number; page: number; limit: number }
+
+function toPaginated(
+  data: CalendarEvent[],
+  meta: Partial<CalendarListMeta> | undefined,
+  fallback: { page?: number; limit?: number }
+): PaginatedResponse<CalendarEvent> {
+  const total = meta?.total ?? data.length
+  const limit = meta?.limit ?? fallback.limit ?? Math.max(1, data.length)
+  return {
+    data,
+    meta: {
+      total,
+      page: meta?.page ?? fallback.page ?? 1,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
   }
 }
 
@@ -432,124 +585,100 @@ export const calendarService = {
   async getMyEvents(
     params: CalendarEventFilter = {}
   ): Promise<PaginatedResponse<CalendarEvent>> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{
-        data: RawCalendarEvent[]
-        // Live backend omits `meta` on this route (seen 2026-10-05), which
-        // crashed the student Calendar page reading `meta.total`.
-        meta?: { total: number; page: number; limit: number }
-      }>("/calendar/events/my", {
-        ...AUTH,
-        params: { days: params.days, page: params.page, limit: params.limit },
-      }),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    const data = res.data.map((e) => mapCalendarEvent(e, offeringsById))
-    const total = res.meta?.total ?? data.length
-    const limit = res.meta?.limit ?? params.limit ?? Math.max(1, data.length)
-    return {
-      data,
-      meta: {
-        total,
-        page: res.meta?.page ?? params.page ?? 1,
-        limit,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
+    const res = await apiClient.get<{
+      data: RawCalendarEvent[]
+      // Live backend omits `meta` on this route (seen 2026-10-05 and
+      // 2026-10-06), which crashed the student Calendar page reading
+      // `meta.total`. Keep tolerating its absence.
+      meta?: CalendarListMeta
+    }>("/calendar/events/my", {
+      ...AUTH,
+      // bruno/timetable/Calendar Events - My.bru: accepts from, to, days.
+      params: {
+        days: params.days,
+        from: params.from,
+        to: params.to,
+        page: params.page,
+        limit: params.limit,
       },
-    }
+    })
+    return toPaginated(
+      await mapCalendarEvents(res.data ?? []),
+      res.meta,
+      params
+    )
   },
 
   async getMyUpcomingEvents(): Promise<CalendarEvent[]> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{ data: RawCalendarEvent[] }>(
-        "/calendar/events/my/upcoming",
-        AUTH
-      ),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    return res.data.map((e) => mapCalendarEvent(e, offeringsById))
+    const res = await apiClient.get<{ data: RawCalendarEvent[] }>(
+      "/calendar/events/my/upcoming",
+      AUTH
+    )
+    return mapCalendarEvents(res.data ?? [])
   },
 
   async getUpcomingEvents(days = 14): Promise<CalendarEvent[]> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{ data: RawCalendarEvent[] }>("/calendar/events/upcoming", {
-        ...AUTH,
-        params: { days },
-      }),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    return res.data.map((e) => mapCalendarEvent(e, offeringsById))
+    const res = await apiClient.get<{ data: RawCalendarEvent[] }>(
+      "/calendar/events/upcoming",
+      { ...AUTH, params: { days } }
+    )
+    return mapCalendarEvents(res.data ?? [])
   },
 
   async getAllEvents(
     filters: CalendarEventFilter = {}
   ): Promise<PaginatedResponse<CalendarEvent>> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{
-        data: RawCalendarEvent[]
-        meta: { total: number; page: number; limit: number }
-      }>("/calendar/events", {
-        ...AUTH,
-        params: {
-          eventType: filters.eventType,
-          offeringId: filters.courseOfferingId,
-          isVisible: filters.isVisible,
-          page: filters.page ?? 1,
-          limit: filters.limit ?? 20,
-        },
-      }),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    const data = res.data.map((e) => mapCalendarEvent(e, offeringsById))
-    return {
-      data,
-      meta: {
-        total: res.meta.total,
-        page: res.meta.page,
-        limit: res.meta.limit,
-        totalPages: Math.max(1, Math.ceil(res.meta.total / res.meta.limit)),
+    const page = filters.page ?? 1
+    const limit = filters.limit ?? 20
+    const res = await apiClient.get<{
+      data: RawCalendarEvent[]
+      meta?: CalendarListMeta
+    }>("/calendar/events", {
+      ...AUTH,
+      params: {
+        eventType: filters.eventType,
+        offeringId: filters.courseOfferingId,
+        isVisible: filters.isVisible,
+        from: filters.from,
+        to: filters.to,
+        page,
+        limit,
       },
-    }
+    })
+    return toPaginated(await mapCalendarEvents(res.data ?? []), res.meta, {
+      page,
+      limit,
+    })
   },
 
   async getEventById(id: number): Promise<CalendarEvent> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{ data: RawCalendarEvent }>(`/calendar/events/${id}`, AUTH),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    return mapCalendarEvent(res.data, offeringsById)
+    const res = await apiClient.get<{ data: RawCalendarEvent }>(
+      `/calendar/events/${id}`,
+      AUTH
+    )
+    const [event] = await mapCalendarEvents([res.data])
+    return event
   },
 
   // GET /calendar/events/course/:offeringId — Student, Tutor, Admin. Every
   // event linked to one course offering. Same row shape as the other event
   // lists, so it reuses mapCalendarEvent.
   async getEventsByCourse(offeringId: number): Promise<CalendarEvent[]> {
-    const [res, offerings] = await Promise.all([
-      apiClient.get<{ data: RawCalendarEvent[] }>(
-        `/calendar/events/course/${offeringId}`,
-        AUTH
-      ),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    return res.data.map((e) => mapCalendarEvent(e, offeringsById))
+    const res = await apiClient.get<{ data: RawCalendarEvent[] }>(
+      `/calendar/events/course/${offeringId}`,
+      AUTH
+    )
+    return mapCalendarEvents(res.data ?? [])
   },
 
   async toggleEventVisibility(id: number): Promise<CalendarEvent> {
-    const [res, offerings] = await Promise.all([
-      apiClient.patch<{ data: RawCalendarEvent }>(
-        `/calendar/events/${id}/visibility`,
-        undefined,
-        AUTH
-      ),
-      offeringsApi.listShared(),
-    ])
-    const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
-    return mapCalendarEvent(res.data, offeringsById)
+    const res = await apiClient.patch<{ data: RawCalendarEvent }>(
+      `/calendar/events/${id}/visibility`,
+      undefined,
+      AUTH
+    )
+    const [event] = await mapCalendarEvents([res.data])
+    return event
   },
 }
 
@@ -568,11 +697,19 @@ const EMPTY_ACADEMIC_CALENDAR: AcademicCalendarMeta = {
 
 export const academicCalendarService = {
   async getCurrent(): Promise<AcademicCalendarMeta> {
-    const res = await apiClient.get<{ data?: AcademicCalendarMeta | null }>(
-      "/academic-calendar",
-      AUTH
-    )
-    return res.data ?? EMPTY_ACADEMIC_CALENDAR
+    // Not `{data}`-wrapped (confirmed live 2026-10-06): the body is
+    // `{session, semesters, currentSemester}` directly. A `{data}` envelope is
+    // still accepted in case the backend adds one later.
+    const res = await apiClient.get<
+      Partial<AcademicCalendarMeta> & { data?: AcademicCalendarMeta | null }
+    >("/academic-calendar", AUTH)
+    if (res.data) return res.data
+    if (!res.session) return EMPTY_ACADEMIC_CALENDAR
+    return {
+      session: res.session,
+      semesters: res.semesters ?? [],
+      currentSemester: res.currentSemester ?? null,
+    }
   },
 
   async getActiveSemester(): Promise<Semester | null> {
