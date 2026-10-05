@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo } from "react"
 import { Clock } from "lucide-react"
 import { AssessmentBrowseList } from "@/modules/moodle-sync/components/assessments/assessment-browse-list"
@@ -11,7 +12,7 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 export default function UpcomingAssessmentsPage() {
   const { activeType, searchQuery } = useAssessmentsUiStore()
 
-  const { data, isLoading } = useUpcomingAssessments()
+  const { data, isLoading, isError, error, refetch } = useUpcomingAssessments()
 
   const items = useMemo(() => {
     const all = data?.data ?? []
@@ -50,11 +51,20 @@ export default function UpcomingAssessmentsPage() {
           </span>
         </div>
         <AssessmentFilters />
-        <AssessmentBrowseList
-          items={items}
-          isLoading={isLoading}
-          baseHref="/student/assessments"
-        />
+        {/* A refused (403) or failed load isn't "no assessments". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your upcoming assessments"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <AssessmentBrowseList
+            items={items}
+            isLoading={isLoading}
+            baseHref="/student/assessments"
+          />
+        )}
       </div>
     </PermissionGate>
   )

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { LayoutList, LayoutGrid, ChevronDown, AlertCircle } from "lucide-react"
@@ -53,11 +54,7 @@ export default function GradesResultsPage({
     goToPage,
     activeFilterCount,
   } = useGrades(15)
-  const { data: groupedData, loading: groupedLoading } = useGroupedGrades(
-    groupBy,
-    filters,
-    canAnalyze
-  )
+  const grouped = useGroupedGrades(groupBy, filters, canAnalyze)
   const { exporting, exportCSV, exportExcel, exportPDF } = useGradesExport()
 
   const {
@@ -200,17 +197,27 @@ export default function GradesResultsPage({
       />
 
       {/* Main content */}
+      {/* A failed list is already reported in the banner above — don't also
+          draw "No grades found" under it. */}
       {activeView === "table" || !canAnalyze ? (
-        <GradesTable
-          grades={grades}
-          loading={loading}
-          pagination={pagination}
-          onPageChange={goToPage}
-          onViewGrade={openGradeDetail}
-          onViewTranscript={(grade) => openTranscript(grade.studentId)}
+        error ? null : (
+          <GradesTable
+            grades={grades}
+            loading={loading}
+            pagination={pagination}
+            onPageChange={goToPage}
+            onViewGrade={openGradeDetail}
+            onViewTranscript={(grade) => openTranscript(grade.studentId)}
+          />
+        )
+      ) : grouped.isError ? (
+        <QueryErrorState
+          error={grouped.error}
+          subject="the grouped grades"
+          onRetry={() => void grouped.refetch()}
         />
       ) : (
-        <GradesGroupedView data={groupedData} loading={groupedLoading} />
+        <GradesGroupedView data={grouped.data} loading={grouped.loading} />
       )}
 
       {/* Modals */}

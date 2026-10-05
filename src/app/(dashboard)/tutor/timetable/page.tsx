@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { motion } from "framer-motion"
 import { CalendarDays, LayoutGrid, List } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
@@ -14,7 +15,7 @@ export default function TutorTimetablePage() {
   const { viewMode, setViewMode } = useTimetableUIStore()
   // /timetable/my resolves the current session's own timetable server-side
   // for both students and tutors — no client-side lecturer id needed.
-  const { data, isLoading } = useMyTimetable()
+  const { data, isLoading, isError, error, refetch } = useMyTimetable()
   const slots: TimetableSlot[] = Array.isArray(data)
     ? data
     : data
@@ -67,7 +68,14 @@ export default function TutorTimetablePage() {
           </div>
         </motion.div>
 
-        {viewMode === "grid" ? (
+        {/* A refused (403) or failed load isn't an empty week. */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your teaching schedule"
+            onRetry={() => void refetch()}
+          />
+        ) : viewMode === "grid" ? (
           <TimetableGrid slots={slots} isLoading={isLoading} />
         ) : (
           <TimetableList slots={slots} isLoading={isLoading} />

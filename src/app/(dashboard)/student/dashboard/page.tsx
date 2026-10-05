@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils"
 import { useMyStudent } from "@/hooks/use-my-student-id"
 import { useNotifications } from "@/modules/notifications/hooks/use-notifications"
 import { RegistrationOpenBanner } from "@/modules/enrollment/components/registration-open-banner"
+import { useMyTimetable } from "@/modules/timetable/hooks/useTimetable"
+import { useEnrollmentsByStudent } from "@/modules/enrollment/hooks/use-enrollments"
 
 interface DashboardCardProps {
   title: string
@@ -83,9 +85,17 @@ const fmt = (n: number | null, suffix = "") =>
 export default function StudentDashboardPage() {
   const { user } = useAppStore()
   const permissionSet = user?.permissions
-  const { data: notifData } = useNotifications({ limit: 6 })
+  const { data: notifData, isError: notifsFailed } = useNotifications({
+    limit: 6,
+  })
   const recentNotifs = notifData?.data ?? []
   const d = useStudentDashboardData()
+  // useStudentDashboardData doesn't expose per-source errors, so observe the
+  // same cached queries (same keys, no extra requests): a refused (403) or
+  // failed timetable/enrolment read is unknown — "—" — never "0" or
+  // "Nothing scheduled".
+  const timetableFailed = useMyTimetable().isError
+  const enrollmentsFailed = useEnrollmentsByStudent(d.studentId).isError
   const { student } = useMyStudent()
 
   const canViewNotifications = hasPermission(
@@ -181,12 +191,16 @@ export default function StudentDashboardPage() {
           icon={<CalendarDays size={18} />}
         >
           <p className="text-3xl font-bold text-foreground">
-            {fmt(d.isLoading ? null : d.todaysSessions.length)}
+            {timetableFailed
+              ? "—"
+              : fmt(d.isLoading ? null : d.todaysSessions.length)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {nextSession
-              ? `Next: ${nextSession.courseCode} at ${nextSession.startTime}`
-              : "Nothing scheduled today"}
+            {timetableFailed
+              ? "Your timetable couldn't be loaded"
+              : nextSession
+                ? `Next: ${nextSession.courseCode} at ${nextSession.startTime}`
+                : "Nothing scheduled today"}
           </p>
         </DashboardCard>
 
@@ -196,10 +210,14 @@ export default function StudentDashboardPage() {
           icon={<BookOpen size={18} />}
         >
           <p className="text-3xl font-bold text-foreground">
-            {fmt(d.isLoading ? null : d.activeCourseCount)}
+            {enrollmentsFailed
+              ? "—"
+              : fmt(d.isLoading ? null : d.activeCourseCount)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {fmt(d.isLoading ? null : d.totalUnits)} total credit units
+            {enrollmentsFailed
+              ? "Your enrolments couldn't be loaded"
+              : `${fmt(d.isLoading ? null : d.totalUnits)} total credit units`}
           </p>
         </DashboardCard>
 
@@ -247,6 +265,11 @@ export default function StudentDashboardPage() {
           {!canViewTimetable ? (
             <p className="text-xs text-muted-foreground">
               Timetable permission is not enabled for your role.
+            </p>
+          ) : timetableFailed ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Your timetable couldn&apos;t be loaded, so today&apos;s classes
+              can&apos;t be shown.
             </p>
           ) : d.todaysSessions.length === 0 ? (
             <p className="text-xs text-muted-foreground">
@@ -306,6 +329,10 @@ export default function StudentDashboardPage() {
           {!canViewNotifications ? (
             <p className="text-xs text-muted-foreground">
               Notification access is disabled for your role.
+            </p>
+          ) : notifsFailed ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Your notifications couldn&apos;t be loaded.
             </p>
           ) : recentNotifs.length === 0 ? (
             <p className="text-xs text-muted-foreground">

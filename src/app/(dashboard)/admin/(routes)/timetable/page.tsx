@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
@@ -92,10 +93,11 @@ export default function AdminTimetablePage() {
   // (sandbox/BACKEND_DEVIATIONS_2026-09-14.md A35).
   const [examDialogOpen, setExamDialogOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<ExamSchedule | null>(null)
-  const { data: examsData, isLoading: examsLoading } = useExamSchedules(
+  const examsQuery = useExamSchedules(
     majorProgramFilter != null ? { majorProgramId: majorProgramFilter } : {}
   )
-  const exams = examsData?.data ?? []
+  const examsLoading = examsQuery.isLoading
+  const exams = examsQuery.data?.data ?? []
 
   // One filter at a time drives the data source: a dedicated lecturer/semester
   // endpoint when scoped, the full paginated list otherwise.
@@ -114,6 +116,11 @@ export default function AdminTimetablePage() {
   const lecturerQuery = useSchedulesByLecturer(lecturerId)
   const semesterQuery = useSchedulesBySemester(lecturerId ? null : semesterId)
 
+  const activeScheduleQuery = lecturerId
+    ? lecturerQuery
+    : semesterId
+      ? semesterQuery
+      : allQuery
   const { slots, isLoading } = lecturerId
     ? { slots: lecturerQuery.data ?? [], isLoading: lecturerQuery.isLoading }
     : semesterId
@@ -297,7 +304,14 @@ export default function AdminTimetablePage() {
               )}
             </div>
 
-            {viewMode === "grid" ? (
+            {/* A refused (403) or failed load isn't an empty timetable. */}
+            {activeScheduleQuery.isError ? (
+              <QueryErrorState
+                error={activeScheduleQuery.error}
+                subject="the timetable"
+                onRetry={() => void activeScheduleQuery.refetch()}
+              />
+            ) : viewMode === "grid" ? (
               <TimetableGrid
                 slots={slots}
                 isLoading={isLoading}
@@ -338,15 +352,23 @@ export default function AdminTimetablePage() {
               )}
             </div>
 
-            <ExamScheduleList
-              exams={exams}
-              isLoading={examsLoading}
-              canManage={canManageTimetable}
-              onEdit={(exam) => {
-                setEditingExam(exam)
-                setExamDialogOpen(true)
-              }}
-            />
+            {examsQuery.isError ? (
+              <QueryErrorState
+                error={examsQuery.error}
+                subject="exam schedules"
+                onRetry={() => void examsQuery.refetch()}
+              />
+            ) : (
+              <ExamScheduleList
+                exams={exams}
+                isLoading={examsLoading}
+                canManage={canManageTimetable}
+                onEdit={(exam) => {
+                  setEditingExam(exam)
+                  setExamDialogOpen(true)
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { toast } from "sonner"
@@ -13,7 +14,13 @@ import { ClearanceTypeFormDialog } from "./clearance-type-form-dialog"
 import type { ClearanceType } from "../../types"
 
 export function ClearanceTypesManager() {
-  const { data: types = [], isLoading } = useClearanceTypes()
+  const {
+    data: types = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useClearanceTypes()
   const deactivate = useDeactivateClearanceType()
   const [editing, setEditing] = useState<ClearanceType | null | undefined>(
     undefined
@@ -60,7 +67,14 @@ export function ClearanceTypesManager() {
         </Button>
       </div>
 
-      {types.length === 0 ? (
+      {isError ? (
+        // A refused or failed load isn't "No clearance types yet".
+        <QueryErrorState
+          error={error}
+          subject="clearance types"
+          onRetry={() => void refetch()}
+        />
+      ) : types.length === 0 ? (
         <EmptyState
           icon={ClipboardCheck}
           title="No clearance types yet"

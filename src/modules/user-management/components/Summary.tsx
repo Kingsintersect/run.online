@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import {
@@ -100,8 +101,10 @@ const columns: Column<User & Record<string, unknown>>[] = [
 
 export default function UsersSummaryPage() {
   const router = useRouter()
-  const { data: statsData, isLoading: statsLoading } = useUserStats()
-  const { data: usersData, isLoading: usersLoading } = useUsers()
+  const statsQ = useUserStats()
+  const usersQ = useUsers()
+  const { data: statsData, isLoading: statsLoading } = statsQ
+  const { data: usersData, isLoading: usersLoading } = usersQ
   const stats = statsData?.data
   const [managingRolesFor, setManagingRolesFor] = useState<User | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
@@ -161,12 +164,21 @@ export default function UsersSummaryPage() {
             User Distribution
           </h2>
           <p className="mb-4 text-xs text-muted-foreground">
-            Breakdown by role — {stats?.total_users ?? 0} total users
+            Breakdown by role —{" "}
+            {stats ? stats.total_users : statsLoading ? "…" : "—"} total users
           </p>
           {statsLoading ? (
             <div className="flex h-55 items-center justify-center text-sm text-muted-foreground">
               Loading…
             </div>
+          ) : statsQ.isError ? (
+            // A refused (403) or failed load isn't a chart of zeros.
+            <QueryErrorState
+              error={statsQ.error}
+              subject="user statistics"
+              onRetry={() => void statsQ.refetch()}
+              className="h-55 py-6"
+            />
           ) : (
             <div className="flex items-center gap-6">
               <ResponsiveContainer width="60%" height={220}>
@@ -255,6 +267,14 @@ export default function UsersSummaryPage() {
             <div className="flex h-55 items-center justify-center text-sm text-muted-foreground">
               Loading…
             </div>
+          ) : statsQ.isError ? (
+            // A refused (403) or failed load isn't a chart of zeros.
+            <QueryErrorState
+              error={statsQ.error}
+              subject="user statistics"
+              onRetry={() => void statsQ.refetch()}
+              className="h-55 py-6"
+            />
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
@@ -383,42 +403,50 @@ export default function UsersSummaryPage() {
         <h2 className="mb-4 text-lg font-semibold text-foreground">
           All Users
         </h2>
-        <DataTable
-          data={(usersData?.data ?? []) as (User & Record<string, unknown>)[]}
-          columns={[
-            ...columns,
-            ...(isAdmin
-              ? [
-                  {
-                    key: "actions",
-                    header: "",
-                    align: "center" as const,
-                    width: "70px",
-                    // A deleted account has no login left to grant roles to.
-                    render: (row: User) =>
-                      accountStatusOf(row) === "deleted" ? null : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setManagingRolesFor(row)}
-                          title="Manage roles"
-                        >
-                          <ShieldCheck className="size-3.5" />
-                        </Button>
-                      ),
-                  },
-                ]
-              : []),
-          ]}
-          loading={usersLoading}
-          searchPlaceholder="Search by name, email, or username…"
-          searchExtractor={(row) =>
-            `${row.first_name ?? ""} ${row.last_name ?? ""} ${row.email} ${row.username}`
-          }
-          rowKey="id"
-          pageSize={10}
-          emptyMessage="No users found"
-        />
+        {usersQ.isError ? (
+          <QueryErrorState
+            error={usersQ.error}
+            subject="users"
+            onRetry={() => void usersQ.refetch()}
+          />
+        ) : (
+          <DataTable
+            data={(usersData?.data ?? []) as (User & Record<string, unknown>)[]}
+            columns={[
+              ...columns,
+              ...(isAdmin
+                ? [
+                    {
+                      key: "actions",
+                      header: "",
+                      align: "center" as const,
+                      width: "70px",
+                      // A deleted account has no login left to grant roles to.
+                      render: (row: User) =>
+                        accountStatusOf(row) === "deleted" ? null : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setManagingRolesFor(row)}
+                            title="Manage roles"
+                          >
+                            <ShieldCheck className="size-3.5" />
+                          </Button>
+                        ),
+                    },
+                  ]
+                : []),
+            ]}
+            loading={usersLoading}
+            searchPlaceholder="Search by name, email, or username…"
+            searchExtractor={(row) =>
+              `${row.first_name ?? ""} ${row.last_name ?? ""} ${row.email} ${row.username}`
+            }
+            rowKey="id"
+            pageSize={10}
+            emptyMessage="No users found"
+          />
+        )}
       </motion.div>
 
       {managingRolesFor && (

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -251,9 +252,13 @@ export default function StudentResultsPage() {
     !programLoading && !isSecondarySchool ? studentId : null
   )
   const downloadResult = useDownloadSemesterResult()
-  const { data: terms, loading: termsLoading } = useMyTermResults(
-    !programLoading && isSecondarySchool
-  )
+  const {
+    data: terms,
+    loading: termsLoading,
+    isError: termsFailed,
+    error: termsError,
+    refetch: refetchTerms,
+  } = useMyTermResults(!programLoading && isSecondarySchool)
 
   // Session/semester filter — kept in the URL (?session=<id>&semester=<id>)
   // so the Academic History page can deep-link to one session.
@@ -358,7 +363,13 @@ export default function StudentResultsPage() {
           </h2>
         </div>
         <MyResultsSessionFilter filter={filter} />
-        {filter.isFiltered && visibleTerms.length === 0 ? (
+        {termsFailed ? (
+          <QueryErrorState
+            error={termsError}
+            subject="your term results"
+            onRetry={() => void refetchTerms()}
+          />
+        ) : filter.isFiltered && visibleTerms.length === 0 ? (
           <FilteredEmptyState label={filterLabel} onClear={filter.clear} />
         ) : (
           <TermResultsView terms={visibleTerms} loading={termsLoading} />

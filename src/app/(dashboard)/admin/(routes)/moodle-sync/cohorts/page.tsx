@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -39,7 +40,7 @@ const STATUS_VARIANT: Record<
 // API_CONTRACTS.md §C) — the list/push/sync-members calls all degrade
 // gracefully (empty state, toast on failure) until it lands.
 export default function MoodleSyncCohortsPage() {
-  const { data: cohorts, isLoading } = useSyncCohorts()
+  const { data: cohorts, isLoading, isError, error, refetch } = useSyncCohorts()
   const { data: programsRes } = useAllPrograms()
   // Sessions labelled with their major program — identical names otherwise.
   const { options: sessionOptions } = useSessionOptions()
@@ -174,6 +175,14 @@ export default function MoodleSyncCohortsPage() {
               />
             ))}
           </div>
+        ) : isError ? (
+          // Not shipped yet (404) reads as "not available yet", a 403 as
+          // "not permitted" — neither is "No cohorts yet".
+          <QueryErrorState
+            error={error}
+            subject="Moodle cohorts"
+            onRetry={() => void refetch()}
+          />
         ) : !cohorts?.length ? (
           <EmptyState
             icon={UsersRound}

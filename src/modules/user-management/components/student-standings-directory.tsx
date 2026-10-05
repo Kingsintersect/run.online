@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { ChevronRight, GraduationCap, Loader2, Search } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import StatusBadge from "@/components/custom/StatusBadge"
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils"
 import {
   TeachingScopeSelect,
   teachingScopeEmptyMessage,
+  teachingScopeUnavailableMessage,
 } from "@/components/teaching-scope-select"
 import { useAppStore } from "@/store"
 import { useMyTeachingScope } from "@/hooks/use-my-teaching-scope"
@@ -152,7 +154,29 @@ export function StudentStandingsDirectory() {
         </p>
       </section>
 
-      {scope.isEmpty ? (
+      {scope.isUnavailable ? (
+        <div
+          role={scope.isFailed ? "alert" : "status"}
+          className={cn(
+            "flex flex-col items-center gap-3 rounded-2xl border p-6 text-center text-sm",
+            scope.isFailed
+              ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"
+              : "border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100"
+          )}
+        >
+          <p>{teachingScopeUnavailableMessage(scope.isFailed)}</p>
+          {scope.isFailed && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => scope.retry()}
+            >
+              Retry
+            </Button>
+          )}
+        </div>
+      ) : scope.isEmpty ? (
         <p className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground dark:bg-muted/20">
           {teachingScopeEmptyMessage(activeRole)}
         </p>

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { motion } from "framer-motion"
 import { CalendarCheck, GraduationCap } from "lucide-react"
 import { useMyStudentId } from "@/hooks/use-my-student-id"
@@ -28,7 +29,8 @@ function AttendanceBar({ value }: { value: number }) {
 
 export function MyAttendanceSummary() {
   const { studentId, isLoading: resolvingStudentId } = useMyStudentId()
-  const { data, isLoading } = useAttendanceSummary(studentId)
+  const { data, isLoading, isError, error, refetch } =
+    useAttendanceSummary(studentId)
 
   if (studentId === null && !resolvingStudentId) {
     return (
@@ -47,6 +49,17 @@ export function MyAttendanceSummary() {
           <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted" />
         ))}
       </div>
+    )
+  }
+
+  // A refused (403) or failed load isn't "no attendance recorded".
+  if (isError) {
+    return (
+      <QueryErrorState
+        error={error}
+        subject="your attendance"
+        onRetry={() => void refetch()}
+      />
     )
   }
 

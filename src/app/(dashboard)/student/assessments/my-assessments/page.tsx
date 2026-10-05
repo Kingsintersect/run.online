@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo } from "react"
 import { AssessmentFilters } from "@/modules/moodle-sync/components/assessments/assessment-filters"
 import { AssessmentBrowseList } from "@/modules/moodle-sync/components/assessments/assessment-browse-list"
@@ -11,7 +12,7 @@ export default function MyAssessmentsPage() {
   const { activeType, searchQuery, upcomingOnly, page, limit } =
     useAssessmentsUiStore()
 
-  const { data, isLoading } = useMyAssessmentsList({
+  const { data, isLoading, isError, error, refetch } = useMyAssessmentsList({
     type: activeType ?? undefined,
     upcoming: upcomingOnly || undefined,
     page,
@@ -45,11 +46,20 @@ export default function MyAssessmentsPage() {
     >
       <div className="space-y-4">
         <AssessmentFilters showUpcomingToggle />
-        <AssessmentBrowseList
-          items={items}
-          isLoading={isLoading}
-          baseHref="/student/assessments"
-        />
+        {/* A refused (403) or failed load isn't "no assessments". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your assessments"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <AssessmentBrowseList
+            items={items}
+            isLoading={isLoading}
+            baseHref="/student/assessments"
+          />
+        )}
       </div>
     </PermissionGate>
   )

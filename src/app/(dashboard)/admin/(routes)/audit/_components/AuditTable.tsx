@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -142,7 +143,8 @@ export function AuditTable() {
     setDetailModalOpen,
   } = useAuditStore()
 
-  const { data, isLoading, isFetching } = useAuditLogs(filters)
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    useAuditLogs(filters)
 
   const logs = data?.data ?? []
   const meta = data?.meta ?? { total: 0, page: 1, limit: 10 }
@@ -246,6 +248,17 @@ export function AuditTable() {
                     <p className="mt-2 text-sm text-muted-foreground">
                       Loading audit logs...
                     </p>
+                  </td>
+                </tr>
+              ) : isError ? (
+                // A refused (403) or failed load isn't "No audit logs found".
+                <tr>
+                  <td colSpan={8} className="p-4">
+                    <QueryErrorState
+                      error={error}
+                      subject="audit logs"
+                      onRetry={() => void refetch()}
+                    />
                   </td>
                 </tr>
               ) : logs.length === 0 ? (

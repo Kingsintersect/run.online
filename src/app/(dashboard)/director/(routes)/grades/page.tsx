@@ -74,6 +74,7 @@ export default function GradeReportsPage() {
   const {
     grades: records,
     loading: recordsLoading,
+    error: recordsError,
     pagination: recordsPagination,
     updateFilters: updateRecordsFilters,
     goToPage: goToRecordsPage,
@@ -351,7 +352,11 @@ export default function GradeReportsPage() {
               ) : byProgram.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="et-empty">
-                    No program-level data for the selected filter.
+                    {/* A refused/failed report isn't "no data" — the error
+                        banner above says why. */}
+                    {error
+                      ? "The grade report couldn't be loaded."
+                      : "No program-level data for the selected filter."}
                   </td>
                 </tr>
               ) : (
@@ -437,7 +442,9 @@ export default function GradeReportsPage() {
                 ) : records.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="et-empty">
-                      No grade records match the selected filters.
+                      {recordsError
+                        ? "Grade records couldn't be loaded (permission-restricted for your role, or the request failed)."
+                        : "No grade records match the selected filters."}
                     </td>
                   </tr>
                 ) : (

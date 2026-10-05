@@ -56,6 +56,7 @@ export function useDirectorFinancial() {
     filter,
     isLoading: !!loading["financial"],
     error: errors["financial"],
+    paymentsError: errors["payments"] ?? null,
     setFilter,
     resetFilter,
     setPagination,

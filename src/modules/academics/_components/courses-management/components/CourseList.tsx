@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState, useMemo } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useForm, useWatch, Controller } from "react-hook-form"
@@ -63,7 +64,7 @@ interface CourseListProps {
 
 export function CourseList({ canManage = false }: CourseListProps) {
   const [search, setSearch] = useState("")
-  const { data, isLoading } = useCourses()
+  const { data, isLoading, isError, error, refetch } = useCourses()
   const createCourse = useCreateCourse()
   const updateCourse = useUpdateCourse()
   const { data: levelsData } = useLevels()
@@ -505,7 +506,14 @@ export function CourseList({ canManage = false }: CourseListProps) {
       </AnimatePresence>
 
       {/* Course List - edit button only if canManage */}
-      {!filteredCourses.length ? (
+      {/* A refused (403) or failed load isn't "No courses yet". */}
+      {isError ? (
+        <QueryErrorState
+          error={error}
+          subject="courses"
+          onRetry={() => void refetch()}
+        />
+      ) : !filteredCourses.length ? (
         <EmptyState
           icon={BookOpen}
           title={hasFilters ? "No matching courses" : "No courses yet"}

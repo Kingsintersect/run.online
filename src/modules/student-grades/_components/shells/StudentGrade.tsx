@@ -1,5 +1,9 @@
 "use client"
 
+import {
+  QueryErrorNotice,
+  QueryErrorState,
+} from "@/components/query-error-state"
 import { useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import gsap from "gsap"
@@ -45,13 +49,19 @@ export default function GradesSummaryPage({
   // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
   // A35. Sent ahead of the backend per CLAUDE.md §14.
   const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
-  const { data: stats, isLoading: statsLoading } =
-    useGradesSummary(majorProgramId)
-  const { data: gradeDistribution = [] } =
-    useGradeDistributionData(majorProgramId)
-  const { data: programPerformanceRaw = [] } =
-    useProgramPerformanceData(majorProgramId)
-  const { data: cgpaTrends = [] } = useCgpaTrendsData(majorProgramId)
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsFailed,
+    error: statsError,
+    refetch: refetchStats,
+  } = useGradesSummary(majorProgramId)
+  const distributionQ = useGradeDistributionData(majorProgramId)
+  const gradeDistribution = distributionQ.data ?? []
+  const performanceQ = useProgramPerformanceData(majorProgramId)
+  const programPerformanceRaw = performanceQ.data ?? []
+  const trendsQ = useCgpaTrendsData(majorProgramId)
+  const cgpaTrends = trendsQ.data ?? []
   const { data: topPerformersRaw = [] } = useTopPerformersData(
     10,
     majorProgramId
@@ -110,7 +120,17 @@ export default function GradesSummaryPage({
         results still in the approval workflow.
       </p>
 
-      {/* Rest of your component remains the same */}
+      {/* A refused (403) or failed summary used to leave this page blank;
+          say so instead. Each chart below likewise shows its own failure
+          rather than an empty chart. */}
+      {!loading && statsFailed && (
+        <QueryErrorState
+          error={statsError}
+          subject="the grades summary"
+          onRetry={() => void refetchStats()}
+        />
+      )}
+
       {!loading && stats && (
         <motion.div
           ref={headerRef as unknown as React.RefObject<HTMLDivElement>}
@@ -134,21 +154,45 @@ export default function GradesSummaryPage({
               icon={Hash}
               className="lg:col-span-1"
             >
-              <GradeDistributionChart data={gradeDistribution} />
+              {distributionQ.isError ? (
+                <QueryErrorNotice
+                  error={distributionQ.error}
+                  subject="the grade distribution"
+                  onRetry={() => void distributionQ.refetch()}
+                />
+              ) : (
+                <GradeDistributionChart data={gradeDistribution} />
+              )}
             </SectionCard>
             <SectionCard
               title="Program Performance"
               icon={TrendingUp}
               className="lg:col-span-1"
             >
-              <ProgramPerformanceChart data={programPerformance} />
+              {performanceQ.isError ? (
+                <QueryErrorNotice
+                  error={performanceQ.error}
+                  subject="program performance"
+                  onRetry={() => void performanceQ.refetch()}
+                />
+              ) : (
+                <ProgramPerformanceChart data={programPerformance} />
+              )}
             </SectionCard>
             <SectionCard
               title="GPA Trend by Semester"
               icon={TrendingUp}
               className="lg:col-span-1"
             >
-              <CgpaTrendChart data={cgpaTrends} />
+              {trendsQ.isError ? (
+                <QueryErrorNotice
+                  error={trendsQ.error}
+                  subject="the GPA trend"
+                  onRetry={() => void trendsQ.refetch()}
+                />
+              ) : (
+                <CgpaTrendChart data={cgpaTrends} />
+              )}
             </SectionCard>
           </motion.div>
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo, useState } from "react"
 import { Clock, Search, Filter } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
@@ -19,7 +20,9 @@ export default function UpcomingEventsPage() {
     "all" | "course" | "site" | "user" | "zoom"
   >("all")
 
-  const { data, isLoading } = useMyUpcomingEvents()
+  const { data, isLoading, isError, error, refetch } = useMyUpcomingEvents()
+  // A refused (403) or failed load is unknown, not zero events.
+  const count = (n: number) => (isError ? "—" : isLoading ? "…" : n)
   const events = useMemo(() => data ?? [], [data])
 
   const filteredEvents = useMemo(() => {
@@ -56,7 +59,7 @@ export default function UpcomingEventsPage() {
             <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
               <p className="text-xs text-muted-foreground">Upcoming Events</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
-                {filteredEvents.length}
+                {count(filteredEvents.length)}
               </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
@@ -121,11 +124,21 @@ export default function UpcomingEventsPage() {
 
           <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock size={14} />
-            Showing {filteredEvents.length} upcoming events
+            {isError
+              ? "Upcoming events couldn't be loaded"
+              : `Showing ${filteredEvents.length} upcoming events`}
           </div>
         </section>
 
-        <CalendarEventList events={filteredEvents} isLoading={isLoading} />
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your upcoming events"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <CalendarEventList events={filteredEvents} isLoading={isLoading} />
+        )}
       </div>
     </PermissionGate>
   )

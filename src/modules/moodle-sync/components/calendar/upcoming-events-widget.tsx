@@ -3,13 +3,15 @@
 import { useState } from "react"
 import { CalendarDays, ExternalLink } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
+import { QueryErrorState } from "@/components/query-error-state"
 import { useUpcomingCalendarEvents } from "../../hooks/use-sync-calendar"
 import { CalendarEventDetail } from "./calendar-event-detail"
 import { getEventTypeMeta } from "../../lib/event-type-meta"
 import type { CalendarEventResponse } from "../../types"
 
 export function UpcomingEventsWidget() {
-  const { data, isLoading } = useUpcomingCalendarEvents()
+  const { data, isLoading, isError, error, refetch } =
+    useUpcomingCalendarEvents()
   const items = data?.data ?? []
   const [selected, setSelected] = useState<CalendarEventResponse | null>(null)
 
@@ -33,6 +35,15 @@ export function UpcomingEventsWidget() {
             />
           ))}
         </div>
+      ) : isError ? (
+        // A refused or failed request isn't an empty calendar — only a
+        // successful empty response may say "Nothing scheduled".
+        <QueryErrorState
+          error={error}
+          subject="your upcoming sessions"
+          onRetry={() => void refetch()}
+          className="py-8"
+        />
       ) : items.length === 0 ? (
         <EmptyState
           icon={CalendarDays}
@@ -47,6 +58,7 @@ export function UpcomingEventsWidget() {
             return (
               <button
                 key={event.id}
+                type="button"
                 onClick={() => setSelected(event)}
                 className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/60 px-3 py-2.5 text-left hover:bg-muted/20"
               >

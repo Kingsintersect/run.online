@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo } from "react"
 import { motion } from "framer-motion"
 import { BookOpen, Link2 } from "lucide-react"
@@ -21,7 +22,7 @@ export default function AdminAssessmentsPage() {
         ? false
         : undefined
 
-  const { data, isLoading } = useAssessmentsList({
+  const { data, isLoading, isError, error, refetch } = useAssessmentsList({
     type: activeType ?? undefined,
     isVisible: isVisibleFilter,
     page,
@@ -78,12 +79,21 @@ export default function AdminAssessmentsPage() {
         <AssessmentFilters showVisibilityFilter />
 
         {/* List */}
-        <AssessmentBrowseList
-          items={items}
-          isLoading={isLoading}
-          showVisibilityToggle
-          baseHref="/admin/assessments"
-        />
+        {/* A refused (403) or failed load isn't "no assessments". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="assessments"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <AssessmentBrowseList
+            items={items}
+            isLoading={isLoading}
+            showVisibilityToggle
+            baseHref="/admin/assessments"
+          />
+        )}
       </div>
     </PermissionGate>
   )

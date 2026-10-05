@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo } from "react"
 import { motion } from "framer-motion"
 import { BookOpen } from "lucide-react"
@@ -25,12 +26,13 @@ export default function TutorAssessmentsPage() {
   // assessment system-wide (confirmed live 2026-09-23, no lecturerId filter
   // existed on the plain list call). See useMyTutorAssessmentsList's own
   // comment for why this composes two calls instead of one.
-  const { data, isLoading } = useMyTutorAssessmentsList(lecturerId, {
-    type: activeType ?? undefined,
-    isVisible: isVisibleFilter,
-    page,
-    limit,
-  })
+  const { data, isLoading, isError, error, refetch } =
+    useMyTutorAssessmentsList(lecturerId, {
+      type: activeType ?? undefined,
+      isVisible: isVisibleFilter,
+      page,
+      limit,
+    })
 
   const items = useMemo(() => data?.data ?? [], [data])
   const total = data?.meta?.total ?? 0
@@ -69,12 +71,20 @@ export default function TutorAssessmentsPage() {
         <AssessmentFilters showVisibilityFilter />
 
         {/* List with visibility toggles */}
-        <AssessmentBrowseList
-          items={items}
-          isLoading={isLoading}
-          showVisibilityToggle
-          baseHref="/tutor/assessments"
-        />
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your course assessments"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <AssessmentBrowseList
+            items={items}
+            isLoading={isLoading}
+            showVisibilityToggle
+            baseHref="/tutor/assessments"
+          />
+        )}
       </div>
     </PermissionGate>
   )

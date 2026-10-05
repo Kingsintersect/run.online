@@ -208,8 +208,8 @@ export default function StatisticalReportsPage() {
       </div>
       <div className="charts-grid-2">
         <GenderPieChart
-          male={report?.studentsByGender.male ?? 0}
-          female={report?.studentsByGender.female ?? 0}
+          male={gender?.male ?? null}
+          female={gender?.female ?? null}
           title="Student Gender Distribution"
           isLoading={isLoading}
         />
@@ -222,6 +222,15 @@ export default function StatisticalReportsPage() {
           </div>
           {isLoading ? (
             <div className="chart-skeleton" />
+          ) : !report || failed?.stats ? (
+            // Designations come from the same stats call as gender/levels; a
+            // refused or failed load is not "no designations".
+            <p role="status" className="designation-empty">
+              Tutor designations couldn&apos;t be loaded (permission-restricted
+              for your role, or the request failed).
+            </p>
+          ) : report.tutorsByDesignation.length === 0 ? (
+            <p className="designation-empty">No tutor designations recorded.</p>
           ) : (
             <div className="designation-list">
               {[...(report?.tutorsByDesignation ?? [])]
@@ -505,6 +514,12 @@ export default function StatisticalReportsPage() {
             transparent
           );
           animation: pulse 1.4s ease-in-out infinite;
+        }
+        .designation-empty {
+          font-size: 0.8125rem;
+          color: var(--muted-foreground);
+          text-align: center;
+          padding: 2rem 1rem;
         }
         .designation-list {
           display: flex;

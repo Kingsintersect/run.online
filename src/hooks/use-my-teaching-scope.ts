@@ -34,6 +34,15 @@ export interface MyTeachingScope {
   isLoading: boolean
   /** Loaded, and the user has nothing in scope. */
   isEmpty: boolean
+  /**
+   * Loaded and empty, but only because the scope service is missing (404/405)
+   * or failed — not a real "nothing assigned to you". Screens must not blame
+   * admin setup in this case (see teachingScopeUnavailableMessage).
+   */
+  isUnavailable: boolean
+  /** The scope request itself failed (not just missing) — worth a retry. */
+  isFailed: boolean
+  retry: () => void
   /** The program ids in a major program, for filtering a list client-side. */
   programIdsIn: (majorProgramId: number) => number[]
 }
@@ -218,6 +227,10 @@ export function useMyTeachingScope(): MyTeachingScope {
   }, [live, majorProgramsRes])
 
   const scoped = liveMajorPrograms ?? majorPrograms
+  const availability = useTeachingScopeAvailability()
+  // While deriving (route missing), a failed assignments read also leaves the
+  // scope empty for a reason that isn't "nothing assigned".
+  const deriveFailed = derive && assignmentsQ.isError
   const isLoading =
     liveQ.isLoading ||
     (derive &&
@@ -231,9 +244,56 @@ export function useMyTeachingScope(): MyTeachingScope {
     majorPrograms: scoped,
     isLoading,
     isEmpty: !isLoading && scoped.length === 0,
+    isUnavailable:
+      !isLoading &&
+      scoped.length === 0 &&
+      (availability.unavailable || deriveFailed),
+    isFailed:
+      !isLoading &&
+      scoped.length === 0 &&
+      (availability.failed || deriveFailed),
+    retry: () => {
+      availability.retry()
+      if (assignmentsQ.isError) void assignmentsQ.refetch()
+    },
     programIdsIn: (majorProgramId) =>
       scoped
         .find((mp) => mp.id === majorProgramId)
         ?.programs.map((p) => p.id) ?? [],
+  }
+}
+
+/**
+ * Whether an empty teaching scope (useMyTeachingScope) can be trusted on the
+ * tutor/HOD/dean screens. Only a live GET /me/teaching-scope answer is
+ * authoritative: when that route is missing (404/405) or fails, or the
+ * major-programs list it is named from fails, "nothing in scope" may just
+ * mean the scope couldn't be worked out — not that an administrator still
+ * has to record anything. Observes the same cached queries
+ * useMyTeachingScope runs (same keys and options), so no extra requests.
+ */
+export function useTeachingScopeAvailability(): {
+  /** The scope service is missing or failed; an empty scope is not real. */
+  unavailable: boolean
+  /** The live route itself failed (not just missing) — worth a retry. */
+  failed: boolean
+  retry: () => void
+} {
+  const liveQ = useQuery({
+    queryKey: teachingScopeKeys.mine(),
+    queryFn: () => teachingScopeApi.getMine(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+  const majorProgramsQ = useMajorPrograms()
+  const routeMissing = liveQ.isSuccess && liveQ.data === null
+  const failed = liveQ.isError || majorProgramsQ.isError
+  return {
+    unavailable: routeMissing || failed,
+    failed,
+    retry: () => {
+      if (liveQ.isError) void liveQ.refetch()
+      if (majorProgramsQ.isError) void majorProgramsQ.refetch()
+    },
   }
 }

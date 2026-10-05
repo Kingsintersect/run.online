@@ -20,9 +20,12 @@ import {
   useStaffDashboardData,
 } from "@/hooks/useManagerDashboard"
 
-const fmt = (n: number | null) => (n === null ? "…" : n.toLocaleString())
-const fmtNgn = (n: number | null) =>
-  n === null ? "…" : `₦${(n / 1_000_000).toFixed(1)}M`
+// null is "…" only while the dashboard is still loading; once loading is
+// done a null figure was refused (403), failed, or isn't fetched for this
+// role, so it shows "—" rather than spinning forever or reading as zero.
+const fmtBase = (n: number | null, loading: boolean) =>
+  n === null ? (loading ? "…" : "—") : n.toLocaleString()
+const fmtNgn = (n: number) => `₦${(n / 1_000_000).toFixed(1)}M`
 
 export default function ManagePage() {
   const { user } = useAppStore()
@@ -36,11 +39,22 @@ export default function ManagePage() {
     return <StaffDashboard />
   }
 
+  // DEAN also shares this route and, on the live backend, holds the same
+  // dashboard-relevant permissions as ADMIN (CLAUDE.md §5) — so there is no
+  // permission to branch on. A plain role check is the honest fallback, as
+  // with STAFF above: a Dean oversees faculties, not the platform, and the
+  // admin-only parts (role policies, pending admissions, Moodle sync — all
+  // 403 or never fetched for DEAN, see useOperationsDashboardData) don't apply.
+  if (user?.role === UserRole.DEAN) {
+    return <DeanDashboard />
+  }
+
   return <AdminManagerDashboard />
 }
 
 function StaffDashboard() {
   const d = useStaffDashboardData()
+  const fmt = (n: number | null) => fmtBase(n, d.isLoading)
 
   return (
     <RoleDashboard
@@ -130,24 +144,132 @@ function StaffDashboard() {
   )
 }
 
+function DeanDashboard() {
+  const d = usePlatformDashboardData()
+  const fmt = (n: number | null) => fmtBase(n, d.isLoading)
+
+  return (
+    <RoleDashboard
+      eyebrow="Faculty Oversight"
+      title="Keep your faculties on track."
+      subtitle="Follow student numbers, departments and fee collection across the faculties you oversee, and step into course results when they need you."
+      accent="from-indigo-100 via-background to-cyan-50 dark:from-indigo-950/35 dark:via-background dark:to-cyan-950/20"
+      stats={[
+        {
+          title: "Students",
+          value: fmt(d.totalStudents),
+          detail: "Student records on file",
+          icon: GraduationCap,
+          tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        },
+        {
+          title: "Tutors",
+          value: fmt(d.totalTutors),
+          detail: "Teaching staff on record",
+          icon: Users,
+          tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        },
+        {
+          title: "Faculties",
+          value: fmt(d.facultyCount),
+          detail: "Registered academic faculties",
+          icon: Building2,
+          tone: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+        },
+        {
+          title: "Departments",
+          value: fmt(d.departmentCount),
+          detail: "Registered across all faculties",
+          icon: Building2,
+          tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        },
+      ]}
+      focusTitle="Faculty Oversight"
+      focusItems={[
+        {
+          title: "Fee collection status",
+          meta: "Finance office",
+          description:
+            d.totalOutstanding != null
+              ? `${fmtNgn(d.totalOutstanding)} outstanding across current invoices.`
+              : d.isLoading
+                ? "Loading fee collection data…"
+                : "Fee collection figures couldn't be loaded for your account.",
+          status:
+            d.collectionRate != null ? `${d.collectionRate}% collected` : "—",
+          tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        },
+      ]}
+      quickActions={[
+        {
+          title: "Students",
+          href: "/manager/users/students",
+          description: "Look up student records.",
+          icon: UserCog,
+          tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        },
+        {
+          title: "Course results",
+          href: "/tutor/results",
+          description: "Review result sheets in your scope.",
+          icon: ClipboardCheck,
+          tone: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+        },
+        {
+          title: "Review analytics",
+          href: "/manager/grades/summary",
+          description: "Inspect academic performance trends.",
+          icon: BarChart3,
+          tone: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        },
+      ]}
+      signalsTitle="Faculty Signals"
+      signals={[
+        {
+          label: "Fee collection rate",
+          value:
+            d.collectionRate != null
+              ? `${d.collectionRate}%`
+              : d.isLoading
+                ? "…"
+                : "—",
+        },
+        { label: "Students", value: fmt(d.totalStudents) },
+        { label: "Departments", value: fmt(d.departmentCount) },
+      ]}
+    />
+  )
+}
+
 function AdminManagerDashboard() {
   const d = usePlatformDashboardData()
+  const fmt = (n: number | null) => fmtBase(n, d.isLoading)
 
   const focusItems = [
     {
       title: "Admission applications awaiting review",
       meta: "Registry queue",
-      description: d.pendingApplicationCount
-        ? `${d.pendingApplicationCount} application${d.pendingApplicationCount !== 1 ? "s" : ""} submitted and waiting on a decision.`
-        : "No pending applications right now.",
+      // null = still loading, or refused/failed — only a real 0 is "Clear".
+      description:
+        d.pendingApplicationCount == null
+          ? d.isLoading
+            ? "Loading applications…"
+            : "Pending applications couldn't be loaded."
+          : d.pendingApplicationCount > 0
+            ? `${d.pendingApplicationCount} application${d.pendingApplicationCount !== 1 ? "s" : ""} submitted and waiting on a decision.`
+            : "No pending applications right now.",
       status:
-        d.pendingApplicationCount && d.pendingApplicationCount > 0
-          ? "Needs review"
-          : "Clear",
+        d.pendingApplicationCount == null
+          ? "—"
+          : d.pendingApplicationCount > 0
+            ? "Needs review"
+            : "Clear",
       tone:
-        d.pendingApplicationCount && d.pendingApplicationCount > 0
-          ? "bg-red-500/10 text-red-600 dark:text-red-400"
-          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        d.pendingApplicationCount == null
+          ? "bg-muted text-muted-foreground"
+          : d.pendingApplicationCount > 0
+            ? "bg-red-500/10 text-red-600 dark:text-red-400"
+            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
     {
       title: "Fee collection status",
@@ -155,7 +277,9 @@ function AdminManagerDashboard() {
       description:
         d.totalOutstanding != null
           ? `${fmtNgn(d.totalOutstanding)} outstanding across current invoices.`
-          : "Loading fee collection data…",
+          : d.isLoading
+            ? "Loading fee collection data…"
+            : "Fee collection figures couldn't be loaded.",
       status: d.collectionRate != null ? `${d.collectionRate}% collected` : "—",
       tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     },
@@ -165,8 +289,15 @@ function AdminManagerDashboard() {
       description:
         d.unsyncedAssessments != null
           ? `${d.unsyncedAssessments} assessment${d.unsyncedAssessments !== 1 ? "s" : ""} pending or failed sync.`
-          : "Loading sync status…",
-      status: d.unsyncedAssessments === 0 ? "All synced" : "Attention needed",
+          : d.isLoading
+            ? "Loading sync status…"
+            : "Sync status couldn't be loaded.",
+      status:
+        d.unsyncedAssessments == null
+          ? "—"
+          : d.unsyncedAssessments === 0
+            ? "All synced"
+            : "Attention needed",
       tone:
         d.unsyncedAssessments === 0
           ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
@@ -239,7 +370,12 @@ function AdminManagerDashboard() {
       signals={[
         {
           label: "Fee collection rate",
-          value: d.collectionRate != null ? `${d.collectionRate}%` : "…",
+          value:
+            d.collectionRate != null
+              ? `${d.collectionRate}%`
+              : d.isLoading
+                ? "…"
+                : "—",
         },
         { label: "Active platform users", value: fmt(d.activeUsers) },
         {
@@ -249,7 +385,9 @@ function AdminManagerDashboard() {
               ? d.unsyncedAssessments === 0
                 ? "All synced"
                 : `${d.unsyncedAssessments} pending`
-              : "…",
+              : d.isLoading
+                ? "…"
+                : "—",
         },
       ]}
     />

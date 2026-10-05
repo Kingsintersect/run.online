@@ -16,6 +16,8 @@ import { PaymentModal } from "@/modules/fee-management/components/student/paymen
 import { useInvoice } from "@/modules/fee-management/hooks/use-invoices"
 import { useFeeManagementUiStore } from "@/modules/fee-management/store/fee-management-ui.store"
 import { useAppStore } from "@/store"
+import { ApiClientError } from "@/lib/clients/apiClient"
+import { QueryErrorState } from "@/components/query-error-state"
 import type { FeeCategory } from "@/modules/fee-management/types"
 
 interface Props {
@@ -25,7 +27,7 @@ interface Props {
 export default function StudentInvoiceDetailPage({ params }: Props) {
   const { invoiceId } = use(params)
   const id = Number(invoiceId)
-  const { data: invoice, isLoading } = useInvoice(id)
+  const { data: invoice, isLoading, isError, error, refetch } = useInvoice(id)
   const openPaymentModal = useFeeManagementUiStore((s) => s.openPaymentModal)
   const user = useAppStore((s) => s.user)
 
@@ -35,6 +37,25 @@ export default function StudentInvoiceDetailPage({ params }: Props) {
         <Skeleton className="h-9 w-52" />
         <Skeleton className="h-36 w-full rounded-2xl" />
         <Skeleton className="h-48 w-full rounded-2xl" />
+      </div>
+    )
+  }
+
+  // Only a 404 means the invoice doesn't exist; a refused (403) or failed
+  // request is shown as such, not as "Invoice not found."
+  if (isError && !(error instanceof ApiClientError && error.status === 404)) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4 p-6">
+        <QueryErrorState
+          error={error}
+          subject="this invoice"
+          onRetry={() => void refetch()}
+        />
+        <Link href="/student/fees">
+          <Button variant="outline" size="sm">
+            Back to My Fees
+          </Button>
+        </Link>
       </div>
     )
   }

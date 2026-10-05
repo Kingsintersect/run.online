@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Loader2, Network, Plus, Tags } from "lucide-react"
@@ -29,7 +30,9 @@ type FormTarget = { parent: AcademicUnit | null; unit?: AcademicUnit }
 export default function AcademicStructurePage({
   canManage = false,
 }: AcademicStructurePageProps) {
-  const { data, isLoading } = useAcademicUnits({ rootsOnly: true })
+  const { data, isLoading, isError, error, refetch } = useAcademicUnits({
+    rootsOnly: true,
+  })
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null)
   const [managingTypes, setManagingTypes] = useState(false)
 
@@ -69,6 +72,13 @@ export default function AcademicStructurePage({
         <div className="flex items-center justify-center py-20">
           <Loader2 className="size-6 animate-spin text-primary" />
         </div>
+      ) : isError ? (
+        // A refused (403) or failed load isn't "No structure yet".
+        <QueryErrorState
+          error={error}
+          subject="the academic structure"
+          onRetry={() => void refetch()}
+        />
       ) : roots.length === 0 ? (
         <EmptyState
           icon={Network}

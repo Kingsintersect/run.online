@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { motion } from "framer-motion"
 import { CalendarDays } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
@@ -9,7 +10,7 @@ import { useAllCalendarEvents } from "@/modules/timetable/hooks/useCalendarEvent
 import type { CalendarEvent } from "@/modules/timetable/types/timetable.types"
 
 export default function AdminCalendarPage() {
-  const { data, isLoading } = useAllCalendarEvents()
+  const { data, isLoading, isError, error, refetch } = useAllCalendarEvents()
   const events = data?.data ?? []
   const total = data?.meta?.total ?? 0
 
@@ -52,11 +53,20 @@ export default function AdminCalendarPage() {
           )}
         </motion.div>
 
-        <CalendarEventList
-          events={events}
-          isLoading={isLoading}
-          visibilityToggle={visibilityToggle}
-        />
+        {/* A refused (403) or failed load isn't "no events". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="calendar events"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <CalendarEventList
+            events={events}
+            isLoading={isLoading}
+            visibilityToggle={visibilityToggle}
+          />
+        )}
       </div>
     </PermissionGate>
   )

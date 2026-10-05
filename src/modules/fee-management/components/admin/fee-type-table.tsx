@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
@@ -65,6 +66,8 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
   const {
     data: feeTypes,
     isLoading,
+    isError,
+    error,
     refetch,
   } = useFeeTypes({
     category: feeTypeTableFilters.category,
@@ -216,7 +219,14 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
       </div>
 
       {/* ── Table ─────────────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
+      {/* A refused (403) or failed load isn't "No fee types found." */}
+      {isError ? (
+        <QueryErrorState
+          error={error}
+          subject="fee types"
+          onRetry={() => void refetch()}
+        />
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <MoreHorizontal size={36} className="mb-2 opacity-30" />
           <p className="text-sm">

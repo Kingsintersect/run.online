@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { UserCheck, Plus, Layers } from "lucide-react"
@@ -23,7 +24,7 @@ export default function AdminEnrollmentPage() {
   const majorPrograms = (majorProgramsRes?.data ?? []).filter(
     (mp) => mp.isActive
   )
-  const { data, isLoading } = useEnrollments({
+  const { data, isLoading, isError, error, refetch } = useEnrollments({
     majorProgramId: majorProgramFilter ?? undefined,
   })
   const { can } = usePermissions()
@@ -89,12 +90,21 @@ export default function AdminEnrollmentPage() {
           onChange={setMajorProgramFilter}
         />
 
-        <EnrollmentTable
-          data={enrollments}
-          loading={isLoading}
-          canDrop={canManage}
-          onDrop={setDropping}
-        />
+        {/* A refused (403) or failed load isn't "no enrolments". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="enrolments"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <EnrollmentTable
+            data={enrollments}
+            loading={isLoading}
+            canDrop={canManage}
+            onDrop={setDropping}
+          />
+        )}
       </div>
 
       {canManage && (

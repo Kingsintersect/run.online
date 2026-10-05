@@ -1,5 +1,7 @@
 "use client"
 
+import { ApiClientError } from "@/lib/clients/apiClient"
+import { QueryErrorState } from "@/components/query-error-state"
 import { use } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
@@ -23,7 +25,13 @@ export default function EditFeeTypePage({ params }: Props) {
   const feeTypeId = Number(id)
   const router = useRouter()
 
-  const { data: feeType, isLoading } = useFeeType(feeTypeId)
+  const {
+    data: feeType,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useFeeType(feeTypeId)
   const activate = useActivateFeeType()
 
   function handleSuccess(_updated: FeeTypeResponse) {
@@ -35,6 +43,27 @@ export default function EditFeeTypePage({ params }: Props) {
       <div className="mx-auto max-w-2xl space-y-6 p-6">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-120 w-full rounded-2xl" />
+      </div>
+    )
+  }
+
+  // Only a 404 means the fee type doesn't exist; a refused (403) or failed
+  // request is shown as such, not as "Fee type not found."
+  if (isError && !(error instanceof ApiClientError && error.status === 404)) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6">
+        <QueryErrorState
+          error={error}
+          subject="this fee type"
+          onRetry={() => void refetch()}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push("/admin/finance/fees/types")}
+        >
+          Back to list
+        </Button>
       </div>
     )
   }

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { useForm, useWatch, Controller } from "react-hook-form"
@@ -108,7 +109,13 @@ export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
   )?.session
   const selectedSemester = (semesters ?? []).find((s) => s.id === semesterId)
 
-  const { data: offeringsData, isLoading } = useCourseOfferings(
+  const {
+    data: offeringsData,
+    isLoading,
+    isError: offeringsFailed,
+    error: offeringsError,
+    refetch: refetchOfferings,
+  } = useCourseOfferings(
     termReady && sessionId
       ? {
           sessionId,
@@ -324,6 +331,13 @@ export function OfferingsManager({ canManage = false }: OfferingsManagerProps) {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="size-6 animate-spin text-primary" />
         </div>
+      ) : offeringsFailed ? (
+        // A refused (403) or failed load isn't "No offerings yet".
+        <QueryErrorState
+          error={offeringsError}
+          subject="course offerings"
+          onRetry={() => void refetchOfferings()}
+        />
       ) : offerings.length === 0 ? (
         <EmptyState
           icon={CalendarRange}

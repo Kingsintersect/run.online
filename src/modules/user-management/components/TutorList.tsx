@@ -908,7 +908,13 @@ const selectCls =
   "focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-foreground appearance-none"
 
 function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
-  const { data: coursesData, isLoading } = useTutorCourses(tutor.id)
+  const {
+    data: coursesData,
+    isLoading,
+    isError: coursesFailed,
+    error: coursesError,
+    refetch: refetchCourses,
+  } = useTutorCourses(tutor.id)
   const unassignCourse = useUnassignCourse()
 
   const assignments = useMemo(() => coursesData?.data ?? [], [coursesData])
@@ -927,13 +933,20 @@ function TutorCoursesPanel({ tutor }: { tutor: Tutor }) {
       {/* Current assignments */}
       <div>
         <h3 className="mb-3 text-sm font-semibold text-foreground">
-          Assigned Courses ({assignments.length})
+          Assigned Courses ({coursesFailed ? "—" : assignments.length})
         </h3>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
             Loading…
           </div>
+        ) : coursesFailed ? (
+          // A refused or failed load isn't "No courses assigned yet".
+          <QueryErrorState
+            error={coursesError}
+            subject="this tutor's courses"
+            onRetry={() => void refetchCourses()}
+          />
         ) : assignments.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <BookOpen size={32} className="mb-2 opacity-40" />

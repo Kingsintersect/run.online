@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useRef } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Search, Filter, RotateCcw, Download } from "lucide-react"
@@ -9,6 +9,8 @@ import {
   DirectorFilterInput,
 } from "../schemas/director.schemas"
 import { DirectorFilter } from "../types/director.types"
+import { useDirectorSessionOptions } from "../hooks/use-director-active-session"
+import { useDirectorStore } from "../store/director.store"
 
 const FACULTIES = [
   "Engineering",
@@ -64,13 +66,6 @@ const DEPARTMENTS: Record<string, string[]> = {
   ],
 }
 
-const ACADEMIC_YEARS = [
-  "2024/2025",
-  "2023/2024",
-  "2022/2023",
-  "2021/2022",
-  "2020/2021",
-]
 const LEVELS = ["100", "200", "300", "400", "500"]
 
 interface FilterBarProps {
@@ -98,7 +93,7 @@ export function DirectorFilterBar({
   isLoading = false,
   title,
 }: FilterBarProps) {
-  const { register, handleSubmit, control, reset } =
+  const { register, handleSubmit, control, reset, setValue } =
     useForm<DirectorFilterInput>({
       resolver: zodResolver(DirectorFilterSchema),
       defaultValues: {
@@ -117,13 +112,49 @@ export function DirectorFilterBar({
       ? DEPARTMENTS[selectedFaculty] || []
       : []
 
+  // Academic-year options come from the real sessions list, and the year
+  // defaults to the active session once it resolves (the store starts on
+  // "all" — it no longer hardcodes "2024/2025"). If the sessions can't be
+  // loaded, only "All sessions" is offered and the select says why.
+  const sessions = useDirectorSessionOptions()
+  const yearOptions =
+    filter.academicYear &&
+    filter.academicYear !== "all" &&
+    !sessions.names.includes(filter.academicYear)
+      ? [filter.academicYear, ...sessions.names]
+      : sessions.names
+  const yearDefaulted = useRef(false)
+  useEffect(() => {
+    if (yearDefaulted.current || !sessions.activeName) return
+    yearDefaulted.current = true
+    if (filter.academicYear !== "all") return
+    setValue("academicYear", sessions.activeName)
+    // Not sent to the server by any director fetch yet, so no refetch.
+    useDirectorStore.setState((st) => ({
+      filter: { ...st.filter, academicYear: sessions.activeName ?? "all" },
+    }))
+  }, [sessions.activeName, filter.academicYear, setValue])
+
   const onSubmit = (data: DirectorFilterInput) => {
     onFilter(data as Partial<DirectorFilter>)
   }
 
   const handleReset = () => {
-    reset()
+    const year = sessions.activeName ?? "all"
+    reset({
+      faculty: "all",
+      department: "all",
+      academicYear: year,
+      semester: "all",
+      level: "all",
+      status: "all",
+      search: "",
+    })
     onReset()
+    if (year !== "all")
+      useDirectorStore.setState((st) => ({
+        filter: { ...st.filter, academicYear: year },
+      }))
   }
 
   return (
@@ -183,8 +214,21 @@ export function DirectorFilterBar({
             {...register("academicYear")}
             className="filter-select"
             disabled={isLoading}
+            aria-label="Academic session"
+            title={
+              sessions.isError
+                ? "Academic sessions couldn't be loaded"
+                : undefined
+            }
           >
-            {ACADEMIC_YEARS.map((y) => (
+            <option value="all">
+              {sessions.isLoading
+                ? "Loading sessions…"
+                : sessions.isError
+                  ? "All sessions (list unavailable)"
+                  : "All sessions"}
+            </option>
+            {yearOptions.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>

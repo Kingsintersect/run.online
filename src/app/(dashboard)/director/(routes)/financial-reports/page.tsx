@@ -83,6 +83,7 @@ export default function FinancialReportsPage() {
     filter,
     isLoading,
     error,
+    paymentsError,
     setFilter,
     resetFilter,
     setPagination,
@@ -232,7 +233,11 @@ export default function FinancialReportsPage() {
         }}
         isLoading={isLoading}
         rowKey={(r) => r.id}
-        emptyMessage="No payment records match the selected filters."
+        emptyMessage={
+          paymentsError
+            ? "Payment records couldn't be loaded (permission-restricted for your role, or the request failed)."
+            : "No payment records match the selected filters."
+        }
       />
 
       <style jsx>{`

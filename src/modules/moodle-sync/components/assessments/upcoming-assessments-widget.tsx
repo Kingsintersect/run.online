@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { Clock, ClipboardList } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
 import { useUpcomingAssessments } from "../../hooks/use-sync-assessments"
@@ -15,7 +16,7 @@ function formatDue(dueDate: string | null): string {
 }
 
 export function UpcomingAssessmentsWidget() {
-  const { data, isLoading } = useUpcomingAssessments()
+  const { data, isLoading, isError, error, refetch } = useUpcomingAssessments()
   const items = data?.data ?? []
 
   return (
@@ -38,6 +39,14 @@ export function UpcomingAssessmentsWidget() {
             />
           ))}
         </div>
+      ) : isError ? (
+        // A refused or failed load isn't "all clear".
+        <QueryErrorState
+          error={error}
+          subject="your upcoming deadlines"
+          onRetry={() => void refetch()}
+          className="py-8"
+        />
       ) : items.length === 0 ? (
         <EmptyState
           icon={ClipboardList}

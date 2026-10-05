@@ -467,10 +467,13 @@ export function GpaLineChart({ data, isLoading }: GpaLineChartProps) {
 // ─── Gender Pie Chart ─────────────────────────────────────────────────────────
 
 interface GenderPieChartProps {
-  male: number
-  female: number
+  /** null = the figures couldn't be loaded (refused or failed), not zero. */
+  male: number | null
+  female: number | null
   title?: string
   isLoading?: boolean
+  /** Shown in place of the chart when the figures are null. */
+  unavailableMessage?: string
 }
 
 export function GenderPieChart({
@@ -478,21 +481,35 @@ export function GenderPieChart({
   female,
   title = "Gender Distribution",
   isLoading,
+  unavailableMessage = "Gender figures couldn't be loaded (permission-restricted for your role, or the request failed).",
 }: GenderPieChartProps) {
+  const known = male != null && female != null
+  const total = known ? male + female : null
   const data = [
-    { name: "Male", value: male },
-    { name: "Female", value: female },
+    { name: "Male", value: male ?? 0 },
+    { name: "Female", value: female ?? 0 },
   ]
   return (
     <div className="chart-wrap">
       <div className="chart-header">
         <h3 className="chart-title">{title}</h3>
         <span className="chart-subtitle">
-          {(male + female).toLocaleString()} total
+          {total != null ? total.toLocaleString() : "—"} total
         </span>
       </div>
       {isLoading ? (
         <div className="chart-skeleton" />
+      ) : !known ? (
+        <p
+          role="status"
+          className="flex h-65 items-center justify-center rounded-lg border border-dashed border-border px-6 text-center text-sm text-muted-foreground dark:border-border/70"
+        >
+          {unavailableMessage}
+        </p>
+      ) : total === 0 ? (
+        <p className="flex h-65 items-center justify-center rounded-lg border border-dashed border-border px-6 text-center text-sm text-muted-foreground dark:border-border/70">
+          No students recorded yet.
+        </p>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
           <PieChart>

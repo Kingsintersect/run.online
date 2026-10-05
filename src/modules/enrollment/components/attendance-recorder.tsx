@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useMemo, useState } from "react"
 import { motion } from "framer-motion"
 import { CalendarCheck, Loader2, Save } from "lucide-react"
@@ -52,7 +53,11 @@ function todayISO() {
 }
 
 export function AttendanceRecorder() {
-  const { data, isLoading: schedulesLoading } = useMyTimetable()
+  const {
+    data,
+    isLoading: schedulesLoading,
+    isError: schedulesFailed,
+  } = useMyTimetable()
   const slots = Array.isArray(data) ? data : Object.values(data ?? {}).flat()
 
   const [scheduleId, setScheduleId] = useState<number | null>(null)
@@ -62,8 +67,9 @@ export function AttendanceRecorder() {
 
   const selectedSlot = slots.find((s) => s.id === scheduleId) ?? null
 
-  const { data: roster = [], isLoading: rosterLoading } =
-    useEnrollmentsByOffering(selectedSlot?.offeringId ?? null)
+  const rosterQuery = useEnrollmentsByOffering(selectedSlot?.offeringId ?? null)
+  const roster = useMemo(() => rosterQuery.data ?? [], [rosterQuery.data])
+  const rosterLoading = rosterQuery.isLoading
   const { data: existing = [] } = useAttendanceBySchedule(
     scheduleId,
     attendanceDate
@@ -120,7 +126,11 @@ export function AttendanceRecorder() {
                   placeholder={
                     schedulesLoading
                       ? "Loading your schedule…"
-                      : "Select a class session"
+                      : schedulesFailed
+                        ? "Your schedule couldn't be loaded"
+                        : slots.length === 0
+                          ? "No class sessions on your timetable"
+                          : "Select a class session"
                   }
                 />
               </SelectTrigger>
@@ -165,6 +175,13 @@ export function AttendanceRecorder() {
             <div key={i} className="h-14 animate-pulse rounded-xl bg-muted" />
           ))}
         </div>
+      ) : rosterQuery.isError ? (
+        // A refused or failed roster isn't "no students enrolled".
+        <QueryErrorState
+          error={rosterQuery.error}
+          subject="this class's roster"
+          onRetry={() => void rosterQuery.refetch()}
+        />
       ) : activeRoster.length === 0 ? (
         <EmptyState
           icon={CalendarCheck}

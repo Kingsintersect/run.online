@@ -104,7 +104,9 @@ export default function StudentCoursesPage() {
             />
           ))}
         </div>
-      ) : courses.length === 0 ? (
+      ) : isError ? null : courses.length === 0 ? (
+        // The error banner above already says the list failed — "No courses
+        // yet" is only for a successful empty response.
         <EmptyState
           icon={studentId === null ? GraduationCap : BookOpen}
           title="No courses yet"

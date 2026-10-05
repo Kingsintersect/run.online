@@ -22,10 +22,9 @@ export const DirectorFilterSchema = z.object({
   faculty: z.string().min(1).or(z.literal("all")).optional(),
   department: z.string().optional(),
   program: z.string().optional(),
-  academicYear: z
-    .string()
-    .regex(/^\d{4}\/\d{4}$/, "Format: YYYY/YYYY")
-    .optional(),
+  // A real session name from GET /academic/sessions, or "all". Session names
+  // aren't guaranteed to be "YYYY/YYYY", so no format is imposed here.
+  academicYear: z.string().min(1).optional(),
   semester: SemesterEnum.or(z.literal("all")).optional(),
   level: z.string().or(z.literal("all")).optional(),
   status: z.string().optional(),

@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useState } from "react"
 import { Loader2, Receipt } from "lucide-react"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
@@ -15,7 +16,8 @@ import type { FeeCategory, InvoiceResponse } from "../../types"
 // student's invoices at all. Opened from StudentList.tsx's "View Invoices"
 // action, gated there to callers who already have fee-management:view.
 export function StudentInvoicesPanel({ studentId }: { studentId: number }) {
-  const { data, isLoading } = useStudentInvoices(studentId)
+  const { data, isLoading, isError, error, refetch } =
+    useStudentInvoices(studentId)
   const invoices = data?.data ?? []
   const [viewing, setViewing] = useState<InvoiceResponse | null>(null)
 
@@ -24,6 +26,17 @@ export function StudentInvoicesPanel({ studentId }: { studentId: number }) {
       <div className="flex items-center justify-center py-10 text-muted-foreground">
         <Loader2 size={18} className="animate-spin" />
       </div>
+    )
+  }
+
+  // A refused (403) or failed load isn't "No invoices for this student yet."
+  if (isError) {
+    return (
+      <QueryErrorState
+        error={error}
+        subject="this student's invoices"
+        onRetry={() => void refetch()}
+      />
     )
   }
 

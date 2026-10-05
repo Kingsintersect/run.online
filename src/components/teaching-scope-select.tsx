@@ -101,9 +101,11 @@ export function TeachingScopeSelect({
           <option value="">
             {scope.isLoading
               ? "Loading your programs…"
-              : scope.majorPrograms.length === 0
-                ? "None in your scope"
-                : "Choose a major program"}
+              : scope.isUnavailable
+                ? "Couldn't load your programs"
+                : scope.majorPrograms.length === 0
+                  ? "None in your scope"
+                  : "Choose a major program"}
           </option>
           {scope.majorPrograms.map((mp) => (
             <option key={mp.id} value={mp.id}>
@@ -152,7 +154,19 @@ export function TeachingScopeSelect({
 }
 
 /**
- * Why a tutor, HOD or dean sees nothing, and what fixes it. Scope comes from
+ * Shown instead of teachingScopeEmptyMessage when the scope is empty only
+ * because GET /me/teaching-scope is missing (404/405) or failed
+ * (MyTeachingScope.isUnavailable) — never blames admin setup for that.
+ */
+export function teachingScopeUnavailableMessage(failed: boolean): string {
+  return failed
+    ? "Your teaching scope couldn't be loaded, so the programs you teach in or head can't be listed. This isn't something an administrator needs to set up — try again shortly."
+    : "The service that lists the programs you teach in or head isn't available on the server yet, and nothing could be worked out without it. This isn't something an administrator needs to set up — it has been flagged for the backend team."
+}
+
+/**
+ * Why a tutor, HOD or dean sees nothing, and what fixes it. Only for a
+ * genuinely empty scope — check MyTeachingScope.isUnavailable first. Scope comes from
  * the courses assigned to them and the department/faculty they head
  * (GET /me/teaching-scope), so an empty scope usually means one of those
  * hasn't been recorded yet.

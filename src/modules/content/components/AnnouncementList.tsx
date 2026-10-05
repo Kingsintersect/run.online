@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import gsap from "gsap"
@@ -125,7 +126,7 @@ export default function AnnouncementList() {
   const { can } = usePermissions()
   const canManage = can({ resource: "announcements", action: "manage" })
 
-  const { data, isLoading } = useAllAnnouncements()
+  const { data, isLoading, isError, error, refetch } = useAllAnnouncements()
   const createAnnouncement = useCreateAnnouncement()
   const updateAnnouncement = useUpdateAnnouncement()
   const deleteAnnouncement = useDeleteAnnouncement()
@@ -235,7 +236,8 @@ export default function AnnouncementList() {
               {tile.label}
             </div>
             <p className="mt-1 text-2xl font-bold text-foreground">
-              {tile.value}
+              {/* A refused or failed load is unknown, not zero. */}
+              {isError ? "—" : tile.value}
             </p>
           </div>
         ))}
@@ -246,85 +248,95 @@ export default function AnnouncementList() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <DataTable
-          data={rows as (Announcement & Record<string, unknown>)[]}
-          columns={[
-            ...columns,
-            {
-              key: "actions",
-              header: "",
-              align: "center",
-              width: "150px",
-              render: (row) => (
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelected(row as unknown as Announcement)}
-                    title="View"
-                  >
-                    <Eye size={14} />
-                  </Button>
-                  {canManage && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setEditing(row as unknown as Announcement)
-                        }
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      {row.isPublished ? (
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="announcements"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <DataTable
+            data={rows as (Announcement & Record<string, unknown>)[]}
+            columns={[
+              ...columns,
+              {
+                key: "actions",
+                header: "",
+                align: "center",
+                width: "150px",
+                render: (row) => (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setSelected(row as unknown as Announcement)
+                      }
+                      title="View"
+                    >
+                      <Eye size={14} />
+                    </Button>
+                    {canManage && (
+                      <>
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Unpublish"
-                          disabled={unpublishAnnouncement.isPending}
-                          onClick={() => unpublishAnnouncement.mutate(row.id)}
+                          onClick={() =>
+                            setEditing(row as unknown as Announcement)
+                          }
+                          title="Edit"
                         >
-                          <EyeOff size={14} />
+                          <Pencil size={14} />
                         </Button>
-                      ) : (
+                        {row.isPublished ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Unpublish"
+                            disabled={unpublishAnnouncement.isPending}
+                            onClick={() => unpublishAnnouncement.mutate(row.id)}
+                          >
+                            <EyeOff size={14} />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Publish"
+                            disabled={publishAnnouncement.isPending}
+                            onClick={() => publishAnnouncement.mutate(row.id)}
+                          >
+                            <Send size={14} />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Publish"
-                          disabled={publishAnnouncement.isPending}
-                          onClick={() => publishAnnouncement.mutate(row.id)}
+                          title="Delete"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={deleteAnnouncement.isPending}
+                          onClick={() =>
+                            handleDelete(row as unknown as Announcement)
+                          }
                         >
-                          <Send size={14} />
+                          <Trash2 size={14} />
                         </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="Delete"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        disabled={deleteAnnouncement.isPending}
-                        onClick={() =>
-                          handleDelete(row as unknown as Announcement)
-                        }
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ),
-            },
-          ]}
-          loading={isLoading}
-          searchPlaceholder="Search by title, content, category…"
-          searchExtractor={(row) =>
-            `${row.title} ${row.content} ${row.category}`
-          }
-          rowKey="id"
-          pageSize={10}
-          emptyMessage="No announcements found"
-        />
+                      </>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+            loading={isLoading}
+            searchPlaceholder="Search by title, content, category…"
+            searchExtractor={(row) =>
+              `${row.title} ${row.content} ${row.category}`
+            }
+            rowKey="id"
+            pageSize={10}
+            emptyMessage="No announcements found"
+          />
+        )}
       </motion.div>
 
       {/* Detail modal */}

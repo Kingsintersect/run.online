@@ -1,11 +1,6 @@
 "use client"
 
 import { useEffect, useMemo } from "react"
-import { useQuery } from "@tanstack/react-query"
-import {
-  teachingScopeApi,
-  teachingScopeKeys,
-} from "@/services/teachingScopeApi"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { useMajorPrograms } from "@/hooks/useCourseStructure"
 import { useSemesters } from "@/hooks/useSemesters"
@@ -169,37 +164,6 @@ export function useResultsScope() {
 
 export type ResultsScope = ReturnType<typeof useResultsScope>
 
-/**
- * Whether an empty teaching scope (useMyTeachingScope) can be trusted on the
- * tutor/HOD/dean Results screen. Only a live GET /me/teaching-scope answer
- * is authoritative: when that route is missing (404/405) or fails, or the
- * major-programs list it is named from fails, "nothing in scope" may just
- * mean the scope couldn't be worked out — not that an administrator still
- * has to record anything. Observes the same cached queries
- * useMyTeachingScope runs (same keys and options), so no extra requests.
- */
-export function useTeachingScopeAvailability(): {
-  /** The scope service is missing or failed; an empty scope is not real. */
-  unavailable: boolean
-  /** The live route itself failed (not just missing) — worth a retry. */
-  failed: boolean
-  retry: () => void
-} {
-  const liveQ = useQuery({
-    queryKey: teachingScopeKeys.mine(),
-    queryFn: () => teachingScopeApi.getMine(),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  })
-  const majorProgramsQ = useMajorPrograms()
-  const routeMissing = liveQ.isSuccess && liveQ.data === null
-  const failed = liveQ.isError || majorProgramsQ.isError
-  return {
-    unavailable: routeMissing || failed,
-    failed,
-    retry: () => {
-      if (liveQ.isError) void liveQ.refetch()
-      if (majorProgramsQ.isError) void majorProgramsQ.refetch()
-    },
-  }
-}
+// Moved to the shared hook (also used by the HOD/dean Students page);
+// re-exported so existing imports keep working.
+export { useTeachingScopeAvailability } from "@/hooks/use-my-teaching-scope"

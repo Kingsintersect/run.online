@@ -96,6 +96,10 @@ export default function MyTimetablePage() {
     return sum + Math.max(0, end - start)
   }, 0)
   const totalHoursLabel = `${Math.floor(totalHours / 60)}h ${totalHours % 60}m`
+  // A refused (403) or failed load is unknown, not zero: the KPI cards show
+  // "—" until a real (possibly empty) timetable has come back.
+  const hasData = data !== undefined && !isError
+  const kpi = (value: string | number) => (hasData ? value : "—")
 
   return (
     <PermissionGate
@@ -140,13 +144,13 @@ export default function MyTimetablePage() {
             <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
               <p className="text-xs text-muted-foreground">Scheduled Slots</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
-                {filteredSlots.length}
+                {kpi(filteredSlots.length)}
               </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
               <p className="text-xs text-muted-foreground">Distinct Courses</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
-                {uniqueCoursesCount}
+                {kpi(uniqueCoursesCount)}
               </p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-background/60 p-4">
@@ -154,7 +158,7 @@ export default function MyTimetablePage() {
                 Weekly Contact Time
               </p>
               <p className="mt-1 text-2xl font-bold text-foreground">
-                {totalHoursLabel}
+                {kpi(totalHoursLabel)}
               </p>
             </div>
           </div>
@@ -235,7 +239,11 @@ export default function MyTimetablePage() {
           <div className="mt-4 flex items-center justify-between">
             <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <GraduationCap size={14} />
-              Showing {filteredSlots.length} slots
+              {hasData
+                ? `Showing ${filteredSlots.length} slots`
+                : isLoading
+                  ? "Loading slots…"
+                  : "Slots unavailable"}
             </p>
             <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
               <Button

@@ -141,7 +141,14 @@ export function useGroupedGrades(
     enabled,
   })
 
-  return { data: query.data ?? [], loading: query.isLoading }
+  return {
+    data: query.data ?? [],
+    loading: query.isLoading,
+    // So a refused/failed load isn't drawn as an empty grouped view.
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  }
 }
 
 // ─── Student Transcript Hook ──────────────────────────────────────────────────
@@ -220,7 +227,14 @@ export function useMyTermResults(enabled: boolean) {
     enabled,
   })
 
-  return { data: query.data ?? [], loading: query.isLoading }
+  return {
+    data: query.data ?? [],
+    loading: query.isLoading,
+    // So a refused/failed load isn't "No results available yet."
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  }
 }
 
 // ─── Grade Scales Hook ────────────────────────────────────────────────────────

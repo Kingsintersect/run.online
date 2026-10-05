@@ -1,5 +1,6 @@
 "use client"
 
+import { QueryErrorState } from "@/components/query-error-state"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import DataTable, { type Column } from "@/components/custom/DataTable"
 import StatusBadge from "@/components/custom/StatusBadge"
@@ -43,7 +44,8 @@ export function AnnouncementsShell() {
 // Read-only preview of exactly what the public GET /content/announcements
 // endpoint returns — useful for confirming what's actually live.
 function PublishedPreview() {
-  const { data, isLoading } = usePublishedAnnouncements()
+  const { data, isLoading, isError, error, refetch } =
+    usePublishedAnnouncements()
 
   const columns: Column<Announcement & Record<string, unknown>>[] = [
     {
@@ -94,6 +96,16 @@ function PublishedPreview() {
       ),
     },
   ]
+
+  // A refused or failed load isn't "Nothing published yet".
+  if (isError)
+    return (
+      <QueryErrorState
+        error={error}
+        subject="published announcements"
+        onRetry={() => void refetch()}
+      />
+    )
 
   return (
     <DataTable

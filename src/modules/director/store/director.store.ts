@@ -6,7 +6,9 @@ import { directorService } from "../services/director.service"
 const DEFAULT_FILTER: DirectorFilter = {
   faculty: "all",
   department: "all",
-  academicYear: "2024/2025",
+  // "all" until DirectorFilterBar resolves the real active session
+  // (useDirectorSessionOptions) — never a hardcoded year.
+  academicYear: "all",
   semester: "all",
   level: "all",
   status: "all",
@@ -105,6 +107,7 @@ export const useDirectorStore = create<DirectorStore>()(
         const { setLoading, setError } = get()
         setLoading("financial", true)
         setError("financial", null)
+        setError("payments", null)
         const f = filter ?? get().filter
         const [summaryResult, paymentResult] = await Promise.allSettled([
           directorService.fetchFinancialSummary(f),
@@ -123,6 +126,14 @@ export const useDirectorStore = create<DirectorStore>()(
           })
         } else {
           set({ paymentRecords: [] })
+          // Recorded separately so the records table says the list failed
+          // instead of "No payment records match the selected filters."
+          setError(
+            "payments",
+            paymentResult.reason instanceof Error
+              ? paymentResult.reason.message
+              : "Failed to load payment records"
+          )
         }
         if (
           summaryResult.status === "rejected" &&
