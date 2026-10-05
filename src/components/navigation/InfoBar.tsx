@@ -102,7 +102,10 @@ export default function InfoBar() {
 
           {/* Right — contact, search, theme */}
           <div className="flex shrink-0 items-center gap-3">
-            <BarLink href="/calendar" className="hidden lg:inline-flex">
+            <BarLink
+              href="/academics#academic-calendar"
+              className="hidden lg:inline-flex"
+            >
               Academic Calendar
             </BarLink>
 

@@ -1,6 +1,5 @@
 "use client"
 import React from "react"
-import Image from "next/image"
 import Link from "next/link"
 import { Mail, MapPin, Phone } from "lucide-react"
 import Logo from "@/components/branding/Logo"
@@ -187,13 +186,22 @@ export default function Footer() {
 
           <div>
             <FooterHeading>Our Office</FooterHeading>
-            <Image
-              src="https://odl.esut.edu.ng/wp-content/uploads/2022/01/map.png"
-              alt="Worldwide office map"
-              width={900}
-              height={420}
-              className="mt-4 h-auto w-full rounded-lg border border-white/10"
-            />
+            {/* Was a map image hotlinked from another university's site;
+                link to a map search for this instance's own address. */}
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(CONTACT_INFO.address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-start gap-3 rounded-lg border border-white/10 p-4 text-sm text-white/80 transition-colors hover:border-white/30 hover:text-white"
+            >
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>
+                {CONTACT_INFO.address}
+                <span className="mt-1 block text-xs text-white/50">
+                  View on map
+                </span>
+              </span>
+            </a>
           </div>
         </div>
 

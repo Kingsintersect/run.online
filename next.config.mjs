@@ -8,10 +8,6 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "odl.esut.edu.ng",
-      },
-      {
-        protocol: "https",
         hostname: "run.online.qverselearning.org",
       },
       {

@@ -338,7 +338,7 @@ export default function AcademicsPage() {
         </section>
 
         {/* Academic Calendar */}
-        <section className="py-10">
+        <section id="academic-calendar" className="scroll-mt-24 py-10">
           <motion.h2 {...fadeUp()} className="mb-8 text-2xl font-bold">
             Academic Calendar
           </motion.h2>

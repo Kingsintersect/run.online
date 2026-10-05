@@ -476,7 +476,7 @@ export default function LegacySections() {
 
           <article className="relative min-h-64 overflow-hidden rounded-sm md:min-h-80">
             <Image
-              src="https://odl.esut.edu.ng/wp-content/uploads/2019/03/video_bg.jpg"
+              src="/community.jpg"
               alt="Open day media"
               fill
               sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
