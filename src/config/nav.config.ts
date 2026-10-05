@@ -42,6 +42,7 @@ import {
   Activity,
   Landmark,
   Waypoints,
+  DatabaseZap,
 } from "lucide-react"
 
 /* ------------------------------------------------------------------ */
@@ -733,6 +734,12 @@ const superAdminNav: NavGroup[] = [
             href: "/admin/configurations/payment-gateways",
             matchExactOnly: true,
             icon: Waypoints,
+          },
+          {
+            title: "Instance Reset",
+            href: "/admin/configurations/instance-reset",
+            matchExactOnly: true,
+            icon: DatabaseZap,
           },
         ],
       },
