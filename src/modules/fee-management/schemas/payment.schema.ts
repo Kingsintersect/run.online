@@ -24,6 +24,18 @@ export const VirtualAccountSchema = z.object({
   bank: z.string(),
 })
 
+/**
+ * The institution's own settlement account for an OFFLINE "BANK_TRANSFER"
+ * (bruno/fee/Payments - Initiate.bru, B30 item 5 follow-up, 2026-10-03):
+ * resolved from the invoice's major program's active settlement account,
+ * else the institution-wide one, else null. Never a placeholder.
+ */
+export const BankAccountSchema = z.object({
+  bank: z.string(),
+  accountName: z.string(),
+  accountNumber: z.string(),
+})
+
 export const InitiatePaymentResponseSchema = z.object({
   paymentId: z.number(),
   referenceNumber: z.string(),
@@ -34,6 +46,9 @@ export const InitiatePaymentResponseSchema = z.object({
   otpRequired: z.boolean().nullish(),
   authUrl: z.string().nullish(),
   status: z.literal("PENDING"),
+  /** Resolved provider ("credo" | "fcmb"), once payment routing is migrated. */
+  gateway: z.string().nullish(),
+  bankAccount: BankAccountSchema.nullish(),
 })
 
 export const VerifyPaymentResponseSchema = z.object({
@@ -42,7 +57,14 @@ export const VerifyPaymentResponseSchema = z.object({
   invoice: z.object({
     id: z.number(),
     amountPaid: z.string(),
-    status: z.enum(["PENDING", "PARTIALLY_PAID", "PAID", "OVERDUE"]),
+    status: z.enum([
+      "PENDING",
+      "PARTIALLY_PAID",
+      "PAID",
+      "OVERDUE",
+      "CANCELLED",
+      "WAIVED",
+    ]),
   }),
 })
 

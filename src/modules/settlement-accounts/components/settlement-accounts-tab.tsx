@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useSettlementAccounts } from "../hooks/use-settlement-accounts"
 import {
   useDeleteSettlementAccount,
+  useRetrySettlementProvisioning,
   useUpdateSettlementAccount,
 } from "../hooks/use-settlement-mutations"
 import type { SettlementProgramOption } from "../hooks/use-settlement-programs"
@@ -29,6 +30,7 @@ export function SettlementAccountsTab({
   const { accounts, isFallback, isLoading, isError, error, refetch } =
     useSettlementAccounts(majorProgramId)
   const update = useUpdateSettlementAccount()
+  const retry = useRetrySettlementProvisioning()
   const remove = useDeleteSettlementAccount()
 
   const [addOpen, setAddOpen] = useState(false)
@@ -121,6 +123,22 @@ export function SettlementAccountsTab({
                   : null
               }
               onDismissToggleError={() => setToggleError(null)}
+              onRetryProvisioning={
+                isFallback
+                  ? undefined
+                  : () =>
+                      retry.mutate(account.id, {
+                        onError: (error) =>
+                          setToggleError({
+                            accountId: account.id,
+                            message: classifySettlementError(
+                              error,
+                              "update-account"
+                            ).message,
+                          }),
+                      })
+              }
+              isRetrying={retry.isPending && retry.variables === account.id}
             />
           ))}
         </div>

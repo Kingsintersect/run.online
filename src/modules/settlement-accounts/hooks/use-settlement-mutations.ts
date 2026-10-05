@@ -51,6 +51,18 @@ export function useDeleteSettlementAccount() {
   })
 }
 
+/** Re-attempts PENDING/FAILED gateway links for one account. */
+export function useRetrySettlementProvisioning() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => settlementAccountsService.retryProvisioning(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settlementKeys.accountsAll() })
+      toast.success("Provisioning retried")
+    },
+  })
+}
+
 /** Name enquiry (rate limited 10/min; currently always 502 NAME_ENQUIRY_UNAVAILABLE). */
 export function useResolveAccountName() {
   return useMutation({

@@ -33,8 +33,9 @@ import {
 } from "../lib/provider-catalog"
 import { providerSettingRows, settingKeyFor } from "../lib/settings-derivation"
 
-// sandbox/payment-routing API_CONTRACTS §1–§3. Every /payments/* route below
-// is proposed and not built yet; `/fees/gateway` is the one live route. Reads return null while the route is missing so the
+// sandbox/payment-routing API_CONTRACTS §1–§3, documented in
+// bruno/payment-routing and live on QHUB (probed 2026-10-05). The fallbacks
+// stay for a backend that hasn't run the routing migration yet. Reads return null while the route is missing so the
 // hooks can fall back (CLAUDE.md §14); writes throw, except gateway
 // create/update, which write through the real Settings API while the gateway
 // routes are missing — that is where the server reads credentials today.
@@ -308,7 +309,9 @@ export const paymentGatewaysService = {
       { data: { activeGateway: string } },
       UpdateActiveGatewayPayload
     >("/fees/gateway", body, AUTH)
-    return ActiveGatewayResponseSchema.parse(res).data.activeGateway
+    return (
+      ActiveGatewayResponseSchema.parse(res).data.activeGateway ?? body.gateway
+    )
   },
 
   /** §3 history, or null while the route is missing. */

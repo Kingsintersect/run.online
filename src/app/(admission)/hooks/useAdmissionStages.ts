@@ -135,6 +135,12 @@ export function useAdmissionStages() {
   const paymentMutation = useMutation(
     admissionMutationOptions.initiateStagePayment()
   )
+  const otpMutation = useMutation(
+    admissionMutationOptions.authenticatePaymentOtp()
+  )
+  const otpResendMutation = useMutation(
+    admissionMutationOptions.resendPaymentOtp()
+  )
 
   const invalidateStages = useCallback(
     () =>
@@ -212,6 +218,21 @@ export function useAdmissionStages() {
     [paymentMutation]
   )
 
+  // FCMB direct-card OTP challenge (bruno/fee/Payments - OTP *.bru). After a
+  // successful OTP the stage's own state is the source of truth, so re-read it.
+  const submitPaymentOtp = useCallback(
+    async (reference: string, otp: string) => {
+      await otpMutation.mutateAsync({ reference, otp })
+      await invalidateStages()
+    },
+    [otpMutation, invalidateStages]
+  )
+
+  const resendPaymentOtp = useCallback(
+    (reference: string) => otpResendMutation.mutateAsync(reference),
+    [otpResendMutation]
+  )
+
   const waitingForSteps =
     source === "fallback" && (config.isLoading || effective.isLoading)
   const configError =
@@ -246,5 +267,9 @@ export function useAdmissionStages() {
     isChangingDocuments: uploadMutation.isPending || removeMutation.isPending,
     initiatePayment,
     isInitiatingPayment: paymentMutation.isPending,
+    submitPaymentOtp,
+    isSubmittingPaymentOtp: otpMutation.isPending,
+    resendPaymentOtp,
+    isResendingPaymentOtp: otpResendMutation.isPending,
   }
 }

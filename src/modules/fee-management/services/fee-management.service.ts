@@ -44,9 +44,9 @@ export const feeManagementService = {
 
   listFeeTypes: async (filters?: {
     sessionId?: number
-    // Major-Program Scoping — sandbox/major-program-scoping/API_CONTRACTS.md
-    // §8 (A12, not yet built). Sent regardless; the frontend also filters
-    // client-side in fee-type-table.tsx so results are correct either way.
+    // Major-Program Scoping (A12, live per bruno/fee/Fee Types - List.bru):
+    // that major program's fee types plus every institution-wide one.
+    // fee-type-table.tsx's client-side filter is now just a safety net.
     majorProgramId?: number
     category?: string
     isActive?: boolean
@@ -110,10 +110,10 @@ export const feeManagementService = {
     return res.data
   },
 
-  // Preview: estimated eligible student count for a given scope configuration.
-  // No bruno/fee file confirms this endpoint — left path-corrected and
-  // best-effort (retry:false in useEligibleCount) so it degrades gracefully
-  // either way.
+  // Preview: estimated eligible student count for a given scope configuration
+  // (bruno/fee/Fee Types - Eligible Count.bru; params sessionId, programId,
+  // levelId, majorProgramId, studentType — `category` is ignored server-side).
+  // Live 2026-10-05: `{ data: { eligibleCount } }`.
   getEligibleCount: (filters: {
     category: FeeCategory
     sessionId?: number
@@ -174,11 +174,9 @@ export const feeManagementService = {
       AUTH
     ),
 
-  // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A33.
-  // Sent regardless (build-ahead per CLAUDE.md §14); the backend doesn't
-  // support this param yet, so overdue-report.tsx also filters client-side
-  // (via each invoice's student.programName) so the UI is correctly scoped
-  // today, not just once this ships.
+  // Major-Program Scoping — A28 (2026-09-26, bruno/fee/Invoices - Overdue.bru):
+  // the route is scoped server-side and accepts ?majorProgramId=. The
+  // client-side filter in overdue-report.tsx remains as a safety net.
   getOverdueInvoices: (filters?: { majorProgramId?: number }) =>
     apiClient.get<{ data: InvoiceResponse[] }>(`${BASE}/invoices/overdue`, {
       ...AUTH,
@@ -252,13 +250,9 @@ export const feeManagementService = {
 
   // ── Reports ─────────────────────────────────────────────────────────────────
 
-  // Major-Program Scoping — A33. Sent regardless, build-ahead per CLAUDE.md
-  // §14. Both responses are pure aggregates (a scalar summary; a per-fee-type
-  // breakdown, not per-program) — there's no raw per-invoice data here to
-  // filter client-side, so unlike overdue invoices above, this stays
-  // unscoped in the UI until the backend actually implements the param.
-  // Deliberately not adding a filter control that would look functional but
-  // do nothing — see CLAUDE.md §14's fallback rule.
+  // Major-Program Scoping — A33 (2026-09-26, bruno/fee/Reports - *.bru): both
+  // reports are scoped to the caller's major programs server-side and accept
+  // ?majorProgramId= (Bursary/Dean/Director included).
   getCollectionsSummary: (filters?: {
     sessionId?: number
     feeTypeId?: number

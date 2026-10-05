@@ -24,6 +24,7 @@ import { FEE_CATEGORY_LABELS } from "@/lib/admission-catalog"
 import { cn } from "@/lib/utils"
 import { roleDashboardPath, UserRole } from "@/config/nav.config"
 import { StatusBadgeWidget } from "../StatusBadgeWidget"
+import { PaymentOtpForm } from "./PaymentOtpForm"
 import type { PaymentInitiationResponse } from "../../types/admission"
 import type {
   ResolvedStageOf,
@@ -35,6 +36,11 @@ interface PaymentStageSectionProps {
   source: StagesSource
   onPay: (amount?: number) => Promise<PaymentInitiationResponse>
   isPaying: boolean
+  /** FCMB direct-card OTP challenge — shown only when initiate asks for one. */
+  onSubmitOtp?: (reference: string, otp: string) => Promise<void>
+  onResendOtp?: (reference: string) => Promise<void>
+  isSubmittingOtp?: boolean
+  isResendingOtp?: boolean
 }
 
 type PaymentPlan = "full" | "half" | "custom"
@@ -60,6 +66,10 @@ export function PaymentStageSection({
   source,
   onPay,
   isPaying,
+  onSubmitOtp,
+  onResendOtp,
+  isSubmittingOtp = false,
+  isResendingOtp = false,
 }: PaymentStageSectionProps) {
   const { state, config } = stage
   const currency = state.currency ?? "NGN"
@@ -76,6 +86,21 @@ export function PaymentStageSection({
 
   const [selectedPlan, setSelectedPlan] = useState<PaymentPlan>("half")
   const [customAmount, setCustomAmount] = useState<string>("")
+  /** Set when the gateway answered with an OTP challenge instead of a link. */
+  const [otpReference, setOtpReference] = useState<string | null>(null)
+
+  const handleInitiated = (result: PaymentInitiationResponse) => {
+    if (result.gateway_url) {
+      toast.success("Redirecting to payment gateway…")
+      setTimeout(() => {
+        window.location.href = result.gateway_url
+      }, 800)
+    } else if (result.otp_required && onSubmitOtp && onResendOtp) {
+      setOtpReference(result.reference)
+    } else {
+      toast.error(NO_CHECKOUT_URL_MESSAGE)
+    }
+  }
 
   const paymentPlans = [
     {
@@ -119,15 +144,7 @@ export function PaymentStageSection({
     // Not an installment-eligible fee — always pay the full amount.
     if (!config.allowInstallments) {
       try {
-        const result = await onPay(undefined)
-        if (result.gateway_url) {
-          toast.success("Redirecting to payment gateway…")
-          setTimeout(() => {
-            window.location.href = result.gateway_url
-          }, 800)
-        } else {
-          toast.error(NO_CHECKOUT_URL_MESSAGE)
-        }
+        handleInitiated(await onPay(undefined))
       } catch (err) {
         toast.error(
           err instanceof Error
@@ -147,15 +164,7 @@ export function PaymentStageSection({
       return
     }
     try {
-      const result = await onPay(value)
-      if (result.gateway_url) {
-        toast.success("Redirecting to payment gateway…")
-        setTimeout(() => {
-          window.location.href = result.gateway_url
-        }, 800)
-      } else {
-        toast.error(NO_CHECKOUT_URL_MESSAGE)
-      }
+      handleInitiated(await onPay(value))
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -390,6 +399,17 @@ export function PaymentStageSection({
                       </>
                     )}
                   </Button>
+
+                  {otpReference && onSubmitOtp && onResendOtp && (
+                    <PaymentOtpForm
+                      reference={otpReference}
+                      onSubmitOtp={onSubmitOtp}
+                      onResendOtp={onResendOtp}
+                      isSubmitting={isSubmittingOtp}
+                      isResending={isResendingOtp}
+                      onCancel={() => setOtpReference(null)}
+                    />
+                  )}
 
                   {isPartiallyPaid && (
                     <Button asChild variant="outline" className="w-full gap-2">

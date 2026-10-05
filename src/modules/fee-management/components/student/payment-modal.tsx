@@ -19,11 +19,12 @@ import { useFeeManagementUiStore } from "../../store/fee-management-ui.store"
 import { useInvoice } from "../../hooks/use-invoices"
 import type { InitiatePaymentDto, PaymentMethod } from "../../types"
 
-// There is no backend source for the university's own bank account, so none
-// is shown here (it used to be a hardcoded placeholder that looked real). The
-// server's gateway-issued `virtualAccount` is shown when it sends one
-// (bruno/fee/Payments - Initiate.bru, B30 item 4); otherwise only the payment
-// reference, with the bursary as the source of the account details.
+// Account details come only from the server (never a placeholder): the
+// gateway-issued `virtualAccount` for GATEWAY_TRANSFER (B30 item 4), or, for
+// an offline BANK_TRANSFER, `bankAccount` — the invoice's major program's
+// settlement account (bruno/fee/Payments - Initiate.bru, 2026-10-03). When
+// neither is sent, only the reference is shown and the bursary supplies the
+// account details.
 
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   GATEWAY: "Online (Card / Transfer)",
@@ -120,6 +121,8 @@ export function PaymentModal() {
   // Offline instructions shown after successful initiation with no checkoutUrl
   const offlineData =
     initiate.isSuccess && !initiate.data?.checkoutUrl ? initiate.data : null
+  const offlineAccount =
+    offlineData?.virtualAccount ?? offlineData?.bankAccount ?? null
 
   return (
     <Modal
@@ -167,11 +170,11 @@ export function PaymentModal() {
           </p>
           <dl className="space-y-2 rounded-xl border border-border bg-muted/40 p-4 text-sm">
             {Object.entries({
-              ...(offlineData.virtualAccount
+              ...(offlineAccount
                 ? {
-                    Bank: offlineData.virtualAccount.bank,
-                    "Account Name": offlineData.virtualAccount.accountName,
-                    "Account Number": offlineData.virtualAccount.accountNumber,
+                    Bank: offlineAccount.bank,
+                    "Account Name": offlineAccount.accountName,
+                    "Account Number": offlineAccount.accountNumber,
                   }
                 : {}),
               Reference: offlineData.referenceNumber,
@@ -188,7 +191,9 @@ export function PaymentModal() {
           <p className="text-xs text-muted-foreground">
             {offlineData.virtualAccount
               ? "Transfer the exact amount to this account. Your payment is confirmed automatically once the transfer arrives."
-              : "Get the university's official account details from the bursary, and use this reference as the payment narration. The bursary confirms the payment once it arrives."}
+              : offlineData.bankAccount
+                ? "Transfer the exact amount to this account and use the reference as the payment narration. The bursary confirms the payment once it arrives."
+                : "Get the university's official account details from the bursary, and use this reference as the payment narration. The bursary confirms the payment once it arrives."}
           </p>
         </div>
       ) : (

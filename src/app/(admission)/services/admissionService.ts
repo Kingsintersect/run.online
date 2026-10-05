@@ -19,6 +19,7 @@ import type {
   EntryMode,
   FeeSchedule,
   PaymentInitiationResponse,
+  PaymentOtpPayload,
   PaymentVerificationResponse,
   PaymentStatus,
   StudyMode,
@@ -37,31 +38,41 @@ const AUTH = { access_token: true } as const
 // a payment/invoice-shaped body, not the frontend's PaymentVerificationResponse —
 // adapt it here. Shared by all three verify*Payment() methods below since the
 // wrapped payment/invoice shape is identical regardless of fee type.
+// Payment status is the fee module's PENDING | COMPLETED | FAILED | REFUNDED
+// (bruno/fee/Payments - List.bru); the invoice can also be CANCELLED/WAIVED.
 interface RealVerifyPaymentResponse {
   paymentId: number
-  status: "COMPLETED" | "FAILED" | "PENDING"
+  status: "COMPLETED" | "FAILED" | "PENDING" | "REFUNDED"
   invoice: {
     id: number
     amountPaid: string
-    status: "PENDING" | "PARTIALLY_PAID" | "PAID" | "OVERDUE"
+    status:
+      | "PENDING"
+      | "PARTIALLY_PAID"
+      | "PAID"
+      | "OVERDUE"
+      | "CANCELLED"
+      | "WAIVED"
   }
 }
 
-const VERIFY_STATUS_MAP: Record<
-  RealVerifyPaymentResponse["status"],
-  PaymentStatus
+const VERIFY_STATUS_MAP: Partial<
+  Record<RealVerifyPaymentResponse["status"], PaymentStatus>
 > = {
   COMPLETED: "paid",
   FAILED: "failed",
   PENDING: "pending",
+  REFUNDED: "failed",
 }
 
-const VERIFY_MESSAGE_MAP: Record<RealVerifyPaymentResponse["status"], string> =
-  {
-    COMPLETED: "Payment verified successfully",
-    FAILED: "Payment failed. Please try again.",
-    PENDING: "Payment is still pending confirmation.",
-  }
+const VERIFY_MESSAGE_MAP: Partial<
+  Record<RealVerifyPaymentResponse["status"], string>
+> = {
+  COMPLETED: "Payment verified successfully",
+  FAILED: "Payment failed. Please try again.",
+  PENDING: "Payment is still pending confirmation.",
+  REFUNDED: "This payment was refunded. Please contact the bursary.",
+}
 
 async function verifyGatewayPayment(
   reference: string
@@ -77,10 +88,13 @@ async function verifyGatewayPayment(
   )
   return {
     success: result.status === "COMPLETED",
-    status: VERIFY_STATUS_MAP[result.status],
+    // An unrecognised status reads as still pending rather than crashing.
+    status: VERIFY_STATUS_MAP[result.status] ?? "pending",
     reference,
     amount: Number(result.invoice.amountPaid),
-    message: VERIFY_MESSAGE_MAP[result.status],
+    message:
+      VERIFY_MESSAGE_MAP[result.status] ??
+      "Payment is still pending confirmation.",
   }
 }
 
@@ -115,6 +129,45 @@ function requireRealStudent(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Stage normalisation                                                 */
+/*                                                                      */
+/*  Live GET /admission/me/stages (probed 2026-10-05) serialises an     */
+/*  empty `state`/`config` as a JSON array `[]` (PHP's empty array), not */
+/*  `{}`. Normalise here so components can read typed fields — e.g. a    */
+/*  DOCUMENT_UPLOAD stage with nothing uploaded yet gets               */
+/*  `state.documents: []` instead of crashing on `[].documents.map`.    */
+/* ------------------------------------------------------------------ */
+
+function normaliseStage(stage: ResolvedStage): ResolvedStage {
+  const config = Array.isArray(stage.config) ? {} : stage.config
+  const rawState: object = Array.isArray(stage.state) ? {} : stage.state
+  switch (stage.type) {
+    case "DOCUMENT_UPLOAD": {
+      const docs = "documents" in rawState ? rawState.documents : undefined
+      return {
+        ...stage,
+        config: config as typeof stage.config,
+        state: { documents: Array.isArray(docs) ? docs : [] },
+      }
+    }
+    case "CONTENT": {
+      const at = "acknowledgedAt" in rawState ? rawState.acknowledgedAt : null
+      return {
+        ...stage,
+        config: config as typeof stage.config,
+        state: { acknowledgedAt: typeof at === "string" ? at : null },
+      }
+    }
+    default:
+      return {
+        ...stage,
+        config,
+        state: rawState,
+      } as ResolvedStage
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Public API                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -124,15 +177,12 @@ async function getStudentAdmission(
   opts: RequestOptions
 ): Promise<AdmissionStudent> {
   // Real API: GET /admission/student — Bruno: admission/Admission - Student Aggregate.bru
-  // Student Admission Progress spec §3. Composed server-side. Confirmed live 2026-08-25:
-  // wrapped in a `data` envelope like every other endpoint in this backend (the doc's
-  // "returns AdmissionStudent directly" was never actually true) — unwrap it here.
+  // Student Admission Progress spec §3. Composed server-side, wrapped in `data`.
   //
-  // The has_selected_program/program_*/entry_mode/study_mode/start_term fields aren't
-  // part of the live response yet (see sandbox/MISSING_BACKEND_APIS.md §2.5) — default
-  // them defensively so the "Choice Program" step degrades to "not yet chosen" instead
-  // of throwing, until the backend adds them. Typed as Partial here since the real
-  // response genuinely omits them today, unlike the full AdmissionStudent contract.
+  // has_selected_program/program_*/entry_mode/study_mode/start_term (and A16's
+  // major_program_*) are live on QHUB (probed 2026-10-05). Still defaulted
+  // defensively for a backend that predates them, so the "Choice Program" step
+  // degrades to "not yet chosen" instead of throwing.
   const { data } = await apiClient.get<{
     data: Omit<
       AdmissionStudent,
@@ -206,7 +256,7 @@ export const admissionService = {
       "/admission/me/stages",
       AUTH
     )
-    return data
+    return { ...data, stages: data.stages.map(normaliseStage) }
   },
 
   async acknowledgeStage(key: string): Promise<ResolvedStage> {
@@ -215,7 +265,7 @@ export const admissionService = {
       undefined,
       AUTH
     )
-    return data
+    return normaliseStage(data)
   },
 
   async uploadStageDocuments(
@@ -227,7 +277,7 @@ export const admissionService = {
       { documents },
       { ...AUTH, contentType: "multipart" }
     )
-    return data
+    return normaliseStage(data)
   },
 
   async removeStageDocument(
@@ -238,7 +288,7 @@ export const admissionService = {
       `/admission/me/stages/${encodeURIComponent(key)}/documents/${encodeURIComponent(docKey)}`,
       AUTH
     )
-    return data
+    return normaliseStage(data)
   },
 
   async initiateStagePayment(
@@ -272,7 +322,34 @@ export const admissionService = {
       success: true,
       reference: data.reference,
       gateway_url: data.authorizationUrl || data.authUrl || "",
+      otp_required: data.otpRequired === true,
     }
+  },
+
+  /* ---------- Payment OTP challenge (FCMB direct-card channel) ---------- */
+  // bruno/fee/Payments - OTP Authenticate.bru / - OTP Resend.bru (QHUB
+  // collection only). Only reachable when an initiate answers
+  // `otpRequired: true` with no checkout link; a hosted checkout (Credo or
+  // FCMB) collects its PIN/OTP on the gateway's own page, outside this API.
+  // FCMB's result payload is returned as-is, so callers re-read the stages
+  // rather than interpreting this body.
+  async authenticatePaymentOtp({
+    reference,
+    otp,
+  }: PaymentOtpPayload): Promise<void> {
+    await apiClient.post<object, { otp: string }>(
+      `/fees/payments/${encodeURIComponent(reference)}/otp/authenticate`,
+      { otp },
+      AUTH
+    )
+  },
+
+  async resendPaymentOtp(reference: string): Promise<void> {
+    await apiClient.post<object, undefined>(
+      `/fees/payments/${encodeURIComponent(reference)}/otp/resend`,
+      undefined,
+      AUTH
+    )
   },
 
   /* ---------- Submit pre-application program choice ---------- */
@@ -603,6 +680,18 @@ export const admissionMutationOptions = {
       mutationKey: [...admissionKeys.all, "stages", "payments", "initiate"],
       mutationFn: ({ key, amount }) =>
         admissionService.initiateStagePayment(key, amount),
+    }),
+
+  authenticatePaymentOtp: () =>
+    createApiMutationOptions<void, PaymentOtpPayload>({
+      mutationKey: [...admissionKeys.all, "payments", "otp", "authenticate"],
+      mutationFn: (payload) => admissionService.authenticatePaymentOtp(payload),
+    }),
+
+  resendPaymentOtp: () =>
+    createApiMutationOptions<void, string>({
+      mutationKey: [...admissionKeys.all, "payments", "otp", "resend"],
+      mutationFn: (reference) => admissionService.resendPaymentOtp(reference),
     }),
 
   submitProgramChoice: () =>

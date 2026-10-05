@@ -1,8 +1,8 @@
 import { z } from "zod"
 
-// Payment routing (proposed, sandbox/payment-routing API_CONTRACTS §1–§3).
-// None of these routes exist on the server yet; every response is parsed so a
-// shape drift shows up as an error instead of a half-rendered screen.
+// Payment routing (sandbox/payment-routing API_CONTRACTS §1–§3, documented in
+// bruno/payment-routing; live on QHUB 2026-10-05). Every response is parsed so
+// a shape drift shows up as an error instead of a half-rendered screen.
 
 // ── §1 Provider catalog ─────────────────────────────────────────────
 
@@ -149,8 +149,11 @@ export const UpdateDefaultGatewayPayloadSchema = z.object({
 export const ACTIVE_GATEWAY_PROVIDERS = ["credo", "fcmb"] as const
 export const ActiveGatewayProviderSchema = z.enum(ACTIVE_GATEWAY_PROVIDERS)
 
+// After the payment-routing migration GET /fees/gateway reads the
+// institution DEFAULT assignment, so `activeGateway` is null when no default
+// is configured (bruno/fee/Payments - Active Gateway - Get.bru).
 export const ActiveGatewayResponseSchema = z.object({
-  data: z.object({ activeGateway: ActiveGatewayProviderSchema }),
+  data: z.object({ activeGateway: ActiveGatewayProviderSchema.nullable() }),
 })
 
 // B30 item 1 (2026-09-29): the server accepts an optional `reason` (max 500)

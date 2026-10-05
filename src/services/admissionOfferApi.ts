@@ -29,8 +29,10 @@ export interface AdmissionOffer {
   matricNumber: string | null
   admissionNumber: string
   programId: number
-  levelId: number
-  sessionId: number
+  // Category-conditional (bruno/admission/Admissions - Create Offer.bru):
+  // null for FOUNDATIONAL (levelId) and CERTIFICATE (levelId + sessionId).
+  levelId: number | null
+  sessionId: number | null
   admissionDate: string
   admissionType: string
   status: AdmissionOfferStatus

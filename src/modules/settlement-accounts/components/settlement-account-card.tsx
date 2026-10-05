@@ -1,6 +1,6 @@
 "use client"
 
-import { Landmark, Pencil, Trash2, X } from "lucide-react"
+import { Landmark, Pencil, RotateCw, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -18,6 +18,9 @@ interface SettlementAccountCardProps {
   /** Why the last Active toggle failed — the switch has already reverted. */
   toggleError?: string | null
   onDismissToggleError?: () => void
+  /** Retry provisioning; shown only while a gateway link is PENDING/FAILED. */
+  onRetryProvisioning?: () => void
+  isRetrying?: boolean
 }
 
 export function SettlementAccountCard({
@@ -28,8 +31,13 @@ export function SettlementAccountCard({
   isToggling,
   toggleError,
   onDismissToggleError,
+  onRetryProvisioning,
+  isRetrying = false,
 }: SettlementAccountCardProps) {
   const switchId = `sa-active-${account.id}`
+  const hasUnlinked = account.gatewayLinks.some(
+    (link) => link.status !== "LINKED"
+  )
 
   return (
     <article
@@ -122,6 +130,23 @@ export function SettlementAccountCard({
           Gateway links
         </p>
         <GatewayLinkBadges account={account} />
+        {hasUnlinked && onRetryProvisioning && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 gap-1.5"
+            onClick={onRetryProvisioning}
+            disabled={isRetrying}
+            aria-label={`Retry gateway provisioning for ${account.label}`}
+          >
+            <RotateCw
+              size={12}
+              aria-hidden
+              className={cn(isRetrying && "animate-spin")}
+            />
+            Retry provisioning
+          </Button>
+        )}
       </div>
     </article>
   )

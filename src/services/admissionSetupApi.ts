@@ -98,16 +98,11 @@ const mapRequirement = (
 export const admissionSetupApi = {
   listCyclesBySession: async (
     sessionId: number,
-    // Major-Program Scoping — sandbox/major-program-scoping/. sandbox/
-    // BACKEND_DEVIATIONS_2026-09-14.md A35. Cycles have no scope field of
-    // their own today — they inherit it transitively through the session
-    // they're attached to (AdmissionPageContainer.tsx already filters the
-    // session picker itself by session.majorProgramId, an exact filter
-    // since Session carries a real majorProgramId). Sent here too, ahead of
-    // the backend per CLAUDE.md §14, as a defense-in-depth param alongside
-    // sessionId for the day a cycle can be queried without a session
-    // already pinned down — harmless no-op today since sessionId already
-    // fully determines scope.
+    // Major-Program Scoping — live since A36 (2026-09-26, bruno/admission/
+    // Cycles - List.bru): ?majorProgramId= narrows by the cycle's session's
+    // major program and a scoped caller is confined to their scope
+    // (GET by id outside it 403s OUT_OF_SCOPE). Cycles still inherit scope
+    // through their session, so with sessionId pinned this only narrows.
     majorProgramId?: number | null
   ): Promise<{ data: AdmissionCycle[] }> => {
     const res = await apiClient.get<{ data: WireAdmissionCycle[] }>(

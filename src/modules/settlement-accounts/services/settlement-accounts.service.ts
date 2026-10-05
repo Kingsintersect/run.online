@@ -25,8 +25,8 @@ import type {
   UpsertSplitRule,
 } from "../types"
 
-// bruno/payment-routing (documented, not yet deployed on production — every
-// route still 404s there). List/read calls return a tagged `{ data, source }` so the hooks expose one
+// bruno/payment-routing (live on QHUB as of 2026-10-05; may still 404 on a
+// backend that hasn't migrated). List/read calls return a tagged `{ data, source }` so the hooks expose one
 // interface whether the endpoint exists or not (CLAUDE.md §14). Writes are
 // never faked: in fallback mode the UI disables Save, and if a write is
 // attempted anyway the real error propagates. Error → message mapping lives
@@ -99,6 +99,20 @@ export const settlementAccountsService = {
       `${BASE}/settlement-accounts/${id}`,
       AUTH
     )
+  },
+
+  /**
+   * bruno/payment-routing/Settlement Accounts - Retry Provisioning.bru:
+   * re-runs subaccount provisioning for PENDING/FAILED gateway links only
+   * (LINKED ones are untouched) and returns the refreshed account.
+   */
+  async retryProvisioning(id: number): Promise<SettlementAccount> {
+    const res = await apiClient.post<{ data: SettlementAccount }, undefined>(
+      `${BASE}/settlement-accounts/${id}/retry-provisioning`,
+      undefined,
+      AUTH
+    )
+    return SettlementAccountSchema.parse(res.data)
   },
 
   async resolveAccount(

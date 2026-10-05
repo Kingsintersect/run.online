@@ -33,7 +33,8 @@ export const InvoiceResponseSchema = z.object({
   }),
   amount: z.string(), // Decimal serialized as string
   amountPaid: z.string(),
-  dueDate: z.string().datetime({ offset: true }),
+  // A plain date ("2026-10-18") on the live response, not a timestamp.
+  dueDate: z.string(),
   status: InvoiceStatusSchema,
   session: z.object({ id: z.number(), name: z.string() }).nullable(),
   // Present on admin list / detail; absent on /my

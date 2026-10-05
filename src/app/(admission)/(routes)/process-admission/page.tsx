@@ -44,6 +44,10 @@ export default function ProcessAdmissionPage() {
     isChangingDocuments,
     initiatePayment,
     isInitiatingPayment,
+    submitPaymentOtp,
+    isSubmittingPaymentOtp,
+    resendPaymentOtp,
+    isResendingPaymentOtp,
   } = useAdmissionStages()
   const {
     resetAll,
@@ -120,6 +124,10 @@ export default function ProcessAdmissionPage() {
             source={source}
             onPay={(amount) => initiatePayment(currentStage.key, amount)}
             isPaying={isInitiatingPayment}
+            onSubmitOtp={submitPaymentOtp}
+            onResendOtp={resendPaymentOtp}
+            isSubmittingOtp={isSubmittingPaymentOtp}
+            isResendingOtp={isResendingPaymentOtp}
           />
         )
       case "FORM":

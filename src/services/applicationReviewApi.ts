@@ -23,6 +23,11 @@ export interface ApplicationEmbeddedOffer {
   admissionNumber: string
   programId: number
   levelId: number | null
+  /**
+   * A CERTIFICATE offer uses a cohort instead of a level (B30 item 19,
+   * 2026-09-29) — null for a level-based offer. Optional for older backends.
+   */
+  cohortId?: number | null
   sessionId: number | null
   admissionDate: string
   admissionType: string
@@ -52,7 +57,8 @@ export interface ApplicationListFilters {
 export const applicationReviewApi = {
   list: async (filters?: ApplicationListFilters) => {
     // Real API: GET /admissions/applications — Bruno: admission/Applications - List.bru
-    return apiClient.get<ApiPaginatedResponse<AdmissionApplication>>(
+    // Each item carries A28's major_program_id (and `admission`, null until an offer exists).
+    return apiClient.get<ApiPaginatedResponse<ReviewedAdmissionApplication>>(
       `/admissions/applications`,
       { ...AUTH, params: filters as Record<string, unknown> | undefined }
     )
@@ -70,7 +76,7 @@ export const applicationReviewApi = {
     // Real API: GET /admissions/applications/my — Bruno: admission/Applications - My.bru
     // Replaces the old getByApplicantId(applicantId) — there is no real "by applicant id"
     // admin lookup endpoint; the applicant's own application is resolved from the JWT.
-    return apiClient.get<ApiSingleResponse<AdmissionApplication>>(
+    return apiClient.get<ApiSingleResponse<ReviewedAdmissionApplication>>(
       `/admissions/applications/my`,
       AUTH
     )

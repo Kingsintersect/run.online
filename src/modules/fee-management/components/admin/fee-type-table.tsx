@@ -31,6 +31,7 @@ import { courseStructureQueryOptions } from "@/services/courseStructureApi"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useFeeTypes } from "../../hooks/use-fee-types"
+import { useFeeTypeScopeLabels } from "../../hooks/use-fee-type-scope-labels"
 import {
   useActivateFeeType,
   useDeactivateFeeType,
@@ -101,6 +102,7 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
     [programsRes]
   )
 
+  const scopeLabels = useFeeTypeScopeLabels()
   const activate = useActivateFeeType()
   const deactivate = useDeactivateFeeType()
   const deleteFee = useDeleteFeeType()
@@ -263,209 +265,212 @@ export function FeeTypeTable({ onEdit, onViewGeneration }: FeeTypeTableProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ft, idx) => (
-                <motion.tr
-                  key={ft.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: idx * 0.03 }}
-                  className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30"
-                >
-                  <td className="px-4 py-3 font-medium">
-                    <button
-                      type="button"
-                      onClick={() => onEdit?.(ft)}
-                      className="text-left transition-colors hover:text-primary"
-                    >
-                      {ft.name}
-                    </button>
-                    {ft.description && (
-                      <p className="mt-0.5 max-w-60 truncate text-xs text-muted-foreground">
-                        {ft.description}
-                      </p>
-                    )}
-                  </td>
+              {filtered.map((ft, idx) => {
+                const scope = scopeLabels(ft)
+                return (
+                  <motion.tr
+                    key={ft.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: idx * 0.03 }}
+                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30"
+                  >
+                    <td className="px-4 py-3 font-medium">
+                      <button
+                        type="button"
+                        onClick={() => onEdit?.(ft)}
+                        className="text-left transition-colors hover:text-primary"
+                      >
+                        {ft.name}
+                      </button>
+                      {ft.description && (
+                        <p className="mt-0.5 max-w-60 truncate text-xs text-muted-foreground">
+                          {ft.description}
+                        </p>
+                      )}
+                    </td>
 
-                  <td className="px-4 py-3">
-                    <FeeCategoryBadge category={ft.category} />
-                  </td>
+                    <td className="px-4 py-3">
+                      <FeeCategoryBadge category={ft.category} />
+                    </td>
 
-                  <td className="px-4 py-3 text-right font-medium tabular-nums">
-                    <CurrencyDisplay amount={ft.amount} />
-                  </td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      <CurrencyDisplay amount={ft.amount} />
+                    </td>
 
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <div className="flex flex-wrap gap-1">
-                      {ft.session && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {ft.session.name}
-                        </span>
-                      )}
-                      {/* Only shown once the backend actually returns it (A12) — a
-                          program already implies its own major program. */}
-                      {ft.majorProgram && !ft.program && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {ft.majorProgram.name}
-                        </span>
-                      )}
-                      {ft.program && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {ft.program.name}
-                        </span>
-                      )}
-                      {ft.level && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                          {ft.level.name}
-                        </span>
-                      )}
-                      {ft.studentType !== "ALL" && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground capitalize">
-                          {ft.studentType.toLowerCase()}
-                        </span>
-                      )}
-                      {!ft.session &&
-                        !ft.majorProgram &&
-                        !ft.program &&
-                        !ft.level &&
-                        ft.studentType === "ALL" && (
-                          <span className="text-xs text-muted-foreground italic">
-                            All students
+                    <td className="hidden px-4 py-3 md:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {scope.session && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            {scope.session}
                           </span>
                         )}
-                    </div>
-                  </td>
+                        {/* A program already implies its own major program. */}
+                        {scope.majorProgram && !scope.program && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            {scope.majorProgram}
+                          </span>
+                        )}
+                        {scope.program && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            {scope.program}
+                          </span>
+                        )}
+                        {scope.level && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                            {scope.level}
+                          </span>
+                        )}
+                        {ft.studentType !== "ALL" && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground capitalize">
+                            {ft.studentType.toLowerCase()}
+                          </span>
+                        )}
+                        {!scope.session &&
+                          !scope.majorProgram &&
+                          !scope.program &&
+                          !scope.level &&
+                          ft.studentType === "ALL" && (
+                            <span className="text-xs text-muted-foreground italic">
+                              All students
+                            </span>
+                          )}
+                      </div>
+                    </td>
 
-                  <td className="px-4 py-3 text-center">
-                    <Badge
-                      variant="outline"
-                      className={
-                        ft.isActive
-                          ? "border-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "border-0 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                      }
+                    <td className="px-4 py-3 text-center">
+                      <Badge
+                        variant="outline"
+                        className={
+                          ft.isActive
+                            ? "border-0 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                            : "border-0 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                        }
+                      >
+                        {ft.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </td>
+
+                    <PermissionGate
+                      require={{ resource: "fee-management", action: "manage" }}
                     >
-                      {ft.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-
-                  <PermissionGate
-                    require={{ resource: "fee-management", action: "manage" }}
-                  >
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Edit — the name button already does this; this is
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Edit — the name button already does this; this is
                             the discoverable Actions-column affordance for it. */}
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() => onEdit?.(ft)}
-                          title="Edit fee type"
-                          aria-label={`Edit ${ft.name}`}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-
-                        {/* Activate / Deactivate */}
-                        {ft.isActive ? (
                           <Button
+                            size="icon-sm"
                             variant="ghost"
-                            size="sm"
-                            className="h-7 gap-1 text-xs"
-                            disabled={
-                              deactivate.isPending &&
-                              deactivate.variables === ft.id
-                            }
-                            onClick={() => deactivate.mutate(ft.id)}
-                            title="Deactivate"
+                            onClick={() => onEdit?.(ft)}
+                            title="Edit fee type"
+                            aria-label={`Edit ${ft.name}`}
                           >
-                            {deactivate.isPending &&
-                            deactivate.variables === ft.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <ZapOff size={12} />
-                            )}
-                            Deactivate
+                            <Pencil className="size-3.5" />
                           </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 gap-1 text-xs text-primary"
-                            disabled={
-                              activate.isPending && activate.variables === ft.id
-                            }
-                            onClick={() => {
-                              activate.mutate(ft.id)
-                              onViewGeneration?.(ft.id)
-                            }}
-                            title="Activate — triggers invoice generation"
-                          >
-                            {activate.isPending &&
-                            activate.variables === ft.id ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : (
-                              <Zap size={12} />
-                            )}
-                            Activate
-                          </Button>
-                        )}
 
-                        {/* Generation status link */}
-                        {ft.isActive && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => onViewGeneration?.(ft.id)}
-                          >
-                            Generation
-                          </Button>
-                        )}
+                          {/* Activate / Deactivate */}
+                          {ft.isActive ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-xs"
+                              disabled={
+                                deactivate.isPending &&
+                                deactivate.variables === ft.id
+                              }
+                              onClick={() => deactivate.mutate(ft.id)}
+                              title="Deactivate"
+                            >
+                              {deactivate.isPending &&
+                              deactivate.variables === ft.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <ZapOff size={12} />
+                              )}
+                              Deactivate
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-xs text-primary"
+                              disabled={
+                                activate.isPending &&
+                                activate.variables === ft.id
+                              }
+                              onClick={() => {
+                                activate.mutate(ft.id)
+                                onViewGeneration?.(ft.id)
+                              }}
+                              title="Activate — triggers invoice generation"
+                            >
+                              {activate.isPending &&
+                              activate.variables === ft.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Zap size={12} />
+                              )}
+                              Activate
+                            </Button>
+                          )}
 
-                        {/* Delete — only if inactive and no invoices */}
-                        {!ft.isActive && (
-                          <>
-                            {confirmDeleteId === ft.id ? (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  disabled={deleteFee.isPending}
-                                  onClick={() => {
-                                    deleteFee.mutate(ft.id)
-                                    setConfirmDeleteId(null)
-                                  }}
-                                >
-                                  Confirm
-                                </Button>
+                          {/* Generation status link */}
+                          {ft.isActive && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => onViewGeneration?.(ft.id)}
+                            >
+                              Generation
+                            </Button>
+                          )}
+
+                          {/* Delete — only if inactive and no invoices */}
+                          {!ft.isActive && (
+                            <>
+                              {confirmDeleteId === ft.id ? (
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={deleteFee.isPending}
+                                    onClick={() => {
+                                      deleteFee.mutate(ft.id)
+                                      setConfirmDeleteId(null)
+                                    }}
+                                  >
+                                    Confirm
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={() => setConfirmDeleteId(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-7 text-xs"
-                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="h-7 text-xs text-destructive hover:text-destructive"
+                                  onClick={() => setConfirmDeleteId(ft.id)}
+                                  title="Delete (only available when inactive)"
                                 >
-                                  Cancel
+                                  <Trash2 size={12} />
                                 </Button>
-                              </div>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs text-destructive hover:text-destructive"
-                                onClick={() => setConfirmDeleteId(ft.id)}
-                                title="Delete (only available when inactive)"
-                              >
-                                <Trash2 size={12} />
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </PermissionGate>
-                </motion.tr>
-              ))}
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </PermissionGate>
+                  </motion.tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

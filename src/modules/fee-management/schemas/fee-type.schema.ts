@@ -55,9 +55,10 @@ export const FeeTypeResponseSchema = z.object({
   category: FeeCategorySchema,
   amount: z.string(), // Decimal serialized as string from backend — use Number() only for display
   sessionId: z.number().nullable(),
-  session: z.object({ id: z.number(), name: z.string() }).nullable(),
-  // Optional/defaulted rather than required — see A12: not returned by the
-  // live backend yet, so a response missing it entirely still parses.
+  // The live response (probed 2026-10-05) carries only the *Id columns, not
+  // these relation objects — read names via useFeeTypeScopeLabels().
+  session: z.object({ id: z.number(), name: z.string() }).nullish(),
+  // A12: live (null for an institution-wide fee).
   majorProgramId: z.number().nullable().optional().default(null),
   majorProgram: z
     .object({ id: z.number(), name: z.string() })
@@ -65,9 +66,14 @@ export const FeeTypeResponseSchema = z.object({
     .optional()
     .default(null),
   programId: z.number().nullable(),
-  program: z.object({ id: z.number(), name: z.string() }).nullable(),
+  program: z.object({ id: z.number(), name: z.string() }).nullish(),
   levelId: z.number().nullable(),
-  level: z.object({ id: z.number(), name: z.string() }).nullable(),
+  level: z.object({ id: z.number(), name: z.string() }).nullish(),
+  // Also on the live response.
+  currency: z.string().optional(),
+  slug: z.string().optional(),
+  isRecurring: z.boolean().optional(),
+  defaultDueDate: z.string().nullish(),
   studentType: StudentTypeSchema,
   isMandatory: z.boolean(),
   allowInstallments: z.boolean(),
