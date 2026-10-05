@@ -22,7 +22,7 @@ import type {
   programSelectionSchema,
   consentSchema,
 } from "../schema/admission-schema"
-import type { DynamicAnswers } from "../lib/dynamic-form"
+import type { DynamicAnswers, DynamicRow } from "../lib/dynamic-form"
 
 // ─── Step Enum ───────────────────────────────────────────────────────────────
 export enum FormStep {
@@ -186,6 +186,10 @@ export const DEFAULT_FORM_VALUES: FormDefaultValues = {
   second_sitting_type: "",
   second_sitting_year: "",
   second_sitting_exam_number: "",
+
+  // O'level results grid — sandbox/olevel-results/. Sitting rows as stored
+  // (see lib/olevel-results.ts); the flat sitting values above mirror it.
+  olevel_results: [],
 
   first_sitting_result: undefined,
   second_sitting_result: undefined,
@@ -358,6 +362,7 @@ export const FIELD_LABELS: Record<string, string> = {
   second_sitting_type: "Second Sitting Exam Type",
   second_sitting_year: "Second Sitting Exam Year",
   second_sitting_exam_number: "Second Sitting Exam Number",
+  olevel_results: "O'level Results",
   first_sitting_result: "First Sitting Result Document",
   second_sitting_result: "Second Sitting Result Document",
   programId: "Program",
@@ -522,6 +527,9 @@ export interface FormDefaultValues {
   second_sitting_type: string
   second_sitting_year: string
   second_sitting_exam_number: string
+
+  /** O'level sittings with subjects and grades — lib/olevel-results.ts. */
+  olevel_results: DynamicRow[]
 
   first_sitting_result: File | undefined
   second_sitting_result: File | undefined

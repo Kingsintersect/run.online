@@ -30,8 +30,11 @@ import {
 } from "@/app/(admission)/(routes)/admission-application-form/services/admission-form-fields.service"
 import { admissionStepsQueryOptions } from "@/services/admissionStepsApi"
 import {
+  asFormFieldType,
   CHOICE_FIELD_TYPES,
   FIELD_TYPE_LABELS,
+  OLEVEL_DEFAULT_RULES,
+  OLEVEL_RESULTS_FIELD_TYPE,
   OPTIONS_SOURCES,
   SYSTEM_FIELD_CATALOG,
   type SystemFieldDefinition,
@@ -107,7 +110,8 @@ function toCreatePayload(
   return {
     key: draft.key,
     label: draft.label,
-    type: draft.type,
+    // OLEVEL_RESULTS isn't in the declared FormFieldType yet — sent as-is.
+    type: asFormFieldType(draft.type),
     order: draft.order,
     isRequired: draft.isRequired,
     helpText: draft.helpText,
@@ -300,12 +304,17 @@ export default function StepFieldsModal({
         optionsSource: def.optionsSource,
         dependsOn,
         validation:
-          def.type === "FILE"
+          def.type === OLEVEL_RESULTS_FIELD_TYPE
             ? {
-                accept: def.accept ?? "DOCUMENT",
-                ...(def.multiple ? { multiple: true } : {}),
+                ...OLEVEL_DEFAULT_RULES,
+                requiredSubjects: [...OLEVEL_DEFAULT_RULES.requiredSubjects],
               }
-            : null,
+            : def.type === "FILE"
+              ? {
+                  accept: def.accept ?? "DOCUMENT",
+                  ...(def.multiple ? { multiple: true } : {}),
+                }
+              : null,
         repeatable: false,
         systemKey: def.systemKey,
         visibleWhen: null,

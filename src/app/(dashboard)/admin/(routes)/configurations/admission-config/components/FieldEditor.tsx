@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Lock } from "lucide-react"
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -20,19 +22,25 @@ import {
   FIELD_TYPE_LABELS,
   FIELD_WIDTH_LABELS,
   FILE_ACCEPT_LABELS,
+  isOlevelResultsField,
+  OLEVEL_DEFAULT_RULES,
+  OLEVEL_MAX_SITTINGS,
+  OLEVEL_RESULTS_FIELD_TYPE,
+  OLEVEL_SUBJECTS,
   OPTIONS_SOURCES,
+  PENDING_BACKEND_FIELD_TYPES,
+  type AdmissionFieldType,
 } from "@/lib/admission-catalog"
 import {
   formFieldDraftSchema,
   type FormFieldDraft,
   type FormFieldDraftInput,
+  type FormFieldDraftValidation,
 } from "@/schemas/admission-dynamic.schema"
 import type {
   AdmissionFormField,
   FieldWidth,
   FileAccept,
-  FormFieldType,
-  FormFieldValidation,
   OptionsSource,
 } from "@/types/admissionConfig"
 import { ConditionBuilder } from "./ConditionBuilder"
@@ -54,7 +62,7 @@ interface FieldEditorProps {
 
 const NO_SOURCE = "__static__"
 const NO_DEPENDENCY = "__none__"
-const PLACEHOLDER_TYPES: FormFieldType[] = [
+const PLACEHOLDER_TYPES: AdmissionFieldType[] = [
   "TEXT",
   "TEXTAREA",
   "EMAIL",
@@ -62,7 +70,12 @@ const PLACEHOLDER_TYPES: FormFieldType[] = [
   "NUMBER",
   "SELECT",
 ]
-const LENGTH_TYPES: FormFieldType[] = ["TEXT", "TEXTAREA", "EMAIL", "PHONE"]
+const LENGTH_TYPES: AdmissionFieldType[] = [
+  "TEXT",
+  "TEXTAREA",
+  "EMAIL",
+  "PHONE",
+]
 const FILE_ACCEPTS = Object.keys(FILE_ACCEPT_LABELS) as FileAccept[]
 const WIDTHS = Object.keys(FIELD_WIDTH_LABELS) as FieldWidth[]
 
@@ -100,11 +113,11 @@ export function FieldEditor({
     ? candidates.filter((c) => c.optionsSource === sourceDef.needs)
     : []
 
-  const setValidation = (patch: Partial<FormFieldValidation>) => {
-    const next: FormFieldValidation = { ...(validation ?? {}), ...patch }
+  const setValidation = (patch: Partial<FormFieldDraftValidation>) => {
+    const next: FormFieldDraftValidation = { ...(validation ?? {}), ...patch }
     const cleaned = Object.fromEntries(
       Object.entries(next).filter(([, v]) => v !== undefined && v !== "")
-    ) as FormFieldValidation
+    ) as FormFieldDraftValidation
     form.setValue("validation", Object.keys(cleaned).length ? cleaned : null, {
       shouldDirty: true,
     })
@@ -114,8 +127,15 @@ export function FieldEditor({
     id: string,
     label: string,
     key: keyof Pick<
-      FormFieldValidation,
-      "min" | "max" | "minLength" | "maxLength" | "maxSizeMb" | "maxItems"
+      FormFieldDraftValidation,
+      | "min"
+      | "max"
+      | "minLength"
+      | "maxLength"
+      | "maxSizeMb"
+      | "maxItems"
+      | "minCredits"
+      | "maxSittings"
     >
   ) => (
     <div className="space-y-1.5">
@@ -204,7 +224,18 @@ export function FieldEditor({
                   const next = FIELD_TYPES.find((t) => t === v)
                   if (!next) return
                   field.onChange(next)
-                  form.setValue("validation", null)
+                  // An O'level field starts with the usual Nigerian minimum.
+                  form.setValue(
+                    "validation",
+                    next === OLEVEL_RESULTS_FIELD_TYPE
+                      ? {
+                          ...OLEVEL_DEFAULT_RULES,
+                          requiredSubjects: [
+                            ...OLEVEL_DEFAULT_RULES.requiredSubjects,
+                          ],
+                        }
+                      : null
+                  )
                 }}
                 disabled={identityLocked}
               >
@@ -215,6 +246,8 @@ export function FieldEditor({
                   {FIELD_TYPES.map((t) => (
                     <SelectItem key={t} value={t}>
                       {FIELD_TYPE_LABELS[t]}
+                      {PENDING_BACKEND_FIELD_TYPES.includes(t) &&
+                        " (may 422 — pending backend support)"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -505,6 +538,26 @@ export function FieldEditor({
         </div>
       )}
 
+      {isOlevelResultsField({ type }) && (
+        <OlevelRulesEditor
+          minCreditsInput={numberInput(
+            "field-min-credits",
+            "Minimum credits (C6 or better)",
+            "minCredits"
+          )}
+          maxSittingsInput={numberInput(
+            "field-max-sittings",
+            `Most sittings (1–${OLEVEL_MAX_SITTINGS})`,
+            "maxSittings"
+          )}
+          requiredSubjects={validation?.requiredSubjects ?? []}
+          onRequiredSubjectsChange={(requiredSubjects) =>
+            setValidation({ requiredSubjects })
+          }
+          error={errors.validation?.requiredSubjects?.message}
+        />
+      )}
+
       <div className="flex items-center justify-between rounded-xl border border-border p-3">
         <div>
           <Label htmlFor="field-required" className="text-sm font-medium">
@@ -539,7 +592,10 @@ export function FieldEditor({
               value={field.value ?? null}
               onChange={field.onChange}
               candidates={candidates.filter(
-                (c) => c.type !== "FILE" && c.type !== "REPEATING_GROUP"
+                (c) =>
+                  c.type !== "FILE" &&
+                  c.type !== "REPEATING_GROUP" &&
+                  !isOlevelResultsField(c)
               )}
               error={
                 errors.visibleWhen ? "Finish or remove each rule." : undefined
@@ -559,6 +615,82 @@ export function FieldEditor({
           )}
           Save question
         </Button>
+      </div>
+    </div>
+  )
+}
+
+/** OLEVEL_RESULTS screening rule — sandbox/olevel-results/API_CONTRACTS.md §1. */
+function OlevelRulesEditor({
+  minCreditsInput,
+  maxSittingsInput,
+  requiredSubjects,
+  onRequiredSubjectsChange,
+  error,
+}: {
+  minCreditsInput: ReactNode
+  maxSittingsInput: ReactNode
+  requiredSubjects: string[]
+  onRequiredSubjectsChange: (codes: string[]) => void
+  error?: string
+}) {
+  const toggle = (code: string) =>
+    onRequiredSubjectsChange(
+      requiredSubjects.includes(code)
+        ? requiredSubjects.filter((c) => c !== code)
+        : [...requiredSubjects, code]
+    )
+  return (
+    <div className="space-y-3 rounded-xl border border-border p-3">
+      <div>
+        <p className="text-sm font-medium text-foreground">Screening rule</p>
+        <p className="text-xs text-muted-foreground">
+          Applicants enter 5–9 subjects per sitting. The form checks this rule
+          as they type and before submitting; the backend must apply it too.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {minCreditsInput}
+        {maxSittingsInput}
+      </div>
+      <div className="space-y-1.5">
+        <p
+          id="field-required-subjects"
+          className="text-sm font-medium text-foreground"
+        >
+          Subjects that must be credits
+        </p>
+        <div
+          role="group"
+          aria-labelledby="field-required-subjects"
+          className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-border p-2"
+        >
+          {OLEVEL_SUBJECTS.map((subject) => {
+            const active = requiredSubjects.includes(subject.code)
+            return (
+              <button
+                key={subject.code}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggle(subject.code)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none",
+                  active
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {subject.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {requiredSubjects.length
+            ? `${requiredSubjects.length} selected. For a science programme, add e.g. Biology, Chemistry and Physics.`
+            : "None selected: any subjects count towards the credits."}
+        </p>
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     </div>
   )

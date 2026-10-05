@@ -14,12 +14,15 @@ import {
 } from "lucide-react"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import type { AdmissionFormField } from "@/types/admissionConfig"
+import { isOlevelResultsField } from "@/lib/admission-catalog"
 import ConsentSection from "../ConsentSection"
+import { OlevelResultsReview } from "../OlevelResultsReview"
+import { olevelContextFrom } from "../../lib/olevel-results"
 import { FormStep, FORM_STEP_KEYS } from "../../types/form-types"
 import type { FormDefaultValues } from "../../types/form-types"
 import {
   displayFieldValue,
-  isFieldVisible,
+  isFieldShown,
   makeLookup,
   readFieldValue,
   stepFields,
@@ -159,21 +162,30 @@ function DynamicAnswers({
   optionLabel: (field: AdmissionFormField, value: string) => string | undefined
 }) {
   const visible = fields.filter(
-    (f) => !f.parentFieldId && isFieldVisible(f, lookup)
+    (f) => !f.parentFieldId && isFieldShown(f, lookup)
   )
   return (
     <>
-      {visible.map((field) => (
-        <ReviewField
-          key={field.key}
-          label={field.label}
-          value={displayFieldValue(
-            field,
-            readFieldValue(values, stepId, field),
-            (v) => optionLabel(field, v)
-          )}
-        />
-      ))}
+      {visible.map((field) =>
+        isOlevelResultsField(field) ? (
+          <OlevelResultsReview
+            key={field.key}
+            field={field}
+            value={readFieldValue(values, stepId, field)}
+            context={olevelContextFrom(lookup)}
+          />
+        ) : (
+          <ReviewField
+            key={field.key}
+            label={field.label}
+            value={displayFieldValue(
+              field,
+              readFieldValue(values, stepId, field),
+              (v) => optionLabel(field, v)
+            )}
+          />
+        )
+      )}
     </>
   )
 }
@@ -287,42 +299,9 @@ function BuiltinAnswers({
         </>
       )
     case FormStep.EXAM_SITTING:
-      return values.awaiting_result ? (
-        <p className="text-sm text-muted-foreground italic">
-          Skipped — awaiting results
-        </p>
-      ) : (
-        <>
-          <ReviewField
-            label="First Sitting Type"
-            value={values.first_sitting_type}
-          />
-          <ReviewField
-            label="First Sitting Year"
-            value={values.first_sitting_year}
-          />
-          <ReviewField
-            label="First Sitting Exam No."
-            value={values.first_sitting_exam_number}
-          />
-          {values.combined_result === "combined_result" && (
-            <>
-              <ReviewField
-                label="Second Sitting Type"
-                value={values.second_sitting_type}
-              />
-              <ReviewField
-                label="Second Sitting Year"
-                value={values.second_sitting_year}
-              />
-              <ReviewField
-                label="Second Sitting Exam No."
-                value={values.second_sitting_exam_number}
-              />
-            </>
-          )}
-        </>
-      )
+      // Each sitting's exam type, year and number are shown with its
+      // subjects by the O'level results grid's review (OlevelResultsReview).
+      return null
     case FormStep.QUALIFICATION_DOCUMENTS:
       return values.awaiting_result ? (
         <p className="text-sm text-muted-foreground italic">

@@ -1,6 +1,11 @@
 import apiClient from "@/lib/clients/apiClient"
 import type { FormDefaultValues } from "../types/form-types"
 import type { DynamicAnswers, DynamicFieldValue } from "../lib/dynamic-form"
+import {
+  olevelContextFromValues,
+  olevelPayloadSchema,
+  toOlevelPayload,
+} from "../lib/olevel-results"
 
 const AUTH = { access_token: true } as const
 
@@ -113,6 +118,23 @@ export async function submitApplication(
     customFields: Record<string, DynamicFieldValue>
   }
 ): Promise<SubmitApplicationResponse> {
+  // O'level results — sandbox/olevel-results/API_CONTRACTS.md §2. Sent as a
+  // top-level `olevel_results[i][...]` array on every submit that has any;
+  // the flat first/second_sitting_* keys below are mirrored from the same
+  // grid. The grid's own step validation gates the form; this re-check only
+  // keeps a malformed value (e.g. a stale draft on a form that no longer
+  // asks for O'levels) out of the request rather than failing the submit.
+  const olevelCheck = olevelPayloadSchema.safeParse(
+    toOlevelPayload(values.olevel_results, olevelContextFromValues(values))
+  )
+  if (!olevelCheck.success) {
+    console.warn(
+      "olevel_results not sent — failed its payload check:",
+      olevelCheck.error.issues
+    )
+  }
+  const olevelResults = olevelCheck.success ? olevelCheck.data : []
+
   const payload: Record<string, unknown> = {
     // Identity — from the logged-in user's own profile, not re-collected.
     firstName: profile.firstName,
@@ -174,6 +196,10 @@ export async function submitApplication(
         second_sitting_exam_number: values.second_sitting_exam_number,
       }),
     }),
+
+    // Ignored by today's backend (BACKEND_DEVIATIONS A52) — the submit still
+    // succeeds on the flat sitting keys above; only the grades aren't kept.
+    ...(olevelResults.length > 0 && { olevel_results: olevelResults }),
 
     // Step 8: Program Selection
     startTerm: values.startTerm,

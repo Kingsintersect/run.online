@@ -296,7 +296,159 @@ export function toSnakeKey(label: string): string {
 
 // ── Field types, option sources, conditions ─────────────────────────
 
-export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
+// ── O'level results field type — sandbox/olevel-results/ ─────────────
+//
+// A field type the frontend ships ahead of the backend (BACKEND_DEVIATIONS
+// A52). `FormFieldType` in src/types/admissionConfig.d.ts doesn't list it
+// yet, so the admin catalog and the applicant form use the wider
+// `AdmissionFieldType` below; the API itself carries the type as a plain
+// string. Until the backend's field-type enum accepts it, creating such a
+// field 422s (labelled in the picker, not disabled), and the applicant form
+// falls back to a built-in definition (see FALLBACK_OLEVEL_FIELD in the
+// application form's lib/olevel-results.ts).
+
+export const OLEVEL_RESULTS_FIELD_TYPE = "OLEVEL_RESULTS" as const
+
+export type AdmissionFieldType =
+  | FormFieldType
+  | typeof OLEVEL_RESULTS_FIELD_TYPE
+
+/**
+ * FormFieldType now lists OLEVEL_RESULTS, so this is a plain pass-through;
+ * kept so call sites don't change.
+ */
+export function asFormFieldType(type: AdmissionFieldType): FormFieldType {
+  return type
+}
+
+/** True for an O'level results grid field, whatever its key or systemKey. */
+export function isOlevelResultsField(field: { type: string }): boolean {
+  return field.type === OLEVEL_RESULTS_FIELD_TYPE
+}
+
+/** Field types the backend's enum may not accept yet — labelled in the picker. */
+export const PENDING_BACKEND_FIELD_TYPES: AdmissionFieldType[] = [
+  OLEVEL_RESULTS_FIELD_TYPE,
+]
+
+export const OLEVEL_EXAM_TYPES = ["WAEC", "NECO", "NABTEB", "GCE"] as const
+
+/** WAEC/NECO grading, best first. C6 or better is a credit. */
+export const OLEVEL_GRADES = [
+  "A1",
+  "B2",
+  "B3",
+  "C4",
+  "C5",
+  "C6",
+  "D7",
+  "E8",
+  "F9",
+] as const
+
+export type OlevelGrade = (typeof OLEVEL_GRADES)[number]
+
+export const OLEVEL_CREDIT_GRADES: readonly OlevelGrade[] = [
+  "A1",
+  "B2",
+  "B3",
+  "C4",
+  "C5",
+  "C6",
+]
+
+/** Subjects per sitting, inclusive. */
+export const OLEVEL_SUBJECTS_PER_SITTING = { min: 5, max: 9 } as const
+
+/** Hard ceiling on sittings; the field's own `maxSittings` can only lower it. */
+export const OLEVEL_MAX_SITTINGS = 2
+
+export interface OlevelSubject {
+  /** Stable code stored with each answer, e.g. "ENGLISH_LANGUAGE". */
+  code: string
+  label: string
+}
+
+/** Standard SSCE (WAEC/NECO/NABTEB/GCE) subjects. Codes are what's stored. */
+export const OLEVEL_SUBJECTS: OlevelSubject[] = [
+  { code: "ENGLISH_LANGUAGE", label: "English Language" },
+  { code: "MATHEMATICS", label: "Mathematics" },
+  { code: "BIOLOGY", label: "Biology" },
+  { code: "CHEMISTRY", label: "Chemistry" },
+  { code: "PHYSICS", label: "Physics" },
+  { code: "AGRICULTURAL_SCIENCE", label: "Agricultural Science" },
+  { code: "ECONOMICS", label: "Economics" },
+  { code: "GOVERNMENT", label: "Government" },
+  { code: "LITERATURE_IN_ENGLISH", label: "Literature in English" },
+  { code: "GEOGRAPHY", label: "Geography" },
+  { code: "CRS", label: "Christian Religious Studies (CRS)" },
+  { code: "IRS", label: "Islamic Religious Studies (IRS)" },
+  { code: "COMMERCE", label: "Commerce" },
+  { code: "FINANCIAL_ACCOUNTING", label: "Financial Accounting" },
+  { code: "FURTHER_MATHEMATICS", label: "Further Mathematics" },
+  { code: "CIVIC_EDUCATION", label: "Civic Education" },
+  { code: "DATA_PROCESSING", label: "Data Processing" },
+  { code: "COMPUTER_STUDIES", label: "Computer Studies" },
+  { code: "TECHNICAL_DRAWING", label: "Technical Drawing" },
+  { code: "YORUBA", label: "Yoruba" },
+  { code: "IGBO", label: "Igbo" },
+  { code: "HAUSA", label: "Hausa" },
+  { code: "FRENCH", label: "French" },
+  { code: "ARABIC", label: "Arabic" },
+  { code: "HISTORY", label: "History" },
+  { code: "HEALTH_EDUCATION", label: "Health Education" },
+  { code: "PHYSICAL_EDUCATION", label: "Physical Education" },
+  { code: "FOOD_AND_NUTRITION", label: "Foods and Nutrition" },
+  { code: "HOME_MANAGEMENT", label: "Home Management" },
+  { code: "CLOTHING_AND_TEXTILES", label: "Clothing and Textiles" },
+  { code: "VISUAL_ART", label: "Visual Art (Fine Art)" },
+  { code: "MUSIC", label: "Music" },
+  { code: "MARKETING", label: "Marketing" },
+  { code: "OFFICE_PRACTICE", label: "Office Practice" },
+  { code: "INSURANCE", label: "Insurance" },
+  { code: "BOOK_KEEPING", label: "Book Keeping" },
+  { code: "STORE_MANAGEMENT", label: "Store Management" },
+  { code: "ANIMAL_HUSBANDRY", label: "Animal Husbandry" },
+  { code: "FISHERIES", label: "Fisheries" },
+  { code: "CATERING_CRAFT_PRACTICE", label: "Catering Craft Practice" },
+  { code: "AUTO_MECHANICS", label: "Auto Mechanics" },
+  { code: "BASIC_ELECTRICITY", label: "Basic Electricity" },
+  { code: "BASIC_ELECTRONICS", label: "Basic Electronics" },
+  { code: "BUILDING_CONSTRUCTION", label: "Building Construction" },
+  { code: "METALWORK", label: "Metalwork" },
+  { code: "WOODWORK", label: "Woodwork" },
+]
+
+const OLEVEL_SUBJECT_LABELS = new Map(
+  OLEVEL_SUBJECTS.map((s) => [s.code, s.label])
+)
+
+/** A subject's label, or the code itself for one this catalog doesn't know. */
+export function olevelSubjectLabel(code: string): string {
+  return OLEVEL_SUBJECT_LABELS.get(code) ?? code
+}
+
+export function isKnownOlevelSubject(code: string): boolean {
+  return OLEVEL_SUBJECT_LABELS.has(code)
+}
+
+/**
+ * The screening rule an O'level field applies, stored in the field's
+ * `validation` (sandbox/olevel-results/API_CONTRACTS.md §1). These are the
+ * defaults — the usual Nigerian minimum — used when a key is absent.
+ */
+export const OLEVEL_DEFAULT_RULES: {
+  minCredits: number
+  maxSittings: number
+  requiredSubjects: string[]
+} = {
+  minCredits: 5,
+  maxSittings: 2,
+  requiredSubjects: ["ENGLISH_LANGUAGE", "MATHEMATICS"],
+}
+
+export const FIELD_TYPE_LABELS: Record<AdmissionFieldType, string> = {
+  OLEVEL_RESULTS: "O'level results",
   TEXT: "Short text",
   TEXTAREA: "Long text",
   EMAIL: "Email",
@@ -312,7 +464,7 @@ export const FIELD_TYPE_LABELS: Record<FormFieldType, string> = {
   REPEATING_GROUP: "Repeating group",
 }
 
-export const FIELD_TYPES: FormFieldType[] = [
+export const FIELD_TYPES: AdmissionFieldType[] = [
   "TEXT",
   "TEXTAREA",
   "EMAIL",
@@ -326,9 +478,10 @@ export const FIELD_TYPES: FormFieldType[] = [
   "BOOLEAN",
   "FILE",
   "REPEATING_GROUP",
+  OLEVEL_RESULTS_FIELD_TYPE,
 ]
 
-export const CHOICE_FIELD_TYPES: FormFieldType[] = [
+export const CHOICE_FIELD_TYPES: AdmissionFieldType[] = [
   "SELECT",
   "RADIO",
   "MULTISELECT",
@@ -380,7 +533,7 @@ export const FIELD_WIDTH_LABELS: Record<FieldWidth, string> = {
 export interface SystemFieldDefinition {
   systemKey: string
   label: string
-  type: FormFieldType
+  type: AdmissionFieldType
   lockedRequired: boolean
   /** The field key used when seeding it — SCHEMA_CHANGES.md §6. */
   suggestedKey: string
@@ -807,4 +960,25 @@ export const SYSTEM_FIELD_CATALOG: SystemFieldDefinition[] = [
     defaultStepKey: "QUALIFICATION_DOCUMENTS",
     accept: "DOCUMENT",
   }),
+  // sandbox/olevel-results/ — the subjects-and-grades grid. Each sitting
+  // carries its own exam type, year and number, so on a form that has this
+  // field the six sitting fields above are filled from it, not asked again.
+  system({
+    systemKey: "olevelResults",
+    label: "O'level results",
+    type: OLEVEL_RESULTS_FIELD_TYPE,
+    lockedRequired: false,
+    suggestedKey: "olevel_results",
+    defaultStepKey: "EXAM_SITTING",
+  }),
 ]
+
+/** Sitting fields an O'level results grid fills in itself (one per sitting header input). */
+export const OLEVEL_GRID_SITTING_SYSTEM_KEYS: ReadonlySet<string> = new Set([
+  "firstSittingType",
+  "firstSittingYear",
+  "firstSittingExamNumber",
+  "secondSittingType",
+  "secondSittingYear",
+  "secondSittingExamNumber",
+])

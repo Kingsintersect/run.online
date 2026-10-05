@@ -25,8 +25,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { AdmissionFormField, FileAccept } from "@/types/admissionConfig"
+import { isOlevelResultsField } from "@/lib/admission-catalog"
 import { useFieldOptions } from "../hooks/use-field-options"
 import type { DynamicFieldValue, DynamicRow } from "../lib/dynamic-form"
+import type { OlevelContext } from "../lib/olevel-results"
+import { OlevelResultsField } from "./OlevelResultsField"
 
 export type { DynamicFieldValue } from "../lib/dynamic-form"
 
@@ -42,6 +45,13 @@ interface DynamicFormFieldProps {
   dependsOnValue?: string
   /** One level further up (the country, for local governments). */
   parentDependsOnValue?: string
+  /** OLEVEL_RESULTS only — the awaiting-result and Result Type answers. */
+  olevelContext?: OlevelContext
+}
+
+const NO_OLEVEL_CONTEXT: OlevelContext = {
+  awaitingResult: false,
+  resultType: null,
 }
 
 const FILE_ACCEPT_ATTR: Record<FileAccept, string | undefined> = {
@@ -69,6 +79,7 @@ export function DynamicFormField({
   childFields = [],
   dependsOnValue,
   parentDependsOnValue,
+  olevelContext,
 }: DynamicFormFieldProps) {
   const id = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -115,6 +126,20 @@ export function DynamicFormField({
   )
   const text =
     typeof value === "string" || typeof value === "number" ? String(value) : ""
+
+  // Not in FormFieldType yet (sandbox/olevel-results/), so checked before the switch.
+  if (isOlevelResultsField(field)) {
+    return (
+      <OlevelResultsField
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+        disabled={disabled}
+        context={olevelContext ?? NO_OLEVEL_CONTEXT}
+      />
+    )
+  }
 
   switch (field.type) {
     case "TEXT":

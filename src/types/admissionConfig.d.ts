@@ -220,6 +220,8 @@ export type FormFieldType =
   | "BOOLEAN"
   | "RADIO"
   | "YEAR"
+  /** O'level results grid — built ahead of the backend (sandbox/olevel-results/, A52). */
+  | "OLEVEL_RESULTS"
 
 export type FieldWidth = "FULL" | "HALF"
 

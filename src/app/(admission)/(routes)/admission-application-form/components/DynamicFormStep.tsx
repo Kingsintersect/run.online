@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import type { AdmissionFormField } from "@/types/admissionConfig"
 import { DynamicFormField } from "./DynamicFormField"
 import type { DynamicFieldValue, ValueLookup } from "../lib/dynamic-form"
+import { olevelContextFrom } from "../lib/olevel-results"
 
 interface DynamicFormStepProps {
   /** The step's fields, flat (children carry `parentFieldId`). */
@@ -50,6 +51,8 @@ export function DynamicFormStep({
     .filter((f) => !f.parentFieldId)
     .sort((a, b) => a.order - b.order)
 
+  const olevelContext = olevelContextFrom(lookup)
+
   if (topLevel.length === 0) {
     return (
       <EmptyState
@@ -85,6 +88,7 @@ export function DynamicFormStep({
                   ? asOptionalText(lookup(field.dependsOn))
                   : undefined
               }
+              olevelContext={olevelContext}
               parentDependsOnValue={
                 dependency?.dependsOn
                   ? asOptionalText(lookup(dependency.dependsOn))

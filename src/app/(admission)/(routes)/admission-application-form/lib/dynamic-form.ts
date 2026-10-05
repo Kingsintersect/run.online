@@ -16,6 +16,23 @@ import {
 } from "../types/form-types"
 import { isEmptyValue, validateFieldValue } from "./dynamic-field-schema"
 import { resolveClientSideSteps } from "@/app/(admission)/lib/admission-stages"
+import {
+  isOlevelResultsField,
+  OLEVEL_GRID_SITTING_SYSTEM_KEYS,
+} from "@/lib/admission-catalog"
+import {
+  effectiveSittings,
+  FALLBACK_OLEVEL_FIELD,
+  flatSittingValues,
+  isFallbackField,
+  olevelContextFrom,
+  parseOlevelSittings,
+  seedSittingsFromFlat,
+  summarizeOlevel,
+  readOlevelRules,
+  toOlevelPayload,
+  validateOlevelField,
+} from "./olevel-results"
 
 /* ------------------------------------------------------------------ */
 /*  Dynamic application form — sandbox/dynamic-admission/              */
@@ -202,13 +219,15 @@ export function buildWizardSteps({
   // No registry at all (not loaded / unreachable) — today's fixed flow.
   if (source.length === 0) {
     return [
-      ...FORM_STEPS.filter(
-        (s) =>
-          s.id !== FormStep.REVIEW &&
-          s.id !== FormStep.ADDITIONAL_INFO &&
-          !s.isOptional &&
-          !(s.id === FormStep.PROGRAM_SELECTION && programAlreadyChosen)
-      ).map((s) => legacyStep(s.id)),
+      ...withOlevelFallback(
+        FORM_STEPS.filter(
+          (s) =>
+            s.id !== FormStep.REVIEW &&
+            s.id !== FormStep.ADDITIONAL_INFO &&
+            !s.isOptional &&
+            !(s.id === FormStep.PROGRAM_SELECTION && programAlreadyChosen)
+        ).map((s) => legacyStep(s.id))
+      ),
       review,
     ]
   }
@@ -249,7 +268,61 @@ export function buildWizardSteps({
   // genuinely-nothing-adopted case above.
   if (steps.length === 0) return []
 
-  return [...steps, review]
+  return [...withOlevelFallback(steps), review]
+}
+
+// ── O'level results fallback — sandbox/olevel-results/ ───────────────
+
+const EXAM_SITTING_KEY = FORM_STEP_KEYS[FormStep.EXAM_SITTING]
+const QUALIFICATION_FIELDS_KEY = FORM_STEP_KEYS[FormStep.QUALIFICATION_FIELDS]
+const QUALIFICATION_SYSTEM_KEYS = new Set(["awaitingResult", "combinedResult"])
+
+/**
+ * A form that asks about O'level sittings but has no OLEVEL_RESULTS field
+ * configured (the backend can't store one yet — BACKEND_DEVIATIONS A52)
+ * gets the built-in definition, on the Exam Sitting step if there is one,
+ * else wherever the sittings / qualification questions are asked. A
+ * configured field always wins, so this switches itself off the day the
+ * backend config includes one.
+ */
+function withOlevelFallback(steps: WizardStep[]): WizardStep[] {
+  if (steps.some((s) => stepFields(s).some(isOlevelResultsField))) return steps
+  const asks = (s: WizardStep, keys: ReadonlySet<string>) =>
+    stepFields(s).some((f) => !!f.systemKey && keys.has(f.systemKey))
+  const host =
+    steps.find((s) => s.id === EXAM_SITTING_KEY) ??
+    steps.find((s) => asks(s, OLEVEL_GRID_SITTING_SYSTEM_KEYS)) ??
+    steps.find((s) => s.id === QUALIFICATION_FIELDS_KEY) ??
+    steps.find((s) => asks(s, QUALIFICATION_SYSTEM_KEYS))
+  if (!host) return steps
+  return steps.map((s) => {
+    if (s !== host) return s
+    if (s.kind === "builtin")
+      return { ...s, extraFields: [...s.extraFields, FALLBACK_OLEVEL_FIELD] }
+    if (s.kind === "dynamic")
+      return { ...s, fields: [...s.fields, FALLBACK_OLEVEL_FIELD] }
+    return s
+  })
+}
+
+/**
+ * The six per-sitting system fields (exam type, year, number) are carried by
+ * the O'level grid's own sitting headers, which write the same values — so
+ * they're not asked (or reviewed) separately. withOlevelFallback guarantees
+ * a grid exists on any form that has them. They still travel in the payload.
+ */
+export function isFilledByOlevelGrid(field: AdmissionFormField): boolean {
+  return (
+    !!field.systemKey && OLEVEL_GRID_SITTING_SYSTEM_KEYS.has(field.systemKey)
+  )
+}
+
+/** Visible and asked on its own — what the applicant sees and what's validated. */
+export function isFieldShown(
+  field: AdmissionFormField,
+  lookup: ValueLookup
+): boolean {
+  return !isFilledByOlevelGrid(field) && isFieldVisible(field, lookup)
 }
 
 // ── Values ──────────────────────────────────────────────────────────
@@ -302,6 +375,7 @@ export const SYSTEM_FORM_VALUE_KEYS: Record<string, FormValueKey> = {
   secondSittingExamNumber: "second_sitting_exam_number",
   firstSittingResult: "first_sitting_result",
   secondSittingResult: "second_sitting_result",
+  olevelResults: "olevel_results",
 }
 
 const FORM_VALUE_KEYS = new Set<string>(Object.values(SYSTEM_FORM_VALUE_KEYS))
@@ -309,6 +383,9 @@ const FORM_VALUE_KEYS = new Set<string>(Object.values(SYSTEM_FORM_VALUE_KEYS))
 export function formValueKeyFor(
   field: AdmissionFormField
 ): FormValueKey | null {
+  // One O'level grid per form, always kept in one typed value, whatever its
+  // key — the submit payload's `olevel_results` reads it from there.
+  if (isOlevelResultsField(field)) return "olevel_results"
   return field.systemKey
     ? (SYSTEM_FORM_VALUE_KEYS[field.systemKey] ?? null)
     : null
@@ -327,6 +404,10 @@ export function readFieldValue(
   const key = formValueKeyFor(field)
   if (key === "programId")
     return values.programId ? String(values.programId) : ""
+  if (key === "olevel_results")
+    return values.olevel_results?.length
+      ? values.olevel_results
+      : seedSittingsFromFlat(values)
   if (key) return values[key]
   return values.answers?.[stepId]?.[field.key]
 }
@@ -339,6 +420,17 @@ export function writeFieldValue(
 ): void {
   const options = { shouldDirty: true, shouldTouch: true }
   const key = formValueKeyFor(field)
+  if (key === "olevel_results") {
+    const sittings = parseOlevelSittings(value)
+    form.setValue("olevel_results", sittings, options)
+    // The live submit endpoint still reads the flat sitting keys.
+    for (const [flatKey, flatValue] of Object.entries(
+      flatSittingValues(sittings)
+    ) as [keyof ReturnType<typeof flatSittingValues>, string][]) {
+      form.setValue(flatKey, flatValue, options)
+    }
+    return
+  }
   if (key) {
     const next = key === "programId" ? Number(value) || 0 : value
     // The value's type depends on which system field `key` is; each field's
@@ -462,13 +554,12 @@ export function validateStepFields(
 ): StepIssue[] {
   const issues: StepIssue[] = []
   for (const field of fields.filter((f) => !f.parentFieldId)) {
-    if (!isFieldVisible(field, lookup)) continue
+    if (!isFieldShown(field, lookup)) continue
     const children = fields.filter((c) => c.parentFieldId === field.id)
-    const message = validateFieldValue(
-      field,
-      readFieldValue(values, stepId, field),
-      children
-    )
+    const value = readFieldValue(values, stepId, field)
+    const message = isOlevelResultsField(field)
+      ? validateOlevelField(field, value, olevelContextFrom(lookup))
+      : validateFieldValue(field, value, children)
     if (message) {
       issues.push({
         path: fieldPath(stepId, field),
@@ -498,8 +589,17 @@ export function buildDynamicPayload(
   for (const step of steps) {
     const fields = stepFields(step)
     for (const field of fields.filter((f) => !f.parentFieldId)) {
+      // The built-in O'level definition isn't a field the backend knows —
+      // sending it under `answers` would switch the submit onto the answers
+      // path. Its data travels as the top-level `olevel_results` instead.
+      if (isFallbackField(field)) continue
       if (!isFieldVisible(field, lookup)) continue
-      const value = readFieldValue(values, step.id, field)
+      const value = isOlevelResultsField(field)
+        ? toOlevelPayload(
+            readFieldValue(values, step.id, field),
+            olevelContextFrom(lookup)
+          )
+        : readFieldValue(values, step.id, field)
       if (isEmptyValue(value)) continue
       // System files already travel under their flat multipart keys — don't upload them twice.
       const isFileValue =
@@ -520,6 +620,14 @@ export function displayFieldValue(
   optionLabel?: (value: string) => string | undefined
 ): string | undefined {
   if (isEmptyValue(value)) return undefined
+  if (isOlevelResultsField(field)) {
+    const sittings = effectiveSittings(value, {
+      awaitingResult: false,
+      resultType: null,
+    })
+    const summary = summarizeOlevel(sittings, readOlevelRules(field))
+    return `${sittings.length} sitting${sittings.length === 1 ? "" : "s"}, ${summary.credits} credit${summary.credits === 1 ? "" : "s"}`
+  }
   if (typeof value === "boolean") return value ? "Yes" : "No"
   if (value instanceof File) return value.name
   if (Array.isArray(value)) {

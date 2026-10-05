@@ -4,6 +4,12 @@ import type {
   StageConfigByType,
   StageType,
 } from "@/types/admissionConfig"
+import {
+  isKnownOlevelSubject,
+  OLEVEL_MAX_SITTINGS,
+  OLEVEL_RESULTS_FIELD_TYPE,
+  OLEVEL_SUBJECTS_PER_SITTING,
+} from "@/lib/admission-catalog"
 
 // Dynamic Admission — sandbox/dynamic-admission/API_CONTRACTS.md §2.2 (stage
 // config) and §3.1 (field definitions). The backend re-validates both; these
@@ -152,7 +158,47 @@ export const fieldConditionSchema: z.ZodType<FieldCondition, FieldCondition> =
     ])
   )
 
+// O'level results screening rule — sandbox/olevel-results/API_CONTRACTS.md §1.
+// Stored flat in the field's `validation`, like FILE's `accept`/`maxSizeMb`.
+export const olevelRulesSchema = z
+  .object({
+    minCredits: z
+      .number({ message: "Enter the minimum number of credits" })
+      .int()
+      .min(1, "At least 1 credit")
+      .max(
+        OLEVEL_SUBJECTS_PER_SITTING.max * OLEVEL_MAX_SITTINGS,
+        "That's more subjects than two sittings can hold"
+      ),
+    maxSittings: z
+      .number({ message: "Enter the maximum number of sittings" })
+      .int()
+      .min(1, "At least 1 sitting")
+      .max(OLEVEL_MAX_SITTINGS, `At most ${OLEVEL_MAX_SITTINGS} sittings`),
+    requiredSubjects: z
+      .array(z.string())
+      .refine((codes) => codes.every(isKnownOlevelSubject), {
+        message: "Pick required subjects from the list",
+      })
+      .refine((codes) => new Set(codes).size === codes.length, {
+        message: "Each subject only once",
+      }),
+  })
+  .superRefine((rules, ctx) => {
+    if (rules.requiredSubjects.length > rules.minCredits) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["minCredits"],
+        message:
+          "Each required subject needs a credit, so the minimum can't be lower than the number of required subjects",
+      })
+    }
+  })
+
+export type OlevelRules = z.infer<typeof olevelRulesSchema>
+
 const fieldTypeSchema = z.enum([
+  OLEVEL_RESULTS_FIELD_TYPE,
   "TEXT",
   "TEXTAREA",
   "EMAIL",
@@ -211,6 +257,10 @@ export const formFieldDraftSchema = z
         maxSizeMb: z.number().int().min(1).max(50).optional(),
         multiple: z.boolean().optional(),
         maxItems: z.number().int().min(1).max(50).optional(),
+        // OLEVEL_RESULTS only — checked as a whole in superRefine below.
+        minCredits: z.number().optional(),
+        maxSittings: z.number().optional(),
+        requiredSubjects: z.array(z.string()).optional(),
       })
       .nullable(),
     repeatable: z.boolean(),
@@ -245,6 +295,22 @@ export const formFieldDraftSchema = z
       })
     }
     const v = draft.validation
+    if (draft.type === OLEVEL_RESULTS_FIELD_TYPE) {
+      const rules = olevelRulesSchema.safeParse({
+        minCredits: v?.minCredits,
+        maxSittings: v?.maxSittings,
+        requiredSubjects: v?.requiredSubjects ?? [],
+      })
+      if (!rules.success) {
+        for (const issue of rules.error.issues) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["validation", ...issue.path.map(String)],
+            message: issue.message,
+          })
+        }
+      }
+    }
     if (v?.min !== undefined && v.max !== undefined && v.min > v.max) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -278,3 +344,6 @@ export const formFieldDraftSchema = z
 
 export type FormFieldDraftInput = z.input<typeof formFieldDraftSchema>
 export type FormFieldDraft = z.infer<typeof formFieldDraftSchema>
+export type FormFieldDraftValidation = NonNullable<
+  FormFieldDraftInput["validation"]
+>

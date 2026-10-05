@@ -13,7 +13,7 @@ import type { AdmissionFormField } from "@/types/admissionConfig"
 import { DynamicFormStep } from "../DynamicFormStep"
 import {
   fieldPath,
-  isFieldVisible,
+  isFieldShown,
   makeLookup,
   readFieldValue,
   writeFieldValue,
@@ -82,7 +82,7 @@ export default function DynamicStep({
       getValue={(field) => readFieldValue(values, stepId, field)}
       onChange={handleChange}
       errors={errors}
-      isVisible={(field) => isFieldVisible(field, lookup)}
+      isVisible={(field) => isFieldShown(field, lookup)}
       lookup={lookup}
       findField={(key) => fieldIndex.get(key)?.field}
     />
