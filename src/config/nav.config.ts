@@ -212,9 +212,10 @@ const studentNav: NavGroup[] = [
         title: "Notifications",
         href: "/student/notifications",
         matchExactOnly: true,
+        // No badge: a hardcoded "3" used to sit here regardless of the real
+        // unread count. The sidebar only renders static badges from this
+        // config; the live unread count is shown on the header bell instead.
         icon: Bell,
-        badge: 3,
-        badgeVariant: "warning",
       },
       {
         title: "Calendar & Events",

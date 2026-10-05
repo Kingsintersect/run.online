@@ -217,61 +217,67 @@ export function useVerifyGenericPayment(reference: string) {
 /*  Dev-only mutations                                                   */
 /* ------------------------------------------------------------------ */
 
+// Local preview only: each action patches the applicant's own, real
+// record (read from the React Query cache) and nothing is sent to the
+// server (see admissionService.ts "Dev-only local preview"). resetAll
+// discards the preview by refetching the real record.
 export function useDevSimulate() {
   const setStudent = useAdmissionStore((s) => s.setStudent)
   const queryClient = useQueryClient()
+  const getRealStudent = () =>
+    queryClient.getQueryData<AdmissionStudent>(admissionKeys.student())
 
   const simulateProgramChosen = useMutation({
-    ...admissionMutationOptions.simulateProgramChosen(),
+    ...admissionMutationOptions.simulateProgramChosen(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateAppPaymentPaid = useMutation({
-    ...admissionMutationOptions.simulateAppPaymentPaid(),
+    ...admissionMutationOptions.simulateAppPaymentPaid(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateApplied = useMutation({
-    ...admissionMutationOptions.simulateApplied(),
+    ...admissionMutationOptions.simulateApplied(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateOffered = useMutation({
-    ...admissionMutationOptions.simulateOffered(),
+    ...admissionMutationOptions.simulateOffered(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateAccepted = useMutation({
-    ...admissionMutationOptions.simulateAccepted(),
+    ...admissionMutationOptions.simulateAccepted(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateDeclined = useMutation({
-    ...admissionMutationOptions.simulateDeclined(),
+    ...admissionMutationOptions.simulateDeclined(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateExpired = useMutation({
-    ...admissionMutationOptions.simulateExpired(),
+    ...admissionMutationOptions.simulateExpired(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },
   })
 
   const simulateTuitionPaid = useMutation({
-    ...admissionMutationOptions.simulateTuitionPaid(),
+    ...admissionMutationOptions.simulateTuitionPaid(getRealStudent),
     onSuccess: async (data) => {
       await syncAdmissionStudent(queryClient, setStudent, data)
     },

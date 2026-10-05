@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { LayoutGrid, List, Search, GraduationCap, Filter } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { QueryErrorState } from "@/components/query-error-state"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -60,7 +61,7 @@ export default function MyTimetablePage() {
   const { currentSemester: activeSemester } = useMyActiveSession()
   const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id
 
-  const { data, isLoading } = useMyTimetable({
+  const { data, isLoading, isError, error, refetch } = useMyTimetable({
     semesterId: effectiveSemesterId,
   })
 
@@ -259,7 +260,15 @@ export default function MyTimetablePage() {
           </div>
         </section>
 
-        {viewMode === "grid" ? (
+        {/* A refused (403) or failed request isn't an empty week — only a
+            successful empty response may show "No schedule found". */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="your timetable"
+            onRetry={() => void refetch()}
+          />
+        ) : viewMode === "grid" ? (
           <TimetableGrid slots={filteredSlots} isLoading={isLoading} />
         ) : (
           <TimetableList slots={filteredSlots} isLoading={isLoading} />

@@ -41,13 +41,16 @@ export function StatisticsManagementShell() {
              (2026-09 permission audit) — this is a summary/view surface,
              so users:view (already granted to admin) is the correct check,
              not a manage-level one. DEAN no longer reaches this PermissionGate
-             at all — see the role check above. */}
+             at all — see the role check above. denyBehavior="screen": a
+             role without either grant (e.g. STAFF) used to get a blank
+             page here instead of the standard denied screen. */}
       <PermissionGate
         require={[
           { resource: "users", action: "view" },
           { resource: "results", action: "approve" },
         ]}
         mode="any"
+        denyBehavior="screen"
       >
         <UsersSummaryPage />
       </PermissionGate>
@@ -77,8 +80,15 @@ export function StudentsManagementShell() {
 export function StaffManagementShell() {
   return (
     <div className="space-y-8">
-      {/* Staff table — departments:manage (SUPER_ADMIN only, permission id 10) */}
-      <PermissionGate require={{ resource: "departments", action: "manage" }}>
+      {/* Staff table — staff:view to see it (StaffPage gates its own
+             mutating controls on staff:manage). Was departments:manage,
+             which ADMIN's live session doesn't hold, so ADMIN got a blank
+             page; denyBehavior="screen" so a role without staff:view (e.g.
+             STAFF) gets the standard denied screen, never a blank area. */}
+      <PermissionGate
+        require={{ resource: "staff", action: "view" }}
+        denyBehavior="screen"
+      >
         <StaffPage />
       </PermissionGate>
     </div>

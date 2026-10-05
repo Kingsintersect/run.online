@@ -142,7 +142,8 @@ export function AcceptanceFeeSection({ student, fees }: StepSectionProps) {
           {process.env.NODE_ENV === "development" && (
             <div className="rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 p-3">
               <p className="mb-2 text-[10px] font-bold tracking-wider text-amber-600 uppercase">
-                🛠 Dev Controls
+                🛠 Dev Controls — local preview only, nothing is sent to the
+                server
               </p>
               <Button
                 variant="outline"

@@ -1,14 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Receipt } from "lucide-react"
+import { AlertCircle, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { QueryErrorState } from "@/components/query-error-state"
 import { InvoiceCard } from "./invoice-card"
 import { PaymentModal } from "./payment-modal"
-import { useMyInvoices } from "../../hooks/use-invoices"
-import { feeManagementService } from "../../services/fee-management.service"
+import { useMyInvoices, useResolveMyInvoices } from "../../hooks/use-invoices"
 import type { InvoiceStatus } from "../../types"
 
 const STATUS_FILTERS: { value: InvoiceStatus | "ALL"; label: string }[] = [
@@ -23,14 +23,9 @@ const STATUS_FILTERS: { value: InvoiceStatus | "ALL"; label: string }[] = [
 
 export function MyFeesList() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "ALL">("ALL")
-  const { data, isLoading } = useMyInvoices()
-
-  // Self-healing resolve check — fires on mount, catches any missing invoices
-  useEffect(() => {
-    feeManagementService.resolveInvoices().catch(() => {
-      // Silently ignore — resolve is best-effort
-    })
-  }, [])
+  const { data, isLoading, isError, error, refetch } = useMyInvoices()
+  // Self-healing resolve check — fires on mount, catches any missing invoices.
+  const resolve = useResolveMyInvoices()
 
   const invoices = data?.data ?? []
 
@@ -58,9 +53,45 @@ export function MyFeesList() {
     )
   }
 
+  // A refused (403) or failed list request isn't "No invoices yet".
+  if (isError) {
+    return (
+      <QueryErrorState
+        error={error}
+        subject="your invoices"
+        onRetry={() => void refetch()}
+      />
+    )
+  }
+
   return (
     <>
       <div className="space-y-5">
+        {/* The resolve check failed, so invoices that should exist may not
+            have been generated yet — say so instead of implying none are due. */}
+        {resolve.isError && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"
+          >
+            <span className="flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+              Couldn&apos;t check for new invoices, so some may be missing
+              below.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={resolve.isPending}
+              onClick={() => resolve.mutate()}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* ── Status filter tabs ────────────────────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map(({ value, label }) => {
@@ -103,7 +134,9 @@ export function MyFeesList() {
             <Receipt size={40} className="opacity-30" />
             <p className="text-sm">
               {statusFilter === "ALL"
-                ? "No invoices yet. Check back after session fees are published."
+                ? resolve.isError
+                  ? "No invoices to show — the check for new invoices didn't complete, so this may not be the full picture."
+                  : "No invoices yet. Check back after session fees are published."
                 : `No ${statusFilter.toLowerCase().replace("_", " ")} invoices.`}
             </p>
           </motion.div>

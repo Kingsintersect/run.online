@@ -4,6 +4,10 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, ShieldCheck, XCircle } from "lucide-react"
 import EmptyState from "@/components/custom/EmptyState"
+import {
+  classifyQueryError,
+  QueryErrorState,
+} from "@/components/query-error-state"
 import { Button } from "@/components/ui/button"
 import { useAdjustmentQueue } from "../../hooks/use-results"
 import { useDecideBatch } from "../../hooks/use-results-mutations"
@@ -78,14 +82,19 @@ export function AdjustmentApprovalsQueue() {
 
       {queue.isLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-muted/40" aria-busy />
-      ) : queue.isError ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title="Couldn't load the approvals queue"
-          description={queue.error.message}
-        />
-      ) : queue.data?.available === false ? (
+      ) : queue.data?.available === false ||
+        (queue.isError && classifyQueryError(queue.error) === "unavailable") ? (
+        // live() only recognises Laravel's exact unregistered-route 404; any
+        // 404/405 on this list endpoint (it has no single record to be "not
+        // found") still means the queue isn't served yet — never an empty
+        // "Nothing waiting" list.
         <NotAvailableNotice title="Adjustment approvals aren't available on the server yet" />
+      ) : queue.isError ? (
+        <QueryErrorState
+          error={queue.error}
+          subject="the approvals queue"
+          onRetry={() => void queue.refetch()}
+        />
       ) : !data || data.data.length === 0 ? (
         <EmptyState
           icon={CheckCircle2}

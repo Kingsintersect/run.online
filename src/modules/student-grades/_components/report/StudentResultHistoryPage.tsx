@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import { QueryErrorState } from "@/components/query-error-state"
 import { UNIVERSITY_LOGO_URL, UNIVERSITY_NAME } from "@/config/global.config"
 import { useAppStore } from "@/store"
 import { useMyStudentId } from "@/hooks/use-my-student-id"
@@ -42,11 +43,18 @@ function getCurrentAcademicYearLabel(date = new Date()) {
 
 export default function StudentResultHistoryPage() {
   const user = useAppStore((state) => state.user)
-  const { studentId, programId } = useMyStudentId()
+  const {
+    studentId,
+    programId,
+    isLoading: studentLoading,
+    isError: studentErrored,
+    notFound: studentMissing,
+    refetch: retryStudent,
+  } = useMyStudentId()
   const { data: programRes } = useProgram(programId)
   const gradesQuery = useMyPublishedGrades(studentId)
   const cgpa = useStudentCgpa(studentId)
-  const loading = gradesQuery.isLoading || cgpa.loading
+  const loading = studentLoading || gradesQuery.isLoading || cgpa.loading
   const grades = gradesQuery.data
   const [selectedAcademicYear, setSelectedAcademicYear] = useState("")
   const [selectedSemesterId, setSelectedSemesterId] = useState("")
@@ -168,6 +176,45 @@ export default function StudentResultHistoryPage() {
         <div className="h-24 animate-pulse rounded-3xl bg-muted/40" />
         <div className="h-80 animate-pulse rounded-3xl bg-muted/40" />
       </div>
+    )
+  }
+
+  // Found in QA 2026-10-05: an account with the student role but no student
+  // record (GET /users/students/me → 404) rendered a blank page here.
+  if (studentId == null) {
+    if (studentErrored && !studentMissing) {
+      return (
+        <QueryErrorState
+          error={null}
+          subject="your student record"
+          onRetry={retryStudent}
+        />
+      )
+    }
+    return (
+      <div
+        role="status"
+        className="rounded-2xl border border-dashed border-border p-8 text-center"
+      >
+        <p className="text-sm font-semibold text-foreground">
+          Your student record isn&apos;t set up yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Your grade report appears once the registry has created your student
+          record and your results are published. Contact the registry if
+          you&apos;ve already been admitted.
+        </p>
+      </div>
+    )
+  }
+
+  if (gradesQuery.isError) {
+    return (
+      <QueryErrorState
+        error={gradesQuery.error}
+        subject="your published results"
+        onRetry={() => void gradesQuery.refetch()}
+      />
     )
   }
 

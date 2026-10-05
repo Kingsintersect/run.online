@@ -91,16 +91,21 @@ export function AcademicStructureShell() {
 }
 
 // ========== COURSE MANAGEMENT SHELL ==========
-// Requires: course_structure:manage (permission 29) or a dedicated course_management:manage permission
+// Requires: courses:view to see, courses:manage for mutating controls — see
+// src/lib/utils/permissions.json. Was gated on departments:manage, which
+// ADMIN's live session doesn't hold (it has courses:view/manage), so the
+// inline gate rendered nothing and ADMIN saw a blank page (fixed 2026-10-05).
 export function CourseManagementShell() {
   const { can } = usePermissions()
 
-  // Use departments:manage permission (ID 10) or a dedicated course management permission
-  const canManage = can({ resource: "departments", action: "manage" })
+  const canManage = can({ resource: "courses", action: "manage" })
 
   return (
     <div className="space-y-8">
-      <PermissionGate require={{ resource: "departments", action: "manage" }}>
+      <PermissionGate
+        require={{ resource: "courses", action: "view" }}
+        denyBehavior="screen"
+      >
         <CourseManagementPage canManage={canManage} />
       </PermissionGate>
     </div>

@@ -1,6 +1,7 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useEffect } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { feeManagementService } from "../services/fee-management.service"
 import { feeKeys } from "./query-keys"
 
@@ -9,6 +10,26 @@ export function useMyInvoices() {
     queryKey: feeKeys.myInvoices(),
     queryFn: feeManagementService.getMyInvoices,
   })
+}
+
+// POST /fees/invoices/resolve — the student's self-healing "generate any
+// invoices I'm missing" check, run once when their fee list mounts. Its
+// outcome is exposed (not swallowed) so an empty list after a failed resolve
+// isn't presented as "No invoices yet". On success the list is refetched so
+// newly created invoices appear.
+export function useResolveMyInvoices() {
+  const qc = useQueryClient()
+  const resolve = useMutation({
+    mutationFn: () => feeManagementService.resolveInvoices(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: feeKeys.myInvoices() })
+    },
+  })
+  const { mutate } = resolve
+  useEffect(() => {
+    mutate()
+  }, [mutate])
+  return resolve
 }
 
 export function useInvoices(filters?: {

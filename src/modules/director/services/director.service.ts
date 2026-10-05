@@ -530,6 +530,11 @@ export const directorService = {
         studentsRes.status !== "fulfilled" ||
         tutorsRes.status !== "fulfilled" ||
         statsRes.status !== "fulfilled",
+      loadFailures: {
+        students: studentsRes.status !== "fulfilled",
+        tutors: tutorsRes.status !== "fulfilled",
+        stats: statsRes.status !== "fulfilled",
+      },
     }
   },
 

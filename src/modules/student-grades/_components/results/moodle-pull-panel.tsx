@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { CloudDownload, Loader2, Lock, X, XCircle } from "lucide-react"
+import { CloudDownload, Info, Loader2, Lock, X, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
@@ -55,6 +55,12 @@ interface MoodlePullPanelProps {
    * semester there.
    */
   scope?: PullScope
+  /**
+   * Why nothing can be pulled at all (e.g. the caller has nothing in their
+   * teaching scope, or the scope couldn't be loaded). When set, the button
+   * is disabled and this is shown beside it.
+   */
+  blockedReason?: string | null
   onStarted?: () => void
 }
 
@@ -127,6 +133,7 @@ export function MoodlePullPanel({
   lockedAt = null,
   filterFieldIds,
   scope,
+  blockedReason = null,
   onStarted,
 }: MoodlePullPanelProps) {
   const router = useRouter()
@@ -209,9 +216,10 @@ export function MoodlePullPanel({
     (scope.isLoading || scopeIds == null || scopeIds.length === 0)
 
   const locked = lockedAt != null
+  const blocked = blockedReason != null
 
   const start = async () => {
-    if (scopeBlocked || locked) return
+    if (scopeBlocked || locked || blocked) return
     const body = PullRequestSchema.safeParse({
       ...(sessionBased
         ? { academicSessionId: academicSessionId ?? undefined }
@@ -291,9 +299,12 @@ export function MoodlePullPanel({
         </div>
         <Button
           onClick={start}
-          disabled={startPull.isPending || running || scopeBlocked || locked}
+          disabled={
+            startPull.isPending || running || scopeBlocked || locked || blocked
+          }
           aria-describedby={cn(
             "moodle-pull-scope",
+            blocked && "moodle-pull-blocked",
             needsSemester && "moodle-pull-needs-semester",
             locked && "moodle-pull-locked"
           )}
@@ -306,6 +317,16 @@ export function MoodlePullPanel({
           Pull from Moodle
         </Button>
       </div>
+
+      {blocked && (
+        <p
+          id="moodle-pull-blocked"
+          className="flex items-start gap-1.5 rounded-lg border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-100"
+        >
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{blockedReason}</span>
+        </p>
+      )}
 
       {locked && (
         <p

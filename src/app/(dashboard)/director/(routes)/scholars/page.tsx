@@ -92,6 +92,15 @@ export default function StatisticalReportsPage() {
     refetch,
   } = useDirectorStatistical()
 
+  // A source that failed (e.g. 403) shows "—", never the 0 the service
+  // falls back to — see StatisticalReport.loadFailures.
+  const failed = report?.loadFailures
+  const studentsTotal =
+    report && !failed?.students ? report.totalStudents.toLocaleString() : "—"
+  const tutorsTotal =
+    report && !failed?.tutors ? report.totalTutors.toLocaleString() : "—"
+  const gender = report && !failed?.stats ? report.studentsByGender : null
+
   return (
     <>
       {/* Header */}
@@ -125,25 +134,25 @@ export default function StatisticalReportsPage() {
         {[
           {
             label: "Total Students",
-            value: report?.totalStudents.toLocaleString() ?? "—",
+            value: studentsTotal,
             icon: <Users size={18} />,
             color: "primary",
           },
           {
             label: "Total Tutors",
-            value: report?.totalTutors.toLocaleString() ?? "—",
+            value: tutorsTotal,
             icon: <BookOpen size={18} />,
             color: "accent",
           },
           {
             label: "Male Students",
-            value: report?.studentsByGender.male.toLocaleString() ?? "—",
+            value: gender?.male.toLocaleString() ?? "—",
             icon: <Users size={18} />,
             color: "success",
           },
           {
             label: "Female Students",
-            value: report?.studentsByGender.female.toLocaleString() ?? "—",
+            value: gender?.female.toLocaleString() ?? "—",
             icon: <Users size={18} />,
             color: "warning",
           },
@@ -166,7 +175,7 @@ export default function StatisticalReportsPage() {
       </div>
 
       {/* Level Distribution */}
-      {report && (
+      {report && !failed?.stats && (
         <>
           <div className="section-divider">
             <h2>Level Distribution</h2>
@@ -209,9 +218,7 @@ export default function StatisticalReportsPage() {
         <div className="chart-wrap">
           <div className="chart-header">
             <h3 className="chart-title">Tutor Designations</h3>
-            <span className="chart-subtitle">
-              {report?.totalTutors ?? "—"} total staff
-            </span>
+            <span className="chart-subtitle">{tutorsTotal} total staff</span>
           </div>
           {isLoading ? (
             <div className="chart-skeleton" />
@@ -254,15 +261,13 @@ export default function StatisticalReportsPage() {
           className={`tab-btn${activeTab === "students" ? "active" : ""}`}
           onClick={() => setActiveTab("students")}
         >
-          <Users size={15} /> Students (
-          {report?.totalStudents.toLocaleString() ?? 0})
+          <Users size={15} /> Students ({studentsTotal})
         </button>
         <button
           className={`tab-btn${activeTab === "tutors" ? "active" : ""}`}
           onClick={() => setActiveTab("tutors")}
         >
-          <BookOpen size={15} /> Tutors (
-          {report?.totalTutors.toLocaleString() ?? 0})
+          <BookOpen size={15} /> Tutors ({tutorsTotal})
         </button>
       </div>
 
@@ -303,7 +308,11 @@ export default function StatisticalReportsPage() {
           data={report?.students ?? []}
           isLoading={isLoading}
           rowKey={(r) => r.id}
-          emptyMessage="No students match the selected filters."
+          emptyMessage={
+            failed?.students
+              ? "Student records couldn't be loaded (permission-restricted for your role, or the request failed)."
+              : "No students match the selected filters."
+          }
         />
       ) : (
         <DataTable<TutorRecord>
@@ -311,7 +320,11 @@ export default function StatisticalReportsPage() {
           data={report?.tutors ?? []}
           isLoading={isLoading}
           rowKey={(r) => r.id}
-          emptyMessage="No tutors match the selected filters."
+          emptyMessage={
+            failed?.tutors
+              ? "Tutor records couldn't be loaded (permission-restricted for your role, or the request failed)."
+              : "No tutors match the selected filters."
+          }
         />
       )}
 

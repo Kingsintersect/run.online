@@ -23,6 +23,7 @@ import { ZoomableImage } from "@/components/custom/ZoomableImage"
 import { AccountStatusBadge } from "./account-status-badge"
 import { accountStatusOf } from "../lib/account-status"
 import { usePermissions } from "@/lib/permissions/usePermissions"
+import { QueryErrorState } from "@/components/query-error-state"
 import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
 import { useMajorProgramScope } from "@/hooks/use-major-program-scope"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
@@ -163,7 +164,7 @@ export default function StudentsPage({
   const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
     null
   )
-  const { data, isLoading } = useStudents({
+  const { data, isLoading, isError, error, refetch } = useStudents({
     major_program_id: majorProgramFilter ?? undefined,
   })
   const updateStudent = useUpdateStudent()
@@ -278,94 +279,104 @@ export default function StudentsPage({
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <DataTable
-          data={(data?.data ?? []) as (Student & Record<string, unknown>)[]}
-          columns={[
-            ...columns,
-            {
-              key: "actions",
-              header: "",
-              align: "center",
-              width: "130px",
-              render: (row) => (
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelected(row as unknown as Student)}
-                    title="View"
-                  >
-                    <Eye size={14} />
-                  </Button>
-                  {/* View Invoices — fee-management:view, and only for a
+        {/* A refused (403) or failed request must never read as "No
+            students found" — only a successful empty response gets that copy. */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="the student list"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <DataTable
+            data={(data?.data ?? []) as (Student & Record<string, unknown>)[]}
+            columns={[
+              ...columns,
+              {
+                key: "actions",
+                header: "",
+                align: "center",
+                width: "130px",
+                render: (row) => (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelected(row as unknown as Student)}
+                      title="View"
+                    >
+                      <Eye size={14} />
+                    </Button>
+                    {/* View Invoices — fee-management:view, and only for a
                       student we can already tell is in scope; see
                       isStudentInScope above. */}
-                  {canViewInvoices &&
-                    isStudentInScope(row as unknown as Student) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setInvoicesFor(row as unknown as Student)
-                        }
-                        title="View Invoices"
-                      >
-                        <Receipt size={14} />
-                      </Button>
-                    )}
-                  {/* Edit + Deactivate — students:manage only */}
-                  {canCreate && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditing(row as unknown as Student)}
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      {/* Hidden for a deleted account (login revoked;
-                          a flag can't restore it). */}
-                      {accountStatusOf(row.user) !== "deleted" && (
+                    {canViewInvoices &&
+                      isStudentInScope(row as unknown as Student) && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className={
-                            row.user.is_active
-                              ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
-                          }
                           onClick={() =>
-                            setStatusTarget(row as unknown as Student)
+                            setInvoicesFor(row as unknown as Student)
                           }
-                          title={
-                            row.user.is_active
-                              ? "Deactivate account"
-                              : "Reactivate account"
-                          }
+                          title="View Invoices"
                         >
-                          {row.user.is_active ? (
-                            <UserX size={14} />
-                          ) : (
-                            <UserCheck size={14} />
-                          )}
+                          <Receipt size={14} />
                         </Button>
                       )}
-                    </>
-                  )}
-                </div>
-              ),
-            },
-          ]}
-          loading={isLoading}
-          searchPlaceholder="Search by name, matric no, department…"
-          searchExtractor={(row) =>
-            `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.matric_number} ${row.department_name} ${row.user.email}`
-          }
-          rowKey="id"
-          pageSize={10}
-          emptyMessage="No students found"
-        />
+                    {/* Edit + Deactivate — students:manage only */}
+                    {canCreate && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditing(row as unknown as Student)}
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        {/* Hidden for a deleted account (login revoked;
+                          a flag can't restore it). */}
+                        {accountStatusOf(row.user) !== "deleted" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={
+                              row.user.is_active
+                                ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                            }
+                            onClick={() =>
+                              setStatusTarget(row as unknown as Student)
+                            }
+                            title={
+                              row.user.is_active
+                                ? "Deactivate account"
+                                : "Reactivate account"
+                            }
+                          >
+                            {row.user.is_active ? (
+                              <UserX size={14} />
+                            ) : (
+                              <UserCheck size={14} />
+                            )}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+            loading={isLoading}
+            searchPlaceholder="Search by name, matric no, department…"
+            searchExtractor={(row) =>
+              `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.matric_number} ${row.department_name} ${row.user.email}`
+            }
+            rowKey="id"
+            pageSize={10}
+            emptyMessage="No students found"
+          />
+        )}
       </motion.div>
 
       {/* Detail modal */}

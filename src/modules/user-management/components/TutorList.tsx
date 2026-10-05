@@ -26,8 +26,10 @@ import { accountStatusOf } from "../lib/account-status"
 import { BulkImportTutorsModal } from "./BulkImportTutorsModal"
 import { TutorCourseAssignForm } from "./tutor-course-assign-form"
 import { isMajorProgramRequiredError } from "../lib/major-program-required"
-import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
+import { QueryErrorState } from "@/components/query-error-state"
+import { useAppStore } from "@/store"
+import { UserRole } from "@/config/nav.config"
 import {
   useMajorPrograms,
   useDepartments,
@@ -114,8 +116,21 @@ export default function TutorsPage({
 }: TutorsPageProps = {}) {
   const { can } = usePermissions()
 
+  // Bringing a tutor onto the portal ("Add Tutor" assigns the tutor role to an
+  // existing user; "Bulk Import" onboards a registrar's list) is account
+  // provisioning. In a Nigerian university lecturers are appointed through the
+  // Registry/Establishments office and their accounts provisioned by ICT/admin
+  // — a Dean reviews the faculty's tutors but doesn't create them. DEAN's live
+  // session holds the same "tutors:manage" grant as ADMIN, so a permission
+  // check can't tell them apart — restricted by role instead, same precedent
+  // as Summary.tsx's isAdmin check. SUPER_ADMIN keeps total control per
+  // CLAUDE.md. Revisit if the backend splits provisioning into its own
+  // permission. Dean keeps read access (and canEdit below) unchanged.
+  const role = useAppStore((s) => s.user?.role)
+  const isAdmin = role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN
+
   // Props take precedence; fall back to internally-derived values
-  const canCreate = canCreateProp ?? can(PERM.maanageTutors)
+  const canCreate = (canCreateProp ?? can(PERM.maanageTutors)) && isAdmin
   const canEdit = can(PERM.maanageTutors)
   const canManageCourses = can(PERM.manageDepts) // SUPER_ADMIN only
 
@@ -126,7 +141,7 @@ export default function TutorsPage({
   const majorPrograms = (majorProgramsRes?.data ?? []).filter(
     (mp) => mp.isActive
   )
-  const { data, isLoading } = useTutors({
+  const { data, isLoading, isError, error, refetch } = useTutors({
     major_program_id: majorProgramFilter ?? undefined,
   })
   const createTutor = useCreateTutor()
@@ -251,12 +266,13 @@ export default function TutorsPage({
             </div>
           </div>
 
-          {/* Bulk Import + Add Tutor — both gated to tutors:manage. Bulk
+          {/* Bulk Import + Add Tutor — both gated to tutors:manage AND the
+              ADMIN/SUPER_ADMIN role (canCreate, see above). Bulk
               import is the primary path (registrar list → CSV → whole
               department onboarded at once); "Add Tutor" stays for the
               one-off case of promoting a single existing user. See
               sandbox/user/tutor_onboarding_workflow.md §1. */}
-          <PermissionGate require={PERM.maanageTutors}>
+          {canCreate && (
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -269,7 +285,7 @@ export default function TutorsPage({
                 <Plus size={16} /> Add Tutor
               </Button>
             </div>
-          </PermissionGate>
+          )}
         </div>
       </motion.div>
 
@@ -284,18 +300,28 @@ export default function TutorsPage({
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <DataTable
-          data={(data?.data ?? []) as (Tutor & Record<string, unknown>)[]}
-          columns={[...baseColumns, actionsColumn]}
-          loading={isLoading}
-          searchPlaceholder="Search by name, staff no, department…"
-          searchExtractor={(row) =>
-            `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.staff_number} ${row.department_name} ${row.designation}`
-          }
-          rowKey="id"
-          pageSize={10}
-          emptyMessage="No tutors found"
-        />
+        {/* A refused (403) or failed request must never read as "No tutors
+            found" — only a successful empty response gets that copy. */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="the tutor list"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <DataTable
+            data={(data?.data ?? []) as (Tutor & Record<string, unknown>)[]}
+            columns={[...baseColumns, actionsColumn]}
+            loading={isLoading}
+            searchPlaceholder="Search by name, staff no, department…"
+            searchExtractor={(row) =>
+              `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.staff_number} ${row.department_name} ${row.designation}`
+            }
+            rowKey="id"
+            pageSize={10}
+            emptyMessage="No tutors found"
+          />
+        )}
       </motion.div>
 
       {/* Detail modal — view only, no permission gate needed (button is always visible) */}

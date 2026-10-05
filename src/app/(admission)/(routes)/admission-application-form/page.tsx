@@ -1,14 +1,27 @@
 "use client"
 
+import Link from "next/link"
 import { FormProvider } from "react-hook-form"
 import { AnimatePresence, motion } from "framer-motion"
-import { AlertCircle, AlertTriangle } from "lucide-react"
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle,
+  CreditCard,
+  Lock,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { UploadProgress } from "@/components/upload-progress"
 import EmptyState from "@/components/custom/EmptyState"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { useAdmissionForm } from "./hooks/useAdmissionForm"
+import {
+  useApplicationFormAccess,
+  type ApplicationFormAccess,
+} from "./hooks/useApplicationFormAccess"
 import FormStepIndicator from "./components/FormStepIndicator"
 import FormNavigation from "./components/FormNavigation"
 import SuccessModal from "./components/SuccessModal"
@@ -51,6 +64,84 @@ function FormLoadingSkeleton() {
         <Skeleton className="h-10" />
         <Skeleton className="h-24" />
       </div>
+    </div>
+  )
+}
+
+const BackToProcessButton = () => (
+  <Button asChild variant="outline" size="sm" className="gap-2">
+    <Link href="/process-admission">
+      <ArrowLeft className="size-4" />
+      Back to Admission Process
+    </Link>
+  </Button>
+)
+
+/** Honest gate shown instead of the form when the applicant's admission
+ *  stage hasn't reached (or has already passed) the application form. */
+function FormAccessGate({
+  access,
+  onRetry,
+}: {
+  access: Exclude<ApplicationFormAccess, { status: "open" | "loading" }>
+  onRetry: () => void
+}) {
+  const content = (() => {
+    switch (access.status) {
+      case "fee-unpaid":
+        return {
+          icon: CreditCard,
+          title: "Pay the application fee first",
+          description:
+            "The application form opens once your application fee payment is confirmed. Complete the payment from the admission process page, then come back here.",
+          action: (
+            <Button asChild size="sm" className="gap-2">
+              <Link href="/process-admission">
+                <CreditCard className="size-4" />
+                Go to Application Fee Payment
+              </Link>
+            </Button>
+          ),
+        }
+      case "earlier-stage":
+        return {
+          icon: Lock,
+          title: `Complete "${access.stageLabel}" first`,
+          description:
+            "The application form isn't available yet. Finish the earlier steps of your admission process, then come back here.",
+          action: <BackToProcessButton />,
+        }
+      case "submitted":
+        return {
+          icon: CheckCircle,
+          title: "Your application has already been submitted",
+          description:
+            "A submitted application can't be edited. Track its status from the admission process page.",
+          action: <BackToProcessButton />,
+        }
+      case "unavailable":
+        return {
+          icon: AlertTriangle,
+          title: "Couldn't load your admission record",
+          description:
+            "We couldn't confirm your application fee payment, so the form can't be opened yet. Please try again, or contact the admissions office if this keeps happening.",
+          action: (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          ),
+        }
+    }
+  })()
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8">
+      <EmptyState
+        icon={content.icon}
+        title={content.title}
+        description={content.description}
+        action={content.action}
+      />
     </div>
   )
 }
@@ -155,6 +246,7 @@ export default function AdmissionApplicationFormPage() {
     describeErrorPath,
     direction,
   } = useAdmissionForm()
+  const { access, refresh: refreshAccess } = useApplicationFormAccess()
 
   const currentStepPosition = currentStep
     ? steps.findIndex((s) => s.id === currentStep.id)
@@ -179,7 +271,11 @@ export default function AdmissionApplicationFormPage() {
     })
   )
 
-  if (isLoading) {
+  // Stage gate — never while a submission is in flight or just finished:
+  // the successful submit itself flips the applicant to "submitted", and
+  // the success modal must still show.
+  const gateActive = !isSubmitting && !isSubmitted
+  if (isLoading || (gateActive && access.status === "loading")) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8">
         <Card>
@@ -187,6 +283,10 @@ export default function AdmissionApplicationFormPage() {
         </Card>
       </div>
     )
+  }
+
+  if (gateActive && access.status !== "open" && access.status !== "loading") {
+    return <FormAccessGate access={access} onRetry={refreshAccess} />
   }
 
   // Genuinely nothing configured for this major program yet — not a

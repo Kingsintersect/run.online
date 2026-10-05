@@ -4,9 +4,9 @@
 /*  fetchFees/fetchStudentAdmission/initiate*Payment/verify*Payment/    */
 /*  declineAdmission all call the real backend — see sandbox/admission/ */
 /*  student_admission_workflow.md for the spec these were built from.  */
-/*  devSimulate*()/devResetAll() remain frontend-only dev fixtures,     */
-/*  gated on NODE_ENV === "development" at the call sites — they are   */
-/*  never meant to have backend support.                               */
+/*  devPreview*() are dev-only local previews: they patch the REAL     */
+/*  applicant record (gated on NODE_ENV === "development" at the call  */
+/*  sites), never call the backend and never change server state.     */
 /* ------------------------------------------------------------------ */
 
 import apiClient, {
@@ -33,8 +33,6 @@ const AUTH = { access_token: true } as const
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */
 /* ------------------------------------------------------------------ */
-const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
-
 // POST /fees/payments/verify/:reference (fee_README.md "Payments" table) returns
 // a payment/invoice-shaped body, not the frontend's PaymentVerificationResponse —
 // adapt it here. Shared by all three verify*Payment() methods below since the
@@ -87,31 +85,33 @@ async function verifyGatewayPayment(
 }
 
 /* ------------------------------------------------------------------ */
-/*  MOCK DATA — dev-only fixtures, see devSimulate*()/devResetAll() below   */
+/*  Dev-only local preview                                              */
+/*                                                                      */
+/*  Found 2026-10-05 in a live browser test: these used to edit a       */
+/*  module-level `mockStudent` fixture ("Chukwuemeka Okonkwo"), and the */
+/*  result was written over the signed-in applicant in Zustand and the  */
+/*  React Query cache, so the page showed a fake student with no        */
+/*  backend call behind it. They now patch the applicant's own, real    */
+/*  record (`current`), so identity and every untouched field stay      */
+/*  real. Nothing is sent to the server: the preview lasts until the    */
+/*  next refetch of GET /admission/student (or a reload), and while     */
+/*  GET /admission/me/stages is live the stage list keeps following the */
+/*  server, not the preview. No backend "simulate" endpoint exists or   */
+/*  is meant to.                                                        */
 /* ------------------------------------------------------------------ */
 
-let mockStudent: AdmissionStudent = {
-  id: "std-001",
-  name: "Chukwuemeka Okonkwo",
-  email: "c.okonkwo@students.unilag.edu.ng",
-  department: "Computer Science",
-  faculty: "Science",
-  application_payment_status: "unpaid",
-  application_status: "not_started",
-  admission_status: "pending",
-  acceptance_payment_status: "unpaid",
-  tuition_payment_status: "unpaid",
-  tuition_amount_paid: 0,
-  has_applied: false,
-  is_admitted: false,
-  session: "2025/2026",
-  offer_expiry_date: null,
-  has_selected_program: false,
-  program_id: null,
-  program_name: null,
-  entry_mode: null,
-  study_mode: null,
-  start_term: null,
+export type CurrentStudentGetter = () => AdmissionStudent | undefined
+
+function requireRealStudent(
+  getCurrent: CurrentStudentGetter
+): AdmissionStudent {
+  const current = getCurrent()
+  if (!current) {
+    throw new Error(
+      "Dev preview: the applicant's real admission record hasn't loaded yet, so there is nothing to preview against."
+    )
+  }
+  return current
 }
 
 /* ------------------------------------------------------------------ */
@@ -313,17 +313,19 @@ export const admissionService = {
     return data
   },
 
-  /* ---------- Dev-only: Simulate program choice made ---------- */
-  async devSimulateProgramChosen(payload: {
-    programId: number
-    programName: string
-    entryMode: EntryMode
-    studyMode: StudyMode
-    startTerm: string
-  }): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  /* ---------- Dev-only local preview: program choice made ---------- */
+  devPreviewProgramChosen(
+    current: AdmissionStudent,
+    payload: {
+      programId: number
+      programName: string
+      entryMode: EntryMode
+      studyMode: StudyMode
+      startTerm: string
+    }
+  ): AdmissionStudent {
+    return {
+      ...current,
       has_selected_program: true,
       program_id: payload.programId,
       program_name: payload.programName,
@@ -331,7 +333,6 @@ export const admissionService = {
       study_mode: payload.studyMode,
       start_term: payload.startTerm,
     }
-    return { ...mockStudent }
   },
 
   /* ---------- Initiate Application Payment ---------- */
@@ -409,58 +410,45 @@ export const admissionService = {
     return verifyGatewayPayment(reference)
   },
 
-  /* ---------- Dev-only: Simulate status changes ---------- */
-  async devSimulateAppPaymentPaid(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
-      application_payment_status: "paid",
-    }
-    return { ...mockStudent }
+  /* ---------- Dev-only local preview: status changes ---------- */
+  devPreviewAppPaymentPaid(current: AdmissionStudent): AdmissionStudent {
+    return { ...current, application_payment_status: "paid" }
   },
 
-  async devSimulateApplied(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  devPreviewApplied(current: AdmissionStudent): AdmissionStudent {
+    return {
+      ...current,
       has_applied: true,
       application_status: "submitted",
     }
-    return { ...mockStudent }
   },
 
-  async devSimulateAdmissionOffered(): Promise<AdmissionStudent> {
-    await delay(500)
+  devPreviewAdmissionOffered(current: AdmissionStudent): AdmissionStudent {
     // Set expiry to 14 days from now
     const expiry = new Date()
     expiry.setDate(expiry.getDate() + 14)
-    mockStudent = {
-      ...mockStudent,
+    return {
+      ...current,
       admission_status: "offered",
       is_admitted: true,
       offer_expiry_date: expiry.toISOString(),
     }
-    return { ...mockStudent }
   },
 
-  async devSimulateAdmissionAccepted(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  devPreviewAdmissionAccepted(current: AdmissionStudent): AdmissionStudent {
+    return {
+      ...current,
       admission_status: "accepted",
       acceptance_payment_status: "paid",
     }
-    return { ...mockStudent }
   },
 
-  async devSimulateTuitionPaid(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  devPreviewTuitionPaid(current: AdmissionStudent): AdmissionStudent {
+    return {
+      ...current,
       tuition_payment_status: "paid",
       tuition_amount_paid: 195_000,
     }
-    return { ...mockStudent }
   },
 
   /* ---------- Accept Admission ---------- */
@@ -497,56 +485,24 @@ export const admissionService = {
     return admissionService.fetchStudentAdmission()
   },
 
-  /* ---------- Dev-only: Simulate Declined ---------- */
-  async devSimulateDeclined(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  /* ---------- Dev-only local preview: declined ---------- */
+  devPreviewDeclined(current: AdmissionStudent): AdmissionStudent {
+    return {
+      ...current,
       admission_status: "declined",
       is_admitted: false,
       offer_expiry_date: null,
     }
-    return { ...mockStudent }
   },
 
-  /* ---------- Dev-only: Simulate Expired ---------- */
-  async devSimulateExpired(): Promise<AdmissionStudent> {
-    await delay(500)
-    mockStudent = {
-      ...mockStudent,
+  /* ---------- Dev-only local preview: expired ---------- */
+  devPreviewExpired(current: AdmissionStudent): AdmissionStudent {
+    return {
+      ...current,
       admission_status: "expired",
       is_admitted: false,
       offer_expiry_date: new Date(Date.now() - 86400000).toISOString(), // yesterday
     }
-    return { ...mockStudent }
-  },
-
-  async devResetAll(): Promise<AdmissionStudent> {
-    await delay(300)
-    mockStudent = {
-      id: "std-001",
-      name: "Chukwuemeka Okonkwo",
-      email: "c.okonkwo@students.unilag.edu.ng",
-      department: "Computer Science",
-      faculty: "Science",
-      application_payment_status: "unpaid",
-      application_status: "not_started",
-      admission_status: "pending",
-      acceptance_payment_status: "unpaid",
-      tuition_payment_status: "unpaid",
-      tuition_amount_paid: 0,
-      has_applied: false,
-      is_admitted: false,
-      session: "2025/2026",
-      offer_expiry_date: null,
-      has_selected_program: false,
-      program_id: null,
-      program_name: null,
-      entry_mode: null,
-      study_mode: null,
-      start_term: null,
-    }
-    return { ...mockStudent }
   },
 }
 
@@ -693,7 +649,7 @@ export const admissionMutationOptions = {
       mutationFn: admissionService.initiateTuitionPayment,
     }),
 
-  simulateProgramChosen: () =>
+  simulateProgramChosen: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<
       AdmissionStudent,
       {
@@ -705,44 +661,59 @@ export const admissionMutationOptions = {
       }
     >({
       mutationKey: [...admissionKeys.all, "dev", "program-chosen"],
-      mutationFn: (payload) =>
-        admissionService.devSimulateProgramChosen(payload),
+      mutationFn: async (payload) =>
+        admissionService.devPreviewProgramChosen(
+          requireRealStudent(getCurrent),
+          payload
+        ),
     }),
 
-  simulateAppPaymentPaid: () =>
+  simulateAppPaymentPaid: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "app-paid"],
-      mutationFn: () => admissionService.devSimulateAppPaymentPaid(),
+      mutationFn: async () =>
+        admissionService.devPreviewAppPaymentPaid(
+          requireRealStudent(getCurrent)
+        ),
     }),
 
-  simulateApplied: () =>
+  simulateApplied: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "applied"],
-      mutationFn: () => admissionService.devSimulateApplied(),
+      mutationFn: async () =>
+        admissionService.devPreviewApplied(requireRealStudent(getCurrent)),
     }),
 
-  simulateOffered: () =>
+  simulateOffered: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "offered"],
-      mutationFn: () => admissionService.devSimulateAdmissionOffered(),
+      mutationFn: async () =>
+        admissionService.devPreviewAdmissionOffered(
+          requireRealStudent(getCurrent)
+        ),
     }),
 
-  simulateAccepted: () =>
+  simulateAccepted: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "accepted"],
-      mutationFn: () => admissionService.devSimulateAdmissionAccepted(),
+      mutationFn: async () =>
+        admissionService.devPreviewAdmissionAccepted(
+          requireRealStudent(getCurrent)
+        ),
     }),
 
-  simulateDeclined: () =>
+  simulateDeclined: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "declined"],
-      mutationFn: () => admissionService.devSimulateDeclined(),
+      mutationFn: async () =>
+        admissionService.devPreviewDeclined(requireRealStudent(getCurrent)),
     }),
 
-  simulateExpired: () =>
+  simulateExpired: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "expired"],
-      mutationFn: () => admissionService.devSimulateExpired(),
+      mutationFn: async () =>
+        admissionService.devPreviewExpired(requireRealStudent(getCurrent)),
     }),
 
   acceptAdmission: () =>
@@ -757,15 +728,18 @@ export const admissionMutationOptions = {
       mutationFn: () => admissionService.declineAdmission(),
     }),
 
-  simulateTuitionPaid: () =>
+  simulateTuitionPaid: (getCurrent: CurrentStudentGetter) =>
     createApiMutationOptions<AdmissionStudent, void>({
       mutationKey: [...admissionKeys.all, "dev", "tuition-paid"],
-      mutationFn: () => admissionService.devSimulateTuitionPaid(),
+      mutationFn: async () =>
+        admissionService.devPreviewTuitionPaid(requireRealStudent(getCurrent)),
     }),
 
+  // Dev-only "Discard preview": refetches the applicant's real record
+  // from the server, replacing any local preview in the cache.
   resetAll: () =>
     createApiMutationOptions<AdmissionStudent, void>({
-      mutationKey: [...admissionKeys.all, "dev", "reset"],
-      mutationFn: () => admissionService.devResetAll(),
+      mutationKey: [...admissionKeys.all, "dev", "discard-preview"],
+      mutationFn: () => admissionService.fetchStudentAdmission(),
     }),
 }

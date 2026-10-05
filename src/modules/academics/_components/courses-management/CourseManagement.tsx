@@ -30,9 +30,9 @@ const tabs = [
 export default function CourseManagementPage({
   canManage = false,
 }: CourseManagementPageProps) {
-  // If user doesn't have permission, show nothing
-  if (!canManage) return null
-
+  // Access is decided by CourseManagementShell's courses:view gate; every tab
+  // below hides its mutating controls when canManage is false, so a view-only
+  // session gets a read-only page instead of the blank one an early return gave.
   return (
     <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <motion.div

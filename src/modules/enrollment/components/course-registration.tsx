@@ -55,6 +55,7 @@ export function CourseRegistration() {
     programId,
     isLoading: resolvingStudentId,
     isError: studentIdErrored,
+    notFound: studentRecordMissing,
     refetch: retryStudentId,
   } = useMyStudentId()
 
@@ -154,17 +155,21 @@ export function CourseRegistration() {
       <EmptyState
         icon={GraduationCap}
         title={
-          studentIdErrored
-            ? "Couldn't resolve your student record"
-            : "Your student record couldn't be resolved"
+          studentRecordMissing
+            ? "Your student record isn't set up yet"
+            : studentIdErrored
+              ? "Couldn't resolve your student record"
+              : "Your student record couldn't be resolved"
         }
         description={
-          studentIdErrored
-            ? "This is usually a passing hiccup — try again."
-            : "This page needs the backend to support resolving your own student profile — check back once that's available."
+          studentRecordMissing
+            ? "Course registration opens once the registry has created your student record. Contact the registry if you've already been admitted."
+            : studentIdErrored
+              ? "This is usually a passing hiccup — try again."
+              : "This page needs the backend to support resolving your own student profile — check back once that's available."
         }
         action={
-          studentIdErrored ? (
+          studentIdErrored && !studentRecordMissing ? (
             <Button size="sm" onClick={() => retryStudentId()}>
               Try again
             </Button>

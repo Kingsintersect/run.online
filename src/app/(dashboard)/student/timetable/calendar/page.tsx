@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react"
 import { CalendarDays, Search, Filter } from "lucide-react"
 import { PermissionGate } from "@/lib/permissions/PermissionGate"
+import {
+  QueryErrorNotice,
+  QueryErrorState,
+} from "@/components/query-error-state"
 import { CalendarEventList } from "@/modules/timetable/components/CalendarEventList"
 import {
   useMyCalendarEvents,
@@ -25,17 +29,22 @@ export default function MyCalendarPage() {
   >("all")
   const [courseId, setCourseId] = useState<number | null>(null)
 
-  const { data: myCoursesData } = useMyCourses()
+  const myCoursesQuery = useMyCourses()
+  const myCoursesData = myCoursesQuery.data
   const myCourses = useMemo(() => myCoursesData ?? [], [myCoursesData])
 
   // Default view: my events across every course + personal/site events.
   // Pick a course and the source switches to that offering's full event list
   // (GET /calendar/events/course/:offeringId) — includes events that aren't
   // personally assigned to me.
-  const { data: myEventsData, isLoading: myEventsLoading } =
-    useMyCalendarEvents()
+  const myEventsQuery = useMyCalendarEvents()
+  const courseEventsQuery = useCalendarEventsByCourse(courseId)
+  const { data: myEventsData, isLoading: myEventsLoading } = myEventsQuery
   const { data: courseEventsData, isLoading: courseEventsLoading } =
-    useCalendarEventsByCourse(courseId)
+    courseEventsQuery
+  // A refused (403) or failed request isn't "No events" — only a successful
+  // empty response may show that.
+  const eventsQuery = courseId ? courseEventsQuery : myEventsQuery
 
   const events = useMemo(
     () => (courseId ? (courseEventsData ?? []) : (myEventsData?.data ?? [])),
@@ -183,13 +192,32 @@ export default function MyCalendarPage() {
             </div>
           </div>
 
+          {/* Without the course list the Course filter is empty — say why
+              instead of implying the student has no courses. */}
+          {myCoursesQuery.isError && (
+            <QueryErrorNotice
+              error={myCoursesQuery.error}
+              subject="your courses for the course filter"
+              onRetry={() => void myCoursesQuery.refetch()}
+              className="mt-4"
+            />
+          )}
+
           <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarDays size={14} />
             Showing {filteredEvents.length} events
           </div>
         </section>
 
-        <CalendarEventList events={filteredEvents} isLoading={isLoading} />
+        {eventsQuery.isError ? (
+          <QueryErrorState
+            error={eventsQuery.error}
+            subject="your events"
+            onRetry={() => void eventsQuery.refetch()}
+          />
+        ) : (
+          <CalendarEventList events={filteredEvents} isLoading={isLoading} />
+        )}
 
         {academicEvents.length > 0 && (
           <section className="rounded-3xl border border-border/70 bg-card/95 p-5 shadow-sm">

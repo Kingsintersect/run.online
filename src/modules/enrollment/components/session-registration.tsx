@@ -28,8 +28,47 @@ function FallbackNotice({ children }: { children: ReactNode }) {
 // live (CLAUDE.md §14 fallback), the existing offerings-based registration
 // keeps working underneath an honest notice — one component either way.
 export function SessionRegistration() {
-  const { studentId } = useMyStudentId()
+  const {
+    studentId,
+    isError: studentErrored,
+    notFound: studentMissing,
+    refetch: retryStudent,
+  } = useMyStudentId()
   const query = useRegistrationContext()
+
+  // Registration is meaningless without the student's own record, so a
+  // failed `GET /users/students/me` ends here — before any branch below
+  // mounts CourseRegistration (which subscribes to the same lookup).
+  if (studentErrored) {
+    return studentMissing ? (
+      <div
+        role="status"
+        className="rounded-2xl border border-dashed border-border p-8 text-center"
+      >
+        <p className="text-sm font-semibold text-foreground">
+          Your student record isn&apos;t set up yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Course registration opens once the registry has created your student
+          record. Contact the registry if you&apos;ve already been admitted.
+        </p>
+      </div>
+    ) : (
+      <div
+        role="alert"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-xs text-destructive"
+      >
+        <span className="flex items-center gap-2">
+          <AlertTriangle size={14} aria-hidden />
+          Couldn&apos;t load your student record, so registration can&apos;t be
+          shown.
+        </span>
+        <Button size="sm" variant="outline" onClick={() => retryStudent()}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
 
   if (query.isLoading) {
     return (

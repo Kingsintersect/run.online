@@ -115,8 +115,12 @@ export default function UsersSummaryPage() {
   // NOT this — showing them these two controls unconditionally meant
   // clicking either always 403'd. Fixed 2026-09-16, direct product
   // instruction ("Deans should not have all the admin permissions").
+  // SUPER_ADMIN passes the backend's admin gate too (verified 2026-10-04:
+  // super_admin assigned roles via POST /auth/users/:id/roles), and must
+  // keep total control per CLAUDE.md, so it gets both controls as well.
   const { user } = useAppStore()
-  const isAdmin = user?.role === UserRole.ADMIN
+  const isAdmin =
+    user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN
 
   return (
     <div className="mx-auto space-y-8 px-4 py-8 sm:px-6 lg:px-8">

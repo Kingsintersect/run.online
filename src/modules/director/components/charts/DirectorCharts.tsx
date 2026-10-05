@@ -116,7 +116,7 @@ export function EnrollmentAreaChart({ data, isLoading }: EnrollmentChartProps) {
     <div className="chart-wrap">
       <div className="chart-header">
         <h3 className="chart-title">Enrollment Trend</h3>
-        <span className="chart-subtitle">12-month rolling · 2024/2025</span>
+        <span className="chart-subtitle">12-month rolling</span>
       </div>
       {isLoading ? (
         <div className="chart-skeleton" />

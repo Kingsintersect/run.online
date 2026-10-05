@@ -43,7 +43,7 @@ export function MajorProgramsPanel({
 }: {
   canManage?: boolean
 }) {
-  const { data, isLoading } = useMajorPrograms()
+  const { data, isLoading, isError, isFetching, refetch } = useMajorPrograms()
   const updateMajorProgram = useUpdateMajorProgram()
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [editing, setEditing] = useState<MajorProgram | null | undefined>(
@@ -133,6 +133,35 @@ export function MajorProgramsPanel({
       <div className="flex items-center justify-center py-20">
         <Loader2 className="size-6 animate-spin text-primary" />
       </div>
+    )
+  }
+
+  // Without this branch a failed list fell through to the full panel, whose
+  // dialogs subscribe to the same query; React Query refetches a failed query
+  // whenever a new observer mounts, so the panel flipped spinner → content →
+  // spinner about once a second, re-requesting the endpoint each time.
+  if (isError && !data) {
+    return (
+      <EmptyState
+        icon={Building}
+        title="Couldn't load major programs"
+        description="The server didn't return the major programs list. Retry, or contact support if this keeps happening."
+        action={
+          <Button
+            variant="outline"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+          >
+            {isFetching && (
+              <Loader2
+                className="size-4 animate-spin"
+                data-icon="inline-start"
+              />
+            )}
+            Retry
+          </Button>
+        }
+      />
     )
   }
 

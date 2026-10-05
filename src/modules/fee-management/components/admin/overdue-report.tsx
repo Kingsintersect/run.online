@@ -6,6 +6,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { QueryErrorState } from "@/components/query-error-state"
 import { useAllPrograms } from "@/hooks/useCourseStructure"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
@@ -22,7 +23,7 @@ export function OverdueReport() {
   // program — the invoice response has no programId/majorProgramId of its
   // own to filter on directly.
   const [majorProgramId, setMajorProgramId] = useState<number | null>(null)
-  const { data, isLoading, refetch } = useOverdueInvoices({
+  const { data, isLoading, error, refetch } = useOverdueInvoices({
     majorProgramId: majorProgramId ?? undefined,
   })
   const { data: programsRes } = useAllPrograms()
@@ -113,7 +114,15 @@ export function OverdueReport() {
       )}
 
       {/* ── Overdue table ───────────────────────────────────────────── */}
-      {invoices.length === 0 ? (
+      {/* "All caught up" is only true of a successful empty response — a
+          refused (403) or failed request must never read as that. */}
+      {error ? (
+        <QueryErrorState
+          error={error}
+          subject="the overdue report"
+          onRetry={() => refetch()}
+        />
+      ) : invoices.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <AlertTriangle size={36} className="mb-2 opacity-30" />
           <p className="text-sm">No overdue invoices. All caught up.</p>

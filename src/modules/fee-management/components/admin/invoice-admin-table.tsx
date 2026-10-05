@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { MajorProgramFilterTabs } from "@/components/custom/MajorProgramFilterTabs"
+import { QueryErrorState } from "@/components/query-error-state"
 import { useLevels } from "@/hooks/useCourseStructure"
 import { InvoiceStatusBadge } from "../shared/invoice-status-badge"
 import { FeeCategoryBadge } from "../shared/fee-category-badge"
@@ -57,7 +58,7 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
   const { data: levelsData } = useLevels()
   const levels = levelsData?.data ?? []
 
-  const { data, isLoading, refetch } = useInvoices({
+  const { data, isLoading, error, refetch } = useInvoices({
     status: invoiceTableFilters.status,
     feeTypeId: invoiceTableFilters.feeTypeId,
     sessionId: invoiceTableFilters.sessionId,
@@ -264,14 +265,23 @@ export function InvoiceAdminTable({ onViewDetail }: InvoiceAdminTableProps) {
       </div>
 
       {/* ── Summary counts ─────────────────────────────────────────── */}
-      <p className="text-xs text-muted-foreground">
-        {sorted.length.toLocaleString("en-NG")} invoice
-        {sorted.length !== 1 ? "s" : ""}
-        {hasFilters ? " (filtered)" : ""}
-      </p>
+      {!error && (
+        <p className="text-xs text-muted-foreground">
+          {sorted.length.toLocaleString("en-NG")} invoice
+          {sorted.length !== 1 ? "s" : ""}
+          {hasFilters ? " (filtered)" : ""}
+        </p>
+      )}
 
       {/* ── Table ──────────────────────────────────────────────────── */}
-      {sorted.length === 0 ? (
+      {/* A refused/failed request is not "No invoices found." */}
+      {error ? (
+        <QueryErrorState
+          error={error}
+          subject="invoices"
+          onRetry={() => refetch()}
+        />
+      ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Search size={36} className="mb-2 opacity-30" />
           <p className="text-sm">

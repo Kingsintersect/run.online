@@ -137,7 +137,8 @@ function useRefreshSessionOnSuccess(success: boolean | undefined) {
 // Each wrapper calls the correct React Query hook (hooks can't be conditional)
 
 function VerifyApplication({ reference }: { reference: string }) {
-  const { data, isLoading, error } = useVerifyApplicationPayment(reference)
+  const { data, isLoading, error, refetch, isFetching } =
+    useVerifyApplicationPayment(reference)
   return (
     <PaymentVerificationView
       title="Verifying Application Payment"
@@ -145,12 +146,16 @@ function VerifyApplication({ reference }: { reference: string }) {
       error={error}
       data={data}
       redirectTo="/process-admission"
+      feeLabel="Application Fee"
+      onCheckAgain={() => void refetch()}
+      isCheckingAgain={isFetching}
     />
   )
 }
 
 function VerifyAcceptance({ reference }: { reference: string }) {
-  const { data, isLoading, error } = useVerifyAcceptanceFeePayment(reference)
+  const { data, isLoading, error, refetch, isFetching } =
+    useVerifyAcceptanceFeePayment(reference)
   return (
     <PaymentVerificationView
       title="Verifying Acceptance Fee Payment"
@@ -158,12 +163,16 @@ function VerifyAcceptance({ reference }: { reference: string }) {
       error={error}
       data={data}
       redirectTo="/process-admission"
+      feeLabel="Acceptance Fee"
+      onCheckAgain={() => void refetch()}
+      isCheckingAgain={isFetching}
     />
   )
 }
 
 function VerifyTuition({ reference }: { reference: string }) {
-  const { data, isLoading, error } = useVerifyTuitionPayment(reference)
+  const { data, isLoading, error, refetch, isFetching } =
+    useVerifyTuitionPayment(reference)
   useRefreshSessionOnSuccess(data?.success)
 
   return (
@@ -173,6 +182,9 @@ function VerifyTuition({ reference }: { reference: string }) {
       error={error}
       data={data}
       redirectTo="/process-admission"
+      feeLabel="Tuition"
+      onCheckAgain={() => void refetch()}
+      isCheckingAgain={isFetching}
     />
   )
 }
@@ -184,7 +196,8 @@ function VerifyGeneric({
   reference: string
   label: string
 }) {
-  const { data, isLoading, error } = useVerifyGenericPayment(reference)
+  const { data, isLoading, error, refetch, isFetching } =
+    useVerifyGenericPayment(reference)
   useRefreshSessionOnSuccess(data?.success)
   return (
     <PaymentVerificationView
@@ -193,6 +206,9 @@ function VerifyGeneric({
       error={error}
       data={data}
       redirectTo="/process-admission"
+      feeLabel={label}
+      onCheckAgain={() => void refetch()}
+      isCheckingAgain={isFetching}
     />
   )
 }

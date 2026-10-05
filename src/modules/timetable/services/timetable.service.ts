@@ -435,7 +435,9 @@ export const calendarService = {
     const [res, offerings] = await Promise.all([
       apiClient.get<{
         data: RawCalendarEvent[]
-        meta: { total: number; page: number; limit: number }
+        // Live backend omits `meta` on this route (seen 2026-10-05), which
+        // crashed the student Calendar page reading `meta.total`.
+        meta?: { total: number; page: number; limit: number }
       }>("/calendar/events/my", {
         ...AUTH,
         params: { days: params.days, page: params.page, limit: params.limit },
@@ -444,13 +446,15 @@ export const calendarService = {
     ])
     const offeringsById = new Map(offerings.data.map((o) => [o.id, o]))
     const data = res.data.map((e) => mapCalendarEvent(e, offeringsById))
+    const total = res.meta?.total ?? data.length
+    const limit = res.meta?.limit ?? params.limit ?? Math.max(1, data.length)
     return {
       data,
       meta: {
-        total: res.meta.total,
-        page: res.meta.page,
-        limit: res.meta.limit,
-        totalPages: Math.max(1, Math.ceil(res.meta.total / res.meta.limit)),
+        total,
+        page: res.meta?.page ?? params.page ?? 1,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     }
   },

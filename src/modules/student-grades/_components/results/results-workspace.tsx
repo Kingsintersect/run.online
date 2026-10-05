@@ -14,7 +14,10 @@ import { PermissionGate } from "@/lib/permissions/PermissionGate"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { TutorCourseMoodleGrades } from "@/modules/moodle-sync/components/grades/tutor-course-grades"
 import { useResultSheets } from "../../hooks/use-results"
-import { useResultsScope } from "../../hooks/use-results-scope"
+import {
+  useResultsScope,
+  useTeachingScopeAvailability,
+} from "../../hooks/use-results-scope"
 import { useTermStructure } from "@/hooks/use-term-structure"
 import { RESULTS_PERMISSIONS } from "../../lib/results-permissions"
 import { useResultsUiStore } from "../../store/results-ui.store"
@@ -216,7 +219,17 @@ function MajorProgramWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
 function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
   const { workspace: w, setWorkspace } = useResultsUiStore()
   const scope = useMyTeachingScope()
+  const scopeHealth = useTeachingScopeAvailability()
   const activeRole = useAppStore((s) => s.activeRole)
+  // An empty scope is only "an administrator hasn't recorded you yet" when
+  // the scope service actually answered; a missing (404) or failing scope
+  // route must not be blamed on admin setup.
+  const scopeUnavailable = scope.isEmpty && scopeHealth.unavailable
+  const pullBlockedReason = scopeUnavailable
+    ? "Nothing can be pulled: your teaching scope couldn't be loaded, so there's nothing in scope to pull for."
+    : scope.isEmpty
+      ? "Nothing can be pulled: you have no programs in your teaching scope yet."
+      : null
   const heads =
     scope.majorPrograms
       .find((mp) => mp.id === w.majorProgramId)
@@ -290,12 +303,34 @@ function FlatWorkspace({ sheetBasePath }: { sheetBasePath: string }) {
               sessionBased ? w.sessionId : w.semesterId
             )}
             filterFieldIds={{ session: "ws-session", semester: "ws-semester" }}
+            blockedReason={pullBlockedReason}
             onStarted={() => setSelectedIds([])}
           />
         </Suspense>
       </PermissionGate>
 
-      {scope.isEmpty ? (
+      {scopeUnavailable ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="Your teaching scope isn't available right now"
+          description={
+            scopeHealth.failed
+              ? "The service that lists the programs you teach in or head couldn't be reached, so your results can't be scoped. This isn't something an administrator needs to set up — try again shortly."
+              : "The service that lists the programs you teach in or head isn't available on the server yet, and nothing could be worked out without it. This isn't something an administrator needs to set up — it has been flagged for the backend team."
+          }
+          action={
+            scopeHealth.failed ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => scopeHealth.retry()}
+              >
+                Retry
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : scope.isEmpty ? (
         <EmptyState
           icon={ClipboardList}
           title="No programs in your scope yet"

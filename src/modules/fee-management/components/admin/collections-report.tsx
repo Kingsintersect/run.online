@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSessionOptions } from "@/hooks/use-session-options"
+import { QueryErrorState } from "@/components/query-error-state"
 import { CurrencyDisplay } from "../shared/currency-display"
 import { useCollectionsSummary } from "../../hooks/use-fee-reports"
 
@@ -30,7 +31,7 @@ export function CollectionsReport() {
 
   // Sessions labelled with their major program — identical names otherwise.
   const { options: sessionOptions } = useSessionOptions()
-  const { data, isLoading, refetch } = useCollectionsSummary(
+  const { data, isLoading, error, refetch } = useCollectionsSummary(
     sessionId ? { sessionId } : undefined
   )
 
@@ -97,7 +98,13 @@ export function CollectionsReport() {
         </Button>
       </div>
 
-      {!summary ? (
+      {error ? (
+        <QueryErrorState
+          error={error}
+          subject="the collections report"
+          onRetry={() => refetch()}
+        />
+      ) : !summary ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <TrendingUp size={36} className="mb-2 opacity-30" />
           <p className="text-sm">

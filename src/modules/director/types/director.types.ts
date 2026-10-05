@@ -169,6 +169,10 @@ export interface StatisticalReport {
   tutorsByDesignation: { designation: string; count: number }[]
   // Added 2026-09-12 — see DashboardOverview.hasLoadErrors's comment.
   hasLoadErrors: boolean
+  // Which source failed, so the page can show "—" for exactly the figures
+  // that couldn't be loaded instead of a fabricated 0 (the totals above and
+  // the gender/level/designation breakdowns fall back to 0/[] on failure).
+  loadFailures: { students: boolean; tutors: boolean; stats: boolean }
 }
 
 // ─── Grade Report Types ──────────────────────────────────────────────────────

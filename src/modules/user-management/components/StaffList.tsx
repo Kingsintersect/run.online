@@ -26,6 +26,9 @@ import {
   useSetUserActive,
 } from "../hooks/useUsersData"
 import { usePermissions } from "@/lib/permissions/usePermissions"
+import { QueryErrorState } from "@/components/query-error-state"
+import { useAppStore } from "@/store"
+import { UserRole } from "@/config/nav.config"
 import {
   useMajorPrograms,
   useFaculties,
@@ -43,8 +46,11 @@ import type {
 } from "@/types/users"
 
 // ── Permission constants ──────────────────────────────────────────────────────
+// Was departments:manage (SUPER_ADMIN only), which ADMIN's live session
+// lacks even though it holds the real staff:view/staff:manage pair — so the
+// page shell's gate blanked the whole screen for ADMIN (fixed 2026-10-05).
 const PERM = {
-  manageDepts: { resource: "departments", action: "manage" },
+  manageStaff: { resource: "staff", action: "manage" },
 } as const
 
 const columns: Column<Staff & Record<string, unknown>>[] = [
@@ -96,12 +102,20 @@ const columns: Column<Staff & Record<string, unknown>>[] = [
 export default function StaffPage() {
   const { can } = usePermissions()
 
-  const canCreate = can(PERM.manageDepts) // Staff creation is SUPER_ADMIN only
+  // Creating/editing/deactivating staff is account provisioning, done by
+  // ICT/admin — not a Dean (lecturers and staff are appointed through the
+  // Registry/Establishments office). DEAN's live session holds the same
+  // "staff:manage" grant as ADMIN, so a permission check alone can't tell
+  // them apart — role check as well, same precedent as Summary.tsx's isAdmin
+  // and TutorList's canCreate. SUPER_ADMIN keeps total control per CLAUDE.md.
+  const role = useAppStore((s) => s.user?.role)
+  const isAdmin = role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN
+  const canCreate = can(PERM.manageStaff) && isAdmin
 
   const [majorProgramFilter, setMajorProgramFilter] = useState<number | null>(
     null
   )
-  const { data, isLoading } = useStaffList({
+  const { data, isLoading, isError, error, refetch } = useStaffList({
     major_program_id: majorProgramFilter ?? undefined,
   })
   const createStaff = useCreateStaff()
@@ -135,7 +149,7 @@ export default function StaffPage() {
               </p>
             </div>
           </div>
-          {/* Add Staff — departments:manage (SUPER_ADMIN) only */}
+          {/* Add Staff — staff:manage + ADMIN/SUPER_ADMIN only */}
           {canCreate && (
             <Button onClick={() => setShowCreate(true)} className="gap-2">
               <Plus size={16} /> Add Staff
@@ -154,78 +168,88 @@ export default function StaffPage() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.15 }}
       >
-        <DataTable
-          data={(data?.data ?? []) as (Staff & Record<string, unknown>)[]}
-          columns={[
-            ...columns,
-            {
-              key: "actions",
-              header: "",
-              align: "center",
-              width: "130px",
-              render: (row) => (
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelected(row as unknown as Staff)}
-                    title="View"
-                  >
-                    <Eye size={14} />
-                  </Button>
-                  {/* Edit + Deactivate — departments:manage (SUPER_ADMIN) only */}
-                  {canCreate && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditing(row as unknown as Staff)}
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      {/* A deleted account (login revoked) can't be
-                          reactivated with a flag — hide the toggle. */}
-                      {accountStatusOf(row.user) !== "deleted" && (
+        {/* A refused (403) or failed request must never read as "No staff
+            members found" — only a successful empty response gets that copy. */}
+        {isError ? (
+          <QueryErrorState
+            error={error}
+            subject="the staff list"
+            onRetry={() => void refetch()}
+          />
+        ) : (
+          <DataTable
+            data={(data?.data ?? []) as (Staff & Record<string, unknown>)[]}
+            columns={[
+              ...columns,
+              {
+                key: "actions",
+                header: "",
+                align: "center",
+                width: "130px",
+                render: (row) => (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelected(row as unknown as Staff)}
+                      title="View"
+                    >
+                      <Eye size={14} />
+                    </Button>
+                    {/* Edit + Deactivate — staff:manage + ADMIN/SUPER_ADMIN only */}
+                    {canCreate && (
+                      <>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className={
-                            row.user.is_active
-                              ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
-                          }
-                          onClick={() =>
-                            setStatusTarget(row as unknown as Staff)
-                          }
-                          title={
-                            row.user.is_active
-                              ? "Deactivate account"
-                              : "Reactivate account"
-                          }
+                          onClick={() => setEditing(row as unknown as Staff)}
+                          title="Edit"
                         >
-                          {row.user.is_active ? (
-                            <UserX size={14} />
-                          ) : (
-                            <UserCheck size={14} />
-                          )}
+                          <Pencil size={14} />
                         </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ),
-            },
-          ]}
-          loading={isLoading}
-          searchPlaceholder="Search by name, staff no, job title…"
-          searchExtractor={(row) =>
-            `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.staff_number} ${row.designation} ${row.job_title}`
-          }
-          rowKey="id"
-          pageSize={10}
-          emptyMessage="No staff members found"
-        />
+                        {/* A deleted account (login revoked) can't be
+                          reactivated with a flag — hide the toggle. */}
+                        {accountStatusOf(row.user) !== "deleted" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={
+                              row.user.is_active
+                                ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                : "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                            }
+                            onClick={() =>
+                              setStatusTarget(row as unknown as Staff)
+                            }
+                            title={
+                              row.user.is_active
+                                ? "Deactivate account"
+                                : "Reactivate account"
+                            }
+                          >
+                            {row.user.is_active ? (
+                              <UserX size={14} />
+                            ) : (
+                              <UserCheck size={14} />
+                            )}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+            loading={isLoading}
+            searchPlaceholder="Search by name, staff no, job title…"
+            searchExtractor={(row) =>
+              `${row.user.first_name ?? ""} ${row.user.last_name ?? ""} ${row.staff_number} ${row.designation} ${row.job_title}`
+            }
+            rowKey="id"
+            pageSize={10}
+            emptyMessage="No staff members found"
+          />
+        )}
       </motion.div>
 
       {/* Detail modal */}

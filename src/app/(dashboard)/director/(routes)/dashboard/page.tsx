@@ -8,6 +8,7 @@ import {
   FacultyPieChart,
 } from "@/modules/director/components/charts/DirectorCharts"
 import { MetricsGrid } from "@/modules/director"
+import { useDirectorActiveSessionName } from "@/modules/director/hooks/use-director-active-session"
 
 export default function DirectorDashboardPage() {
   const {
@@ -18,6 +19,14 @@ export default function DirectorDashboardPage() {
     error,
     refetch,
   } = useDirectorOverview()
+  const activeSessionName = useDirectorActiveSessionName()
+
+  // The summary row repeats figures the metric cards already show; read them
+  // from the cards so a refused (403) source shows "—" in both places
+  // instead of "—" on the card and a fabricated "0%" here.
+  const metricValue = (label: string) =>
+    overview?.metrics.find((m) => m.label === label)?.value
+  const revenueUnavailable = metricValue("Total Revenue") === "—"
 
   return (
     <>
@@ -25,7 +34,11 @@ export default function DirectorDashboardPage() {
       <div className="page-header">
         <div className="page-header-text">
           <h2>Overview</h2>
-          <p>University-wide summary for the 2024/2025 academic session</p>
+          <p>
+            {activeSessionName
+              ? `University-wide summary for the ${activeSessionName} academic session`
+              : "University-wide summary"}
+          </p>
         </div>
         <button
           className="btn-refresh"
@@ -62,13 +75,15 @@ export default function DirectorDashboardPage() {
           />
           <SummaryBadge
             label="Graduation Rate"
-            value={`${overview.graduationRate}%`}
+            value={metricValue("Graduation Rate") ?? "—"}
             color="success"
           />
           <SummaryBadge
             label="Collection Rate"
             value={
-              overview.totalRevenue && overview.pendingPayments
+              !revenueUnavailable &&
+              overview.totalRevenue &&
+              overview.pendingPayments
                 ? `${((overview.totalRevenue / (overview.totalRevenue + overview.pendingPayments)) * 100).toFixed(1)}%`
                 : "—"
             }

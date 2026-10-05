@@ -257,8 +257,17 @@ export default function ProcessAdmissionPage() {
             transition={{ delay: 0.6 }}
             className="mt-10 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4 dark:bg-amber-500/10"
           >
-            <p className="mb-3 text-xs font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400">
-              🛠 Development Controls — Simulate Workflow Steps
+            <p className="mb-1 text-xs font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400">
+              🛠 Development Controls — Local Preview Only
+            </p>
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              These buttons patch your real applicant record in this tab only —
+              nothing is sent to the server and no real payment, submission or
+              decision is made. The preview is lost on the next refetch or
+              reload
+              {source === "backend" &&
+                "; while stages come from the server, the step indicator keeps following the server, not the preview"}
+              . Use &quot;Discard Preview&quot; to reload the real record.
             </p>
             <div className="flex flex-wrap gap-2">
               {[
@@ -336,7 +345,7 @@ export default function ProcessAdmissionPage() {
                 ) : (
                   <RotateCcw className="size-3" />
                 )}
-                Reset Everything
+                Discard Preview
               </Button>
             </div>
             <p className="mt-2 text-[10px] text-muted-foreground">
