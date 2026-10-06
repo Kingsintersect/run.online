@@ -83,3 +83,27 @@ export type OutstandingRow = z.infer<typeof Reports.OutstandingRowSchema>
 export type OutstandingReportResponse = z.infer<
   typeof Reports.OutstandingReportResponseSchema
 >
+
+// ── Payment ledger (GET /fees/payments) ─────────────────────────────────────
+import type * as PaymentLedger from "../schemas/payment-ledger.schema"
+
+/** What a caller passes (page/limit optional — the schema defaults them). */
+export type PaymentLedgerFilters = z.input<
+  typeof PaymentLedger.PaymentLedgerFiltersSchema
+>
+/** The validated params actually sent. */
+export type PaymentLedgerParams = z.output<
+  typeof PaymentLedger.PaymentLedgerFiltersSchema
+>
+export type PaymentLedgerRow = z.infer<
+  typeof PaymentLedger.PaymentLedgerRowSchema
+>
+export type PaymentLedgerMeta = z.infer<
+  typeof PaymentLedger.PaymentLedgerMetaSchema
+>
+export type PaymentLedgerResponse = z.infer<
+  typeof PaymentLedger.PaymentLedgerResponseSchema
+>
+export type OutOfScopeErrorBody = z.infer<
+  typeof PaymentLedger.OutOfScopeErrorBodySchema
+>

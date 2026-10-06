@@ -39,6 +39,11 @@ export const feeKeys = {
     [...feeKeys.all, "payments", paymentId] as const,
   paymentGatewayLogs: (paymentId: number) =>
     [...feeKeys.all, "payments", paymentId, "gateway-logs"] as const,
+  // Cross-student ledger (GET /fees/payments). Invalidate with
+  // `paymentLedgerAll()` — same reasoning as `feeTypesAll` above.
+  paymentLedgerAll: () => [...feeKeys.all, "payments", "ledger"] as const,
+  paymentLedger: (filters: Record<string, unknown>) =>
+    [...feeKeys.all, "payments", "ledger", filters] as const,
 
   // Reports — added in slice 4
   collectionsSummary: (filters?: Record<string, unknown>) =>

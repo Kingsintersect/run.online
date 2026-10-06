@@ -17,9 +17,15 @@ import type {
   PaymentHistoryResponse,
   PaymentDetailResponse,
   PaymentGatewayLogsResponse,
+  PaymentLedgerFilters,
+  PaymentLedgerResponse,
   WaiveInvoiceDto,
 } from "../types"
 import { WaiveInvoiceDtoSchema } from "../schemas/invoice.schema"
+import {
+  PaymentLedgerFiltersSchema,
+  PaymentLedgerResponseSchema,
+} from "../schemas/payment-ledger.schema"
 
 // Real backend contract per bruno/fee/*.bru (the sole source of truth for
 // this module — see CLAUDE.md §13). Every route lives under /fees; response
@@ -247,6 +253,22 @@ export const feeManagementService = {
       `${BASE}/payments/${paymentId}/gateway-logs`,
       AUTH
     ),
+
+  // GET /fees/payments — cross-student payment ledger (bruno/fee/Payments -
+  // List.bru). Params are validated before dispatch and empty ones dropped;
+  // the response is Zod-parsed so a contract drift fails loudly, not as
+  // silently wrong figures. 403 (incl. OUT_OF_SCOPE) propagates untouched as
+  // ApiClientError for the screen to explain.
+  listPayments: async (
+    filters: PaymentLedgerFilters
+  ): Promise<PaymentLedgerResponse> => {
+    const params = PaymentLedgerFiltersSchema.parse(filters)
+    const res = await apiClient.get<PaymentLedgerResponse>(`${BASE}/payments`, {
+      ...AUTH,
+      params,
+    })
+    return PaymentLedgerResponseSchema.parse(res)
+  },
 
   // ── Reports ─────────────────────────────────────────────────────────────────
 

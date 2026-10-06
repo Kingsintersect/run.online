@@ -41,6 +41,7 @@ import {
   MapPin,
   Activity,
   Landmark,
+  Receipt,
   Waypoints,
   DatabaseZap,
 } from "lucide-react"
@@ -395,6 +396,12 @@ const directorNav: NavGroup[] = [
         matchExactOnly: true,
         icon: BarChart3,
       },
+      {
+        title: "Payments",
+        href: "/director/finance/payments",
+        matchExactOnly: true,
+        icon: Receipt,
+      },
     ],
   },
 ]
@@ -535,6 +542,19 @@ const adminNav: NavGroup[] = [
         href: "/manager/finance/settlement",
         matchExactOnly: true,
         icon: Landmark,
+      },
+      {
+        // Cross-student payment ledger (GET /fees/payments). The page admits
+        // ADMIN by role, and DEAN/STAFF only with financial-transactions.view.
+        // The link is hidden for a DEAN (deanNav reuses this tree) without it.
+        title: "Payments",
+        href: "/manager/finance/payments",
+        matchExactOnly: true,
+        icon: Receipt,
+        permission: [
+          { resource: "financial-transactions", action: "view" },
+          { resource: "financial-transactions", action: "manage" },
+        ],
       },
     ],
   },
@@ -943,6 +963,13 @@ const superAdminNav: NavGroup[] = [
         matchExactOnly: true,
         icon: Landmark,
       },
+      {
+        // Cross-student payment ledger (GET /fees/payments).
+        title: "Payments",
+        href: "/admin/finance/payments",
+        matchExactOnly: true,
+        icon: Receipt,
+      },
     ],
   },
   {
@@ -1203,6 +1230,18 @@ const bursaryNav: NavGroup[] = [
         href: "/admin/finance/settlement",
         matchExactOnly: true,
         icon: Landmark,
+      },
+      {
+        // Cross-student payment ledger (GET /fees/payments). Listing it here
+        // is also what lets BURSARY through the admin layout allowlist.
+        title: "Payments",
+        href: "/admin/finance/payments",
+        matchExactOnly: true,
+        icon: Receipt,
+        permission: [
+          { resource: "financial-transactions", action: "view" },
+          { resource: "financial-transactions", action: "manage" },
+        ],
       },
     ],
   },
