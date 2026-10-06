@@ -52,6 +52,7 @@ import {
   type CreateAdmissionOfferFormValues,
 } from "@/schemas/school.schema"
 import type { ApplicationReviewStatus } from "@/types/school"
+import { PromoteToStudentAction } from "@/modules/applicant-promotion/components/promote-to-student-action"
 
 const statusVariantMap: Record<
   ApplicationReviewStatus,
@@ -350,6 +351,20 @@ export default function ApplicationDetailPage() {
   const canReview =
     application?.status === "pending" || application?.status === "under_review"
 
+  // Manual "Promote to student" override — only for an applicant whose offer
+  // was ACCEPTED and who isn't a student yet. The embedded `admission` has no
+  // matric number; the standalone offer shape (fallback list / just-created)
+  // does, and a non-null one means the promotion already happened. With no
+  // matric to go on, the server decides (it rejects an existing student).
+  const offerMatricNumber =
+    existingOffer && "matricNumber" in existingOffer
+      ? existingOffer.matricNumber
+      : null
+  const canPromoteToStudent =
+    application?.status === "approved" &&
+    existingOffer?.status === "ACCEPTED" &&
+    !offerMatricNumber
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -477,6 +492,12 @@ export default function ApplicationDetailPage() {
                   <Award size={16} />
                   Create Admission Offer
                 </button>
+              )}
+              {canPromoteToStudent && (
+                <PromoteToStudentAction
+                  applicantUserId={Number(application.applicant_id)}
+                  applicantName={`${personal_info.first_name} ${personal_info.last_name}`}
+                />
               )}
             </div>
           )}
