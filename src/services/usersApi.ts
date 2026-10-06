@@ -1,3 +1,4 @@
+import { z } from "zod"
 import apiClient, {
   createApiMutationOptions,
   createApiQueryOptions,
@@ -52,6 +53,10 @@ import {
 //      response for this endpoint does NOT show one, so it's defaulted to `[]` here.
 // Both are worth a live check against the real API; see MISSING_BACKEND_APIS.md.
 const AUTH = { access_token: true } as const
+
+// Path ids are validated before dispatch, so a malformed id never reaches a
+// destructive endpoint.
+const UserIdSchema = z.number().int().positive()
 
 // ── wire shapes (camelCase, as documented) ──
 
@@ -394,10 +399,11 @@ export const usersApi = {
     return { data: mapUser(res.data) }
   },
 
-  // Deactivate / reactivate a user account (portal-access flag). `DELETE
-  // /users/:id` is a soft-delete of the same kind; a `PATCH isActive` is the
-  // reversible equivalent the admin tables use. Direct set, not a toggle — the
-  // caller passes the target state from the row it already has.
+  // Deactivate / reactivate a user account (portal-access flag). Reversible:
+  // email, username and password are left untouched. Not the same as
+  // deleteUserAccount() below, which revokes login permanently. Direct set,
+  // not a toggle — the caller passes the target state from the row it
+  // already has.
   async setUserActive(
     id: number,
     isActive: boolean
@@ -408,6 +414,18 @@ export const usersApi = {
       AUTH
     )
     return { data: mapUser(res.data) }
+  },
+
+  // DELETE /users/:id (bruno/user/Users - Delete.bru, redefined 2026-09-28).
+  // Admin only; 204 No Content. Revokes LOGIN and anonymises the account —
+  // not a row removal and not a cascade: refresh tokens revoked, password
+  // hash cleared, email/username replaced with `deleted_user_{id}_…`
+  // placeholders (freeing the original email), isActive false, deletedAt
+  // set. Grades, payments, enrollments, roles and the name are kept; the
+  // original email/username stay in the audit log. A second call is 409.
+  async deleteUserAccount(id: number): Promise<void> {
+    const userId = UserIdSchema.parse(id)
+    await apiClient.delete<void>(`/users/${userId}`, AUTH)
   },
 
   /* ── Students ── */
@@ -1150,6 +1168,11 @@ export const usersMutationOptions = {
     >({
       mutationKey: [...usersKeys.all, "set-active"],
       mutationFn: ({ id, isActive }) => usersApi.setUserActive(id, isActive),
+    }),
+  deleteAccount: () =>
+    createApiMutationOptions<void, number>({
+      mutationKey: [...usersKeys.all, "delete-account"],
+      mutationFn: (id) => usersApi.deleteUserAccount(id),
     }),
   updateStudent: () =>
     createApiMutationOptions<

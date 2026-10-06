@@ -104,3 +104,26 @@ export const studentSelfProfileSchema = z.object({
 })
 
 export type StudentSelfProfileValues = z.infer<typeof studentSelfProfileSchema>
+
+// ── Delete account (typed confirmation) ──
+// DELETE /users/:id revokes login permanently (bruno/user/Users - Delete.bru),
+// so the admin must type the account's email exactly — case-sensitive, with
+// surrounding whitespace trimmed — before the confirm button unlocks.
+export const deleteAccountConfirmBaseSchema = z.object({
+  confirmation: z.string(),
+})
+
+export type DeleteAccountConfirmValues = z.infer<
+  typeof deleteAccountConfirmBaseSchema
+>
+
+export function deleteAccountConfirmSchema(email: string) {
+  const expected = email.trim()
+  return deleteAccountConfirmBaseSchema.refine(
+    (v) => v.confirmation.trim() === expected,
+    {
+      path: ["confirmation"],
+      message: "Type the email exactly as shown (it's case-sensitive).",
+    }
+  )
+}

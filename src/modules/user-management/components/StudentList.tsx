@@ -22,6 +22,13 @@ import { ConfirmDialog } from "@/components/confirm-dialog"
 import { ZoomableImage } from "@/components/custom/ZoomableImage"
 import { AccountStatusBadge } from "./account-status-badge"
 import { accountStatusOf } from "../lib/account-status"
+import { useAccountDeletion } from "../hooks/use-account-deletion"
+import {
+  deletableAccountOf,
+  type DeletableAccount,
+} from "../lib/account-deletion"
+import { DeleteAccountButton } from "./delete-account-button"
+import { DeleteAccountDialog } from "./delete-account-dialog"
 import { usePermissions } from "@/lib/permissions/usePermissions"
 import { QueryErrorState } from "@/components/query-error-state"
 import { useAllPrograms, useLevels } from "@/hooks/useCourseStructure"
@@ -172,6 +179,12 @@ export default function StudentsPage({
   const [selected, setSelected] = useState<Student | null>(null)
   const [editing, setEditing] = useState<Student | null>(null)
   const [statusTarget, setStatusTarget] = useState<Student | null>(null)
+  // Delete account (DELETE /users/:id): ADMIN/SUPER_ADMIN only, never the
+  // signed-in user's own account or a super_admin account. Rules and the
+  // role-check rationale are in use-account-deletion.ts (same precedent as
+  // Summary.tsx's isAdmin).
+  const deletion = useAccountDeletion()
+  const [deleting, setDeleting] = useState<DeletableAccount | null>(null)
   const [invoicesFor, setInvoicesFor] = useState<Student | null>(null)
 
   // Major-Program Scoping — sandbox/BACKEND_DEVIATIONS_2026-09-14.md A33.
@@ -296,7 +309,7 @@ export default function StudentsPage({
                 key: "actions",
                 header: "",
                 align: "center",
-                width: "130px",
+                width: "160px",
                 render: (row) => (
                   <div className="flex gap-1">
                     <Button
@@ -363,6 +376,13 @@ export default function StudentsPage({
                         )}
                       </>
                     )}
+                    {/* Delete account — permanent; see use-account-deletion.ts */}
+                    <DeleteAccountButton
+                      state={deletion.stateFor(row.user)}
+                      onRequest={() =>
+                        setDeleting(deletableAccountOf(row.user))
+                      }
+                    />
                   </div>
                 ),
               },
@@ -450,7 +470,7 @@ export default function StudentsPage({
         }
         description={
           statusTarget?.user.is_active
-            ? `${statusTarget.user.first_name} ${statusTarget.user.last_name} will lose access to the portal. Their student record and academic status (${statusTarget.status}) are unchanged, and the account can be reactivated at any time.`
+            ? `${statusTarget.user.first_name} ${statusTarget.user.last_name} will lose access to the portal. Their student record and academic status (${statusTarget.status}) are unchanged, and the account can be reactivated at any time. This is not Delete account: the email, username and password are left as they are.`
             : `${statusTarget?.user.first_name} ${statusTarget?.user.last_name} will regain access to the portal.`
         }
         confirmLabel={
@@ -464,6 +484,12 @@ export default function StudentsPage({
           })
           setStatusTarget(null)
         }}
+      />
+
+      {/* Delete account (permanent sign-in revocation) */}
+      <DeleteAccountDialog
+        account={deleting}
+        onClose={() => setDeleting(null)}
       />
     </div>
   )

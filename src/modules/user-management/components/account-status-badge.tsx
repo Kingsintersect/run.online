@@ -24,8 +24,10 @@ export function AccountStatusBadge({
     <span
       title={
         status === "deleted"
-          ? "Login access was revoked. The record and its history are kept."
-          : undefined
+          ? "Deleted: sign-in revoked permanently and the email freed. The record and its history are kept."
+          : status === "inactive"
+            ? "Deactivated: can be reactivated at any time."
+            : undefined
       }
     >
       <StatusBadge

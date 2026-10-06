@@ -45,10 +45,14 @@ export function useUserStats() {
 
 /* ── Users ── */
 
-export function useUsers(filters?: UserQueryFilters) {
+export function useUsers(
+  filters?: UserQueryFilters,
+  { enabled = true }: { enabled?: boolean } = {}
+) {
   return useQuery({
     ...usersQueryOptions.list(filters),
     staleTime: 1000 * 60 * 2,
+    enabled,
   })
 }
 
@@ -71,6 +75,46 @@ export function useSetUserActive() {
     },
     onError: (err) =>
       toast.error(describeApiError(err, "Failed to update account status")),
+  })
+}
+
+/**
+ * DELETE /users/:id — revokes login permanently and anonymises the account
+ * (bruno/user/Users - Delete.bru). Not the reversible Deactivate above.
+ *
+ * Toasts every outcome itself; callers only decide whether to close their
+ * dialog. 409 means someone already deleted it, so the lists are refreshed
+ * to show the row as Deleted rather than leaving a stale action behind.
+ */
+export function useDeleteUserAccount() {
+  const qc = useQueryClient()
+  const refresh = (id: number) =>
+    Promise.all([
+      // usersKeys.all prefixes every user list (all users, students, tutors,
+      // staff), the stats and each detail key; detail/stats are named too so
+      // the intent is explicit.
+      qc.invalidateQueries({ queryKey: usersKeys.all }),
+      qc.invalidateQueries({ queryKey: usersKeys.detail(id) }),
+      qc.invalidateQueries({ queryKey: usersKeys.stats() }),
+    ])
+  return useMutation({
+    ...usersMutationOptions.deleteAccount(),
+    onSuccess: async (_res, id) => {
+      await refresh(id)
+      toast.success("Account deleted: sign-in revoked")
+    },
+    onError: async (err, id) => {
+      if (err.status === 409) {
+        toast.info("This account has already been deleted.")
+        await refresh(id)
+        return
+      }
+      if (err.status === 403) {
+        toast.error("You're not permitted to delete accounts.")
+        return
+      }
+      toast.error(describeApiError(err, "Failed to delete the account"))
+    },
   })
 }
 

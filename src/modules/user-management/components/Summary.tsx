@@ -23,6 +23,13 @@ import { UserRole } from "@/config/nav.config"
 import type { User } from "@/types/users"
 import { AccountStatusBadge } from "./account-status-badge"
 import { accountStatusOf } from "../lib/account-status"
+import { useAccountDeletion } from "../hooks/use-account-deletion"
+import {
+  deletableAccountOf,
+  type DeletableAccount,
+} from "../lib/account-deletion"
+import { DeleteAccountButton } from "./delete-account-button"
+import { DeleteAccountDialog } from "./delete-account-dialog"
 import {
   PieChart,
   Pie,
@@ -124,6 +131,10 @@ export default function UsersSummaryPage() {
   const { user } = useAppStore()
   const isAdmin =
     user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN
+  // Delete account (DELETE /users/:id) sits behind the same backend admin
+  // gate; see use-account-deletion.ts for the per-row rules.
+  const deletion = useAccountDeletion()
+  const [deleting, setDeleting] = useState<DeletableAccount | null>(null)
 
   return (
     <div className="mx-auto space-y-8 px-4 py-8 sm:px-6 lg:px-8">
@@ -420,19 +431,30 @@ export default function UsersSummaryPage() {
                       key: "actions",
                       header: "",
                       align: "center" as const,
-                      width: "70px",
-                      // A deleted account has no login left to grant roles to.
-                      render: (row: User) =>
-                        accountStatusOf(row) === "deleted" ? null : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setManagingRolesFor(row)}
-                            title="Manage roles"
-                          >
-                            <ShieldCheck className="size-3.5" />
-                          </Button>
-                        ),
+                      width: "100px",
+                      render: (row: User) => (
+                        <div className="flex justify-center gap-1">
+                          {/* A deleted account has no login left to grant
+                            roles to. */}
+                          {accountStatusOf(row) !== "deleted" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setManagingRolesFor(row)}
+                              title="Manage roles"
+                              aria-label="Manage roles"
+                            >
+                              <ShieldCheck className="size-3.5" />
+                            </Button>
+                          )}
+                          <DeleteAccountButton
+                            state={deletion.stateFor(row)}
+                            onRequest={() =>
+                              setDeleting(deletableAccountOf(row))
+                            }
+                          />
+                        </div>
+                      ),
                     },
                   ]
                 : []),
@@ -460,6 +482,11 @@ export default function UsersSummaryPage() {
           onClose={() => setManagingRolesFor(null)}
         />
       )}
+
+      <DeleteAccountDialog
+        account={deleting}
+        onClose={() => setDeleting(null)}
+      />
 
       {showCreateUser && (
         <CreateUserModal onClose={() => setShowCreateUser(false)} />

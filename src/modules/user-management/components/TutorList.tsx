@@ -23,6 +23,13 @@ import Modal from "@/components/custom/Modal"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { AccountStatusBadge } from "./account-status-badge"
 import { accountStatusOf } from "../lib/account-status"
+import { useAccountDeletion } from "../hooks/use-account-deletion"
+import {
+  deletableAccountOf,
+  type DeletableAccount,
+} from "../lib/account-deletion"
+import { DeleteAccountButton } from "./delete-account-button"
+import { DeleteAccountDialog } from "./delete-account-dialog"
 import { BulkImportTutorsModal } from "./BulkImportTutorsModal"
 import { TutorCourseAssignForm } from "./tutor-course-assign-form"
 import { isMajorProgramRequiredError } from "../lib/major-program-required"
@@ -155,13 +162,19 @@ export default function TutorsPage({
   const [editing, setEditing] = useState<Tutor | null>(null)
   const [coursesFor, setCoursesFor] = useState<Tutor | null>(null)
   const [statusTarget, setStatusTarget] = useState<Tutor | null>(null)
+  // Delete account (DELETE /users/:id): ADMIN/SUPER_ADMIN only, never the
+  // signed-in user's own account or a super_admin account. Rules and the
+  // role-check rationale are in use-account-deletion.ts (same precedent as
+  // Summary.tsx's isAdmin).
+  const deletion = useAccountDeletion()
+  const [deleting, setDeleting] = useState<DeletableAccount | null>(null)
 
   // Actions column is built here because it needs the permission flags
   const actionsColumn: Column<Tutor & Record<string, unknown>> = {
     key: "actions",
     header: "",
     align: "center",
-    width: "160px",
+    width: "190px",
     render: (row) => (
       <div className="flex gap-1">
         {/* View — anyone who can see this page */}
@@ -205,6 +218,12 @@ export default function TutorsPage({
             {row.user.is_active ? <UserX size={14} /> : <UserCheck size={14} />}
           </Button>
         )}
+
+        {/* Delete account — permanent; see use-account-deletion.ts */}
+        <DeleteAccountButton
+          state={deletion.stateFor(row.user)}
+          onRequest={() => setDeleting(deletableAccountOf(row.user))}
+        />
 
         {/* Resend onboarding email — tutors:manage only. Not for a deleted
             account: it would mint a new password for a revoked login. */}
@@ -421,7 +440,7 @@ export default function TutorsPage({
         }
         description={
           statusTarget?.user.is_active
-            ? `${statusTarget.user.first_name} ${statusTarget.user.last_name} will lose access to the portal. Their tutor record and course assignments are kept, and the account can be reactivated at any time.`
+            ? `${statusTarget.user.first_name} ${statusTarget.user.last_name} will lose access to the portal. Their tutor record and course assignments are kept, and the account can be reactivated at any time. This is not Delete account: the email, username and password are left as they are.`
             : `${statusTarget?.user.first_name} ${statusTarget?.user.last_name} will regain access to the portal.`
         }
         confirmLabel={
@@ -435,6 +454,12 @@ export default function TutorsPage({
           })
           setStatusTarget(null)
         }}
+      />
+
+      {/* Delete account (permanent sign-in revocation) */}
+      <DeleteAccountDialog
+        account={deleting}
+        onClose={() => setDeleting(null)}
       />
     </div>
   )
