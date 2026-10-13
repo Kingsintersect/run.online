@@ -39,8 +39,10 @@ export const REGISTRATION_ERROR_MESSAGE: Record<string, string> = {
     "Carryover courses must stay on your registration — they can't be removed.",
   CARRYOVER_OFFERING_MISSING:
     "One of your carryover courses isn't being offered this semester. Please contact your department before registering.",
+  // 2026-10-13: registration closes per course, when that course's own exam
+  // begins — not on a blanket semester date.
   REGISTRATION_CLOSED:
-    "Course registration isn't open right now. Check the registration dates for this semester.",
+    "Registration for this course is closed because its exam has already started.",
   STANDING_NOT_ELIGIBLE:
     "Your academic standing doesn't allow registration this semester. Please contact your department.",
   // POST /enrollments codes (bruno/enrollment/Enrollment - Create.bru,
