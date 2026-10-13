@@ -208,11 +208,7 @@ export function RegistrationCourseSelection({
         </div>
       </div>
 
-      <RegistrationCreditMeter
-        units={units}
-        min={context.limits.min_units}
-        max={context.limits.max_units}
-      />
+      <RegistrationCreditMeter units={units} max={context.limits.max_units} />
 
       {stateBlockReason && (
         <div
