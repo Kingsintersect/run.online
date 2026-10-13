@@ -4,26 +4,30 @@ import { cn } from "@/lib/utils"
 
 interface RegistrationCreditMeterProps {
   units: number
-  min: number | null
   max: number | null
 }
 
-// Live credit-load meter against the backend's min/max for this semester.
+// Live credit-load meter against the backend's max for this semester.
 // Advisory only — the backend is what accepts or rejects the load.
+//
+// 2026-10-13: dropped the minimum side entirely (was `min`/`Min N`/"N below
+// the minimum"). There's no enforced minimum to register — a course only
+// stops being registrable once its own exam starts (see
+// RegistrationCourseSelection) — so showing one here read as a real
+// requirement it wasn't, and caused real confusion live (a student with a
+// still-growing curriculum saw "10 below the minimum" and understood it as
+// the reason they couldn't register, when nothing was actually blocking
+// them).
 export function RegistrationCreditMeter({
   units,
-  min,
   max,
 }: RegistrationCreditMeterProps) {
-  const scale = Math.max(max ?? 0, units, min ?? 0, 1)
+  const scale = Math.max(max ?? 0, units, 1)
   const pct = Math.min(100, Math.round((units / scale) * 100))
   const over = max !== null && units > max
-  const under = min !== null && units < min
   const status = over
     ? `${units - (max ?? 0)} over the maximum`
-    : under
-      ? `${(min ?? 0) - units} below the minimum`
-      : "Within the allowed load"
+    : "Within the allowed load"
 
   return (
     <div className="space-y-1.5">
@@ -32,8 +36,6 @@ export function RegistrationCreditMeter({
           {units} credit unit{units === 1 ? "" : "s"} selected
         </span>
         <span className="text-muted-foreground">
-          {min !== null && <>Min {min}</>}
-          {min !== null && max !== null && " · "}
           {max !== null && <>Max {max}</>}
         </span>
       </div>
@@ -51,28 +53,15 @@ export function RegistrationCreditMeter({
             "h-full rounded-full transition-all",
             over
               ? "bg-red-500 dark:bg-red-400"
-              : under
-                ? "bg-amber-500 dark:bg-amber-400"
-                : "bg-emerald-500 dark:bg-emerald-400"
+              : "bg-emerald-500 dark:bg-emerald-400"
           )}
           style={{ width: `${pct}%` }}
         />
-        {min !== null && (
-          <span
-            aria-hidden
-            className="absolute top-0 h-full w-px bg-foreground/40"
-            style={{ left: `${Math.round((min / scale) * 100)}%` }}
-          />
-        )}
       </div>
       <p
         className={cn(
           "text-[11px]",
-          over
-            ? "text-red-700 dark:text-red-400"
-            : under
-              ? "text-amber-700 dark:text-amber-400"
-              : "text-muted-foreground"
+          over ? "text-red-700 dark:text-red-400" : "text-muted-foreground"
         )}
       >
         {status}

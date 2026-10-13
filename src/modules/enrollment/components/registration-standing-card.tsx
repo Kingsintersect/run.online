@@ -5,9 +5,18 @@ import StatusBadge from "@/components/custom/StatusBadge"
 import { OutcomeBadge } from "@/modules/progression/components/outcome-badge"
 import { OUTCOME_EXPLANATION } from "../lib/registration-copy"
 import type { RegistrationContext } from "../types"
+import type { Student } from "@/types/users"
 
 interface RegistrationStandingCardProps {
   context: RegistrationContext
+  // Found live 2026-10-13: this card used to say "Your level isn't set yet"
+  // whenever there was no StudentSessionStanding row for the session yet,
+  // even though the student's level and programme were set and correct —
+  // confirmed both by their own profile and by this same page's course list
+  // resolving fine off it. That standing row is session bookkeeping, not the
+  // source of truth for the student's level — GET /users/students/me is, so
+  // it's the fallback here instead of a vague "not set" message.
+  student: Student | null
 }
 
 function formatDate(value: string | null): string | null {
@@ -23,12 +32,17 @@ function formatDate(value: string | null): string | null {
 // value is the backend's; nothing here is derived.
 export function RegistrationStandingCard({
   context,
+  student,
 }: RegistrationStandingCardProps) {
   const { standing, previous_standing: previous, semester } = context
   const explanation = previous ? OUTCOME_EXPLANATION[previous.outcome] : null
   const closes = formatDate(semester.registration_end)
   const opens = formatDate(semester.registration_start)
   const carryoverUnits = previous?.outstanding_carryover_units ?? 0
+  const levelLabel =
+    standing?.level.name ??
+    (student?.current_level != null ? `${student.current_level} Level` : null)
+  const programLabel = standing?.program.name ?? student?.program_name ?? null
 
   return (
     <section
@@ -49,10 +63,10 @@ export function RegistrationStandingCard({
               id="registration-standing-title"
               className="mt-1 text-lg font-bold text-foreground"
             >
-              {standing ? standing.level.name : "Your level isn't set yet"}
+              {levelLabel ?? "Level pending"}
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {standing?.program.name ?? "Programme pending"}
+              {programLabel ?? "Programme pending"}
             </p>
           </div>
         </div>

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { AlertTriangle, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useMyStudentId } from "@/hooks/use-my-student-id"
+import { useMyStudent, useMyStudentId } from "@/hooks/use-my-student-id"
 import { useRegistrationContext } from "../hooks/use-registration-context"
 import { CourseRegistration } from "./course-registration"
 import { RegistrationCourseSelection } from "./registration-course-selection"
@@ -34,6 +34,7 @@ export function SessionRegistration() {
     notFound: studentMissing,
     refetch: retryStudent,
   } = useMyStudentId()
+  const { student } = useMyStudent()
   const query = useRegistrationContext()
 
   // Registration is meaningless without the student's own record, so a
@@ -130,7 +131,7 @@ export function SessionRegistration() {
   const context = query.data.data
   return (
     <div className="space-y-6">
-      <RegistrationStandingCard context={context} />
+      <RegistrationStandingCard context={context} student={student} />
       <RegistrationDebtGate context={context} />
       <RegistrationSlipCard context={context} />
       <RegistrationCourseSelection

@@ -177,6 +177,11 @@ export const CarryoverCourseSchema = z.object({
   last_attempt_session: z.string().nullable(),
   locked: z.boolean(),
   offering_missing: z.boolean(),
+  // 2026-10-13 — registration for a course now stays open until that course's
+  // own exam begins, not a blanket semester date. null when no exam is
+  // scheduled yet, which means no cutoff at all.
+  exam_starts_at: z.string().nullable().optional(),
+  registration_closed: z.boolean().optional(),
 })
 
 export const LevelCourseSchema = z.object({
@@ -195,6 +200,8 @@ export const LevelCourseSchema = z.object({
       }),
     ])
   ),
+  exam_starts_at: z.string().nullable().optional(),
+  registration_closed: z.boolean().optional(),
 })
 
 export const RegistrationContextSchema = z.object({

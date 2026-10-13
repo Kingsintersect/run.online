@@ -74,7 +74,10 @@ export function RegistrationCourseSelection({
   const [selected, setSelected] = useState<Set<number>>(() => {
     const initial = new Set<number>()
     for (const c of context.carryover_courses)
-      if (c.offering_id !== null) initial.add(c.offering_id)
+      // Don't pre-select a course whose own exam has already started — it
+      // can't actually be registered for this semester (2026-10-13).
+      if (c.offering_id !== null && !c.registration_closed)
+        initial.add(c.offering_id)
     return initial
   })
   const [errors, setErrors] = useState<SubmitError[]>([])
@@ -205,11 +208,7 @@ export function RegistrationCourseSelection({
         </div>
       </div>
 
-      <RegistrationCreditMeter
-        units={units}
-        min={context.limits.min_units}
-        max={context.limits.max_units}
-      />
+      <RegistrationCreditMeter units={units} max={context.limits.max_units} />
 
       {stateBlockReason && (
         <div
@@ -240,15 +239,19 @@ export function RegistrationCourseSelection({
                 key={c.course.id}
                 className={cn(
                   "flex gap-3 rounded-2xl border p-3",
-                  c.offering_missing
+                  c.offering_missing || c.registration_closed
                     ? "border-red-500/40 bg-red-500/5 dark:bg-red-500/10"
                     : "border-violet-500/30 bg-violet-500/5 dark:bg-violet-500/10"
                 )}
               >
                 <Checkbox
                   id={id}
-                  checked={checked && !c.offering_missing}
-                  disabled={locked || c.offering_missing}
+                  checked={
+                    checked && !c.offering_missing && !c.registration_closed
+                  }
+                  disabled={
+                    locked || c.offering_missing || c.registration_closed
+                  }
                   onCheckedChange={() =>
                     c.offering_id !== null && toggle(c.offering_id)
                   }
@@ -302,6 +305,18 @@ export function RegistrationCourseSelection({
                       contact your department before registering.
                     </p>
                   )}
+                  {!c.offering_missing && c.registration_closed && (
+                    <p className="mt-2 flex gap-1.5 text-xs text-red-700 dark:text-red-400">
+                      <Clock
+                        size={13}
+                        className="mt-0.5 shrink-0"
+                        aria-hidden
+                      />
+                      This course&apos;s exam has already started, so
+                      registration for it is closed this semester. Please
+                      contact your department.
+                    </p>
+                  )}
                 </div>
               </div>
             )
@@ -320,7 +335,8 @@ export function RegistrationCourseSelection({
         ) : (
           context.level_courses.map((c) => {
             const already = registered.has(c.offering_id)
-            const blocked = !already && !c.prerequisites_met
+            const examStarted = !already && c.registration_closed === true
+            const blocked = !already && (!c.prerequisites_met || examStarted)
             const id = `level-${c.offering_id}`
             return (
               <div
@@ -364,10 +380,16 @@ export function RegistrationCourseSelection({
                       <StatusBadge label="Registered" variant="success" dot />
                     )}
                     <span>{c.course.credit_units} units</span>
-                    {blocked && (
+                    {examStarted ? (
                       <span className="text-amber-700 dark:text-amber-400">
-                        Needs {prerequisiteNames(c) || "a prerequisite"} first
+                        Exam already started — registration closed
                       </span>
+                    ) : (
+                      blocked && (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          Needs {prerequisiteNames(c) || "a prerequisite"} first
+                        </span>
+                      )
                     )}
                   </p>
                 </div>
