@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { AlertTriangle, Loader2, Lock, Phone } from "lucide-react"
+import { AlertTriangle, Clock, Loader2, Lock, Phone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import StatusBadge from "@/components/custom/StatusBadge"
@@ -33,6 +33,30 @@ function prerequisiteNames(course: LevelCourse): string {
   return course.missing_prerequisites
     .map((p) => (typeof p === "string" ? p : p.code))
     .join(", ")
+}
+
+function formatDate(value: string | null): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleDateString(undefined, { dateStyle: "medium" })
+}
+
+function windowClosedMessage(context: RegistrationContext): string {
+  const opens = formatDate(context.semester.registration_start)
+  const closes = formatDate(context.semester.registration_end)
+  if (!opens && !closes) return "Registration isn't open for this semester."
+  const closedAlready =
+    context.semester.registration_end !== null &&
+    new Date(context.semester.registration_end) < new Date()
+  const window = [
+    opens ? `opened ${opens}` : null,
+    closes ? `${closedAlready ? "closed" : "closes"} ${closes}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
+  return `Registration isn't open for this semester (window ${window}). Contact your department or the registry if you still need to register.`
 }
 
 // Course selection driven entirely by the RegistrationContext: carryovers
@@ -94,17 +118,29 @@ export function RegistrationCourseSelection({
     ]),
   ].filter((id): id is number => id !== null && !registered.has(id))
 
-  const blockedReason = !context.semester.is_open
-    ? "Registration isn't open for this semester."
+  // Split from the trivial "nothing picked yet" case below: this is a real,
+  // structural reason registration can't happen at all, regardless of what
+  // the student selects — found live 2026-10-13: the credit-load meter's
+  // amber "N below the minimum" reads as the blocker because it's the most
+  // visually prominent thing on the page, when the actual blocker was the
+  // registration window having closed. The meter is advisory only (see
+  // RegistrationCreditMeter) and never disables Submit — it never told the
+  // whole story on its own, so a structural block now gets its own
+  // unmissable alert instead of living in the one line of muted text above
+  // the button.
+  const stateBlockReason = !context.semester.is_open
+    ? windowClosedMessage(context)
     : !context.gate.can_register
       ? "Clear the issue above before registering."
       : missingOffering
         ? "One of your carryover courses isn't offered this semester — contact your department before registering."
         : studentId === null
           ? "Your student record couldn't be resolved yet."
-          : toSubmit.length === 0
-            ? "Select at least one course to register."
-            : null
+          : null
+
+  const blockedReason =
+    stateBlockReason ??
+    (toSubmit.length === 0 ? "Select at least one course to register." : null)
 
   const codeByOffering = new Map<number, string>()
   for (const c of context.carryover_courses)
@@ -174,6 +210,21 @@ export function RegistrationCourseSelection({
         min={context.limits.min_units}
         max={context.limits.max_units}
       />
+
+      {stateBlockReason && (
+        <div
+          role="alert"
+          className="flex gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-300"
+        >
+          <Clock size={15} className="mt-0.5 shrink-0" aria-hidden />
+          <div className="space-y-0.5">
+            <p className="font-semibold">
+              Why you can&apos;t submit registration
+            </p>
+            <p>{stateBlockReason}</p>
+          </div>
+        </div>
+      )}
 
       {context.carryover_courses.length > 0 && (
         <fieldset className="space-y-2">
